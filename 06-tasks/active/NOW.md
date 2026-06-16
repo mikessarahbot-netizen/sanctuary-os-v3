@@ -23,8 +23,8 @@ Concrete WebSocket transport · production event broker · durable event store �
 - [x] Add validated adapter-free Planning event publisher
 - [x] Add focused command/readiness event publisher tests
 - [x] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning service event publication can be exercised through a validated adapter-free event publisher that records realtime handoff events in order; gates pass; the slice is committed, pushed, and documented in session handoff.

@@ -2,6 +2,25 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 14:16 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added a validated adapter-free API event publisher boundary that records Planning realtime handoff events in order.
+- Added request-safe metadata to Planning event envelopes by carrying `requestId` alongside tenant, actor, aggregate, event type, timestamp, schema version, and payload.
+- Tightened event validation for `service.published`, `assignment.statusChanged`, and `readiness.updated` with strict payload schemas and event-specific schema-version checks.
+- Added focused event publisher tests for ordered recording, invalid payload rejection, schema-version mismatch rejection, and clearing recorded events.
+- Added Planning command/readiness service tests that exercise publication through the validated in-memory event publisher.
+- Ran and passed focused API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `644cd5f feat(events): add validated planning event publisher`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Implement an adapter-free validated API job dispatcher for Planning CCLI reporting handoff.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:11 EDT · feature/planning-readiness-domain
 
 Tasks completed:
