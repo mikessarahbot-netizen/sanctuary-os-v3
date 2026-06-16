@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:37 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free DB Planning rehearsal acknowledgement contracts for tenant-scoped volunteer asset acknowledgements and readiness signals.
+- Added API Planning rehearsal acknowledgement service contracts for recording and listing acknowledgements without media storage, chart rendering, notification integration, UI, GraphQL wiring, or raw media payload handling.
+- Enforced Planning acknowledgement write/read roles, tenant scope, service scope, service-item scope, asset scope, assignment/person scope, request context propagation, and create/read persistence operation shapes.
+- Added focused DB/API tests for input validation, strict raw media rejection, role rejection, tenant/service/item/asset/assignment/person guards, operation shape, and adapter-free repository boundaries.
+- Ran and passed focused DB/API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:30 EDT · feature/planning-readiness-domain
 
 Tasks completed:

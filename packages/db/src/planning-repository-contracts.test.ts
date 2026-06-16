@@ -6,13 +6,16 @@ import {
   ListPlanningServicesPersistenceOperationSchema,
   ListPlanningServiceTemplatesPersistenceOperationSchema,
   ListPlanningCcliUsageLogsPersistenceOperationSchema,
+  ListPlanningRehearsalAcknowledgementsPersistenceOperationSchema,
   ListPlanningRehearsalAssetVisibilityPersistenceOperationSchema,
   RecordPlanningCcliUsagePersistenceOperationSchema,
+  RecordPlanningRehearsalAcknowledgementPersistenceOperationSchema,
   RepositoryWriteOptionsSchema,
   SetPlanningRehearsalAssetVisibilityPersistenceOperationSchema,
   UpdatePlanningServicePersistenceOperationSchema,
   type PlanningCcliUsageLogPersistenceRecord,
   type PlanningReadinessPersistenceRecord,
+  type PlanningRehearsalAcknowledgementPersistenceRecord,
   type PlanningRehearsalAssetVisibilityPersistenceRecord,
   type PlanningServicePersistenceRecord,
   type PlanningServiceTemplatePersistenceRecord,
@@ -20,6 +23,7 @@ import {
 } from "./index.js";
 import type {
   PlanningCcliUsageLogPersistenceRepository,
+  PlanningRehearsalAcknowledgementPersistenceRepository,
   PlanningRehearsalAssetVisibilityPersistenceRepository,
   PlanningServiceCommandPersistenceRepository,
   PlanningServiceQueryPersistenceRepository
@@ -101,6 +105,19 @@ const rehearsalAssetVisibilityRecord: PlanningRehearsalAssetVisibilityPersistenc
   title: "Open The Gates Chart",
   updatedAt: "2026-06-21T13:00:00.000Z",
   visibleToRoleIds: ["role_vocal", "role_guitar"]
+};
+
+const rehearsalAcknowledgementRecord: PlanningRehearsalAcknowledgementPersistenceRecord = {
+  acknowledgedAt: "2026-06-21T15:00:00.000Z",
+  assignmentId: "assignment_1",
+  assetId: "asset_chart_1",
+  notes: "Reviewed chart and ready for rehearsal.",
+  personId: "person_1",
+  readinessSignal: "ready",
+  rehearsalAcknowledgementId: "rehearsal_ack_1",
+  serviceId: "service_1",
+  serviceItemId: "item_1",
+  tenantId: "tenant_1"
 };
 
 describe("Planning repository contracts", () => {
@@ -370,6 +387,70 @@ describe("Planning repository contracts", () => {
             tenantId: "tenant_1"
           },
           intent: "update"
+        }
+      })
+    ).toThrow();
+  });
+
+  it("validates adapter-free Planning rehearsal acknowledgement operation shapes", () => {
+    expect(
+      RecordPlanningRehearsalAcknowledgementPersistenceOperationSchema.parse({
+        input: {
+          acknowledgedAt: "2026-06-21T15:00:00.000Z",
+          assignmentId: "assignment_1",
+          assetId: "asset_chart_1",
+          notes: "Reviewed chart and ready for rehearsal.",
+          personId: "person_1",
+          readinessSignal: "ready",
+          serviceId: "service_1",
+          serviceItemId: "item_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_ack",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
+      }).input.readinessSignal
+    ).toBe("ready");
+
+    expect(
+      ListPlanningRehearsalAcknowledgementsPersistenceOperationSchema.parse({
+        input: {
+          assignmentId: "assignment_1",
+          personId: "person_1",
+          serviceId: "service_1",
+          serviceItemId: "item_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_ack_list",
+            tenantId: "tenant_1"
+          }
+        }
+      }).input.assignmentId
+    ).toBe("assignment_1");
+
+    expect(() =>
+      RecordPlanningRehearsalAcknowledgementPersistenceOperationSchema.parse({
+        input: {
+          acknowledgedAt: "not-a-date",
+          assignmentId: "assignment_1",
+          mediaBlob: "no media payloads",
+          personId: "person_1",
+          readinessSignal: "ready",
+          serviceId: "service_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_ack",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
         }
       })
     ).toThrow();
@@ -741,5 +822,77 @@ describe("Planning repository contracts", () => {
         }
       })
     ).resolves.toEqual([rehearsalAssetVisibilityRecord]);
+  });
+
+  it("defines an adapter-free Planning rehearsal acknowledgement persistence repository interface", async () => {
+    const repository: PlanningRehearsalAcknowledgementPersistenceRepository = {
+      listRehearsalAcknowledgements: (operation) =>
+        Promise.resolve([
+          {
+            ...rehearsalAcknowledgementRecord,
+            assignmentId:
+              operation.input.assignmentId ?? rehearsalAcknowledgementRecord.assignmentId,
+            personId: operation.input.personId ?? rehearsalAcknowledgementRecord.personId,
+            serviceId: operation.input.serviceId,
+            serviceItemId:
+              operation.input.serviceItemId ?? rehearsalAcknowledgementRecord.serviceItemId,
+            tenantId: operation.options.context.tenantId
+          }
+        ]),
+      recordRehearsalAcknowledgement: (operation) =>
+        Promise.resolve({
+          ...rehearsalAcknowledgementRecord,
+          acknowledgedAt: operation.input.acknowledgedAt,
+          assignmentId: operation.input.assignmentId,
+          assetId: operation.input.assetId,
+          notes: operation.input.notes,
+          personId: operation.input.personId,
+          readinessSignal: operation.input.readinessSignal,
+          serviceId: operation.input.serviceId,
+          serviceItemId: operation.input.serviceItemId,
+          tenantId: operation.options.context.tenantId
+        })
+    };
+
+    await expect(
+      repository.recordRehearsalAcknowledgement({
+        input: {
+          acknowledgedAt: "2026-06-21T15:00:00.000Z",
+          assignmentId: "assignment_1",
+          assetId: "asset_chart_1",
+          notes: "Reviewed chart and ready for rehearsal.",
+          personId: "person_1",
+          readinessSignal: "ready",
+          serviceId: "service_1",
+          serviceItemId: "item_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_ack",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
+      })
+    ).resolves.toEqual(rehearsalAcknowledgementRecord);
+
+    await expect(
+      repository.listRehearsalAcknowledgements({
+        input: {
+          assignmentId: "assignment_1",
+          personId: "person_1",
+          serviceId: "service_1",
+          serviceItemId: "item_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_ack_list",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).resolves.toEqual([rehearsalAcknowledgementRecord]);
   });
 });

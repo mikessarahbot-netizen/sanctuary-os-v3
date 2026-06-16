@@ -19,12 +19,12 @@ Implement adapter-free Planning rehearsal acknowledgement contracts in the DB/AP
 Database migrations · concrete production persistence adapter · UI components · media storage · chart rendering · notifications · mobile rehearsal UX · GraphQL resolver wiring · GraphQL server runtime
 
 ## Progress
-- [ ] Add DB rehearsal acknowledgement persistence contracts
-- [ ] Add API Planning rehearsal acknowledgement service contracts
-- [ ] Add focused DB/API contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add DB rehearsal acknowledgement persistence contracts
+- [x] Add API Planning rehearsal acknowledgement service contracts
+- [x] Add focused DB/API contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning rehearsal acknowledgement contracts are Zod-validated, tenant-scoped, role-gated, adapter-free, covered by focused DB/API tests, committed, pushed, and documented in session handoff.
