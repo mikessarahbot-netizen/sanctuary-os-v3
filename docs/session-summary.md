@@ -2,6 +2,26 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:53 EDT · feature/planning-db-release-check
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, ADR 0004, and current `packages/db` SQL adapter/migration/test code.
+- Created release-check branch `feature/planning-db-release-check` from `feature/planning-readiness-domain` because that branch was already checked out in another worktree and this worktree was detached at the same commit.
+- Audited implemented Planning SQL command/query/CCLI/rehearsal/readiness adapters and migration artifacts against the DB plan and ADRs.
+- Verified operation Zod parsing, returned-row validation, tenant predicates, audit metadata, confirmation-intent audit handling, transaction propagation, no secret/contact/media/raw prompt payload columns, and live-DB-free test coverage.
+- Wrote `07-reviews/architecture/planning-db-persistence-release-check.md` with a no-go recommendation for production API composition until two findings are fixed:
+  - Song references are not tenant-validated against `planning_song_library_items` before service item and CCLI usage writes.
+  - Duplicate service-item IDs can partially reorder rows before the adapter throws.
+- Ran `pnpm install --frozen-lockfile` because this worktree was missing `node_modules`; lockfile stayed unchanged.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Updated `06-tasks/active/NOW.md` with release-check status and the next task.
+
+Next task:
+- Fix Planning DB persistence release-check findings for tenant-scoped song references and duplicate service-item reorder rejection, then rerun DB-focused and full gates.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:49 EDT · feature/planning-readiness-domain
 
 Tasks completed:

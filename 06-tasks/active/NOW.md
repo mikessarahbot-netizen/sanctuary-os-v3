@@ -18,15 +18,18 @@ Run a Planning DB persistence release-check.
 New production database wiring · live PostgreSQL execution · connection strings or secrets · GraphQL/resolver changes · API service wiring · UI · queue workers · vendor SDKs · Auth0 · ORM/query-builder adoption · new feature behavior beyond defects directly found by this release-check
 
 ## Progress
-- [ ] Re-sync with required docs, ADRs, contracts, adapters, and migration code
-- [ ] Audit implemented SQL persistence against DB plan and ADRs
-- [ ] Run lint, typecheck, and tests
-- [ ] Write architecture review findings
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs, ADRs, contracts, adapters, and migration code
+- [x] Audit implemented SQL persistence against DB plan and ADRs
+- [x] Run lint, typecheck, and tests
+- [x] Write architecture review findings
+- [x] Commit and push slice
+- [x] Session handoff
+
+## Release-check result
+`07-reviews/architecture/planning-db-persistence-release-check.md` records a no-go for production API composition until song-reference tenant validation and duplicate service-item reorder rejection are fixed. Lint, typecheck, and tests pass after restoring dependencies with `pnpm install --frozen-lockfile`.
 
 ## Done when
 `07-reviews/architecture/planning-db-persistence-release-check.md` records evidence-backed findings for the implemented Planning SQL persistence layer, gates pass, the slice is committed and pushed, and the next task is documented in session handoff.
 
 ## Next task after this
-Wire API composition to select in-memory/test or production Planning persistence adapters by environment.
+Fix Planning DB persistence release-check findings for tenant-scoped song references and duplicate service-item reorder rejection.
