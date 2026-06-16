@@ -23,8 +23,9 @@ Business logic · database migrations · production GraphQL resolvers · UI comp
 - [x] Scaffold `packages/church-context`
 - [x] Commit ChurchContext scaffold locally (`chore(church-context): scaffold context package`)
 - [ ] Push ChurchContext scaffold (`origin` remote not configured)
-- [ ] Scaffold `packages/db`
-- [ ] Commit and push DB scaffold
+- [x] Scaffold `packages/db`
+- [x] Commit DB scaffold locally (`chore(db): scaffold persistence contracts`)
+- [ ] Push DB scaffold (`origin` remote not configured)
 - [ ] Run scaffold release check
 - [ ] Write architecture review findings
 
