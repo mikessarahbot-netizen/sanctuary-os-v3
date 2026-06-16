@@ -2,6 +2,25 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:49 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, existing `packages/db` SQL adapter code, and current Planning readiness contracts.
+- Identified that readiness lookup already existed in the Planning query SQL repository, while readiness save needed a narrow additive DB persistence contract.
+- Added `08-decisions/0004-add-readiness-save-persistence-contract.md` to record the additive readiness save contract decision.
+- Added `PlanningReadinessPersistenceRepository.saveServiceReadiness` and its Zod operation schema in `packages/db`.
+- Added the SQL-first Planning readiness adapter in `packages/db` with `saveServiceReadiness` and `getServiceReadiness`.
+- Covered tenant/result mismatch rejection, service ownership checks, JSONB readiness fields, upsert behavior, request/actor audit metadata, mutation intent, transaction propagation, row validation, and no contact/PII/prompt/secret SQL fields with live-DB-free adapter tests.
+- Kept the slice free of live database execution, connection strings, secrets, GraphQL/resolver changes, API service wiring, UI, workers, vendor SDKs, Auth0, command adapter changes, CCLI adapter changes, rehearsal tracking adapter changes, and ORM/query-builder adoption.
+- Ran and passed `pnpm --filter @sanctuary-os/db test -- planning-readiness-sql-repository.test.ts planning-repository-contracts.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `2e03202 feat(db): add planning readiness sql adapter`.
+
+Next task:
+- Run a Planning DB persistence release-check against `05-plans/db-plan.md`, ADR 0003/0004, and implemented SQL adapters, then write findings to `07-reviews/architecture/`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:42 EDT · feature/planning-readiness-domain
 
 Tasks completed:
