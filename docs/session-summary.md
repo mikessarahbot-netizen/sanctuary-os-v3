@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 14:40 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Wired Planning GraphQL CCLI reporting job schedule/status contracts to the existing Planning CCLI usage service boundary.
+- Added SDL contracts for scheduling CCLI reporting jobs and polling job status, including job IDs, job type, status, tenant/request/actor metadata, timestamps, payload, and safe error messages.
+- Added thin resolvers that Zod-parse GraphQL-style `{ input }` args/context and delegate to `scheduleReportingJob` / `getReportingJobStatus` without queue workers, vendor calls, credentials, reports, UI, or notifications.
+- Added focused GraphQL tests for resolver delegation, request context propagation, failed status shape with safe error message, missing-job null behavior, invalid input rejection, and unconfigured service propagation.
+- Ran and passed focused GraphQL tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+- Committed and pushed `c6506aa feat(planning): add ccli reporting job graphql`.
+
+Next task:
+- Wire Planning GraphQL CCLI usage log record/list contracts to the service boundary.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:30 EDT · feature/planning-readiness-domain
 
 Tasks completed:
