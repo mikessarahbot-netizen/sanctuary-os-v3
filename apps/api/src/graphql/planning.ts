@@ -11,6 +11,7 @@ import {
   AddPlanningServiceItemCommandSchema,
   AssignPlanningVolunteerCommandSchema,
   CreatePlanningServiceCommandSchema,
+  DuplicatePlanningServiceFromTemplateCommandSchema,
   ReorderPlanningServiceItemsCommandSchema,
   UpdatePlanningAssignmentStatusCommandSchema,
   UpdatePlanningServiceCommandSchema,
@@ -283,6 +284,7 @@ export interface PlanningQueryResolvers {
 
 export interface PlanningMutationResolvers {
   readonly createService: GraphqlMutationResolver<PlanningServiceRecord>;
+  readonly duplicateServiceFromTemplate: GraphqlMutationResolver<PlanningServiceRecord>;
   readonly updateService: GraphqlMutationResolver<PlanningServiceRecord>;
   readonly addServiceItem: GraphqlMutationResolver<PlanningServiceItemRecord>;
   readonly updateServiceItem: GraphqlMutationResolver<PlanningServiceItemRecord>;
@@ -452,6 +454,22 @@ export const createPlanningGraphqlResolvers = (
 
       return dependencies.planningCommandService.createService(
         CreatePlanningServiceCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    duplicateServiceFromTemplate: async (
+      _parent,
+      args,
+      context
+    ): Promise<PlanningServiceRecord> => {
+      const graphqlContext = parseContext(context);
+
+      return dependencies.planningCommandService.duplicateServiceFromTemplate(
+        DuplicatePlanningServiceFromTemplateCommandSchema.parse({
           actor: graphqlContext.actor,
           input: parseInput(args),
           requestId: graphqlContext.requestId

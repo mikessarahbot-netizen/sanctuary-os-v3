@@ -17,12 +17,12 @@ Wire Planning GraphQL `duplicateServiceFromTemplate(input)` resolver contracts t
 Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · CCLI/SongSelect implementation · AI setlist generation · GraphQL server runtime
 
 ## Progress
-- [ ] Add GraphQL duplicateServiceFromTemplate resolver contract
-- [ ] Delegate resolver to Planning command service
-- [ ] Add duplicateServiceFromTemplate resolver contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add GraphQL duplicateServiceFromTemplate resolver contract
+- [x] Delegate resolver to Planning command service
+- [x] Add duplicateServiceFromTemplate resolver contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning GraphQL `duplicateServiceFromTemplate(input)` resolver contracts delegate to the Planning command service, remain adapter-free and server-runtime-free, are validated by tests, committed, pushed, and documented in session handoff.

@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:06 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Wired the Planning GraphQL `duplicateServiceFromTemplate(input)` resolver contract to the existing Planning command service.
+- Kept the resolver thin by parsing GraphQL-style `{ input }` args/context, forwarding `AuthenticatedActor` and `requestId`, and delegating to `PlanningCommandService.duplicateServiceFromTemplate`.
+- Added focused GraphQL tests for resolver delegation, request context propagation, returned duplicated-service data, and invalid duplicate input rejection before service delegation.
+- Ran and passed focused API GraphQL tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md` and `05-plans/api-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:04 EDT · feature/planning-readiness-domain
 
 Tasks completed:

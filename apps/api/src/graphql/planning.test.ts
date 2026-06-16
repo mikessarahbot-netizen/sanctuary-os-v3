@@ -243,6 +243,81 @@ describe("createPlanningGraphqlResolvers", () => {
     });
   });
 
+  it("delegates duplicateServiceFromTemplate to the Planning command service with actor and request scope", async () => {
+    const duplicatedServiceRecord: PlanningServiceRecord = {
+      ...serviceRecord,
+      serviceId: "service_from_template",
+      startsAt: "2026-06-28T14:00:00.000Z",
+      title: "Template Sunday"
+    };
+    const duplicateServiceFromTemplate = vi.fn<
+      PlanningCommandService["duplicateServiceFromTemplate"]
+    >(() => Promise.resolve(duplicatedServiceRecord));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService({
+        duplicateServiceFromTemplate
+      }),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.duplicateServiceFromTemplate(
+        undefined,
+        {
+          input: {
+            serviceTemplateId: "template_sunday",
+            startsAt: "2026-06-28T14:00:00.000Z",
+            title: "Template Sunday"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_duplicate"
+        }
+      )
+    ).resolves.toEqual(duplicatedServiceRecord);
+
+    expect(duplicateServiceFromTemplate).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        serviceTemplateId: "template_sunday",
+        startsAt: "2026-06-28T14:00:00.000Z",
+        title: "Template Sunday"
+      },
+      requestId: "request_duplicate"
+    });
+  });
+
+  it("rejects invalid duplicateServiceFromTemplate input before delegating", async () => {
+    const duplicateServiceFromTemplate = vi.fn<
+      PlanningCommandService["duplicateServiceFromTemplate"]
+    >(() => Promise.resolve(serviceRecord));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService({
+        duplicateServiceFromTemplate
+      }),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.duplicateServiceFromTemplate(
+        undefined,
+        {
+          input: {
+            serviceTemplateId: "",
+            startsAt: "not-a-date",
+            title: ""
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(duplicateServiceFromTemplate).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid publish input before delegating to the command service", async () => {
     const updateService = vi.fn<PlanningCommandService["updateService"]>(() =>
       Promise.resolve(serviceRecord)
