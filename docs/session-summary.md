@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 14:30 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free API job status transition contracts for async job workers.
+- Added strict Zod validation for transition requests, including tenant/request/actor metadata, non-queued target statuses, and bounded safe error messages only on failed transitions.
+- Extended the in-memory API job dispatcher with a status writer that preserves original enqueue metadata, keeps `enqueuedAt`, updates `updatedAt`, returns null for missing/cross-tenant jobs, and rejects illegal terminal/regression transitions.
+- Added focused API tests for forward transitions, missing/cross-tenant transitions, failed safe-message requirements, schema rejection of queued transitions, and terminal-state rejection.
+- Ran and passed focused API checks, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `fe346aa feat(jobs): add status transition contracts`.
+
+Next task:
+- Wire Planning GraphQL CCLI reporting job schedule/status contracts to the service boundary.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:27 EDT · feature/planning-readiness-domain
 
 Tasks completed:
