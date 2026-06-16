@@ -52,6 +52,14 @@ export const PlanningCcliUsageReportingStatusPersistenceSchema = z.enum([
   "skipped"
 ]);
 
+export const PlanningRehearsalAssetTypePersistenceSchema = z.enum([
+  "chart",
+  "audio",
+  "video",
+  "document",
+  "other"
+]);
+
 export const PlanningPersistenceConfirmationIntentSchema = z.object({
   confirmed: z.literal(true),
   reason: NonEmptyStringSchema
@@ -147,6 +155,21 @@ export const PlanningCcliUsageLogPersistenceRecordSchema = z
   })
   .strict();
 
+export const PlanningRehearsalAssetVisibilityPersistenceRecordSchema = z
+  .object({
+    assetId: NonEmptyStringSchema,
+    assetType: PlanningRehearsalAssetTypePersistenceSchema,
+    isVisible: z.boolean(),
+    rehearsalAssetVisibilityId: NonEmptyStringSchema,
+    serviceId: NonEmptyStringSchema,
+    serviceItemId: NonEmptyStringSchema,
+    tenantId: NonEmptyStringSchema,
+    title: NonEmptyStringSchema,
+    updatedAt: z.string().datetime(),
+    visibleToRoleIds: z.array(NonEmptyStringSchema).min(1)
+  })
+  .strict();
+
 export const PlanningServicesPersistenceFilterInputSchema = z.object({
   serviceTypeId: OptionalNonEmptyStringSchema,
   startsAtOrAfter: z.string().datetime().optional(),
@@ -204,6 +227,13 @@ export const ListPlanningCcliUsageLogsPersistenceInputSchema = z
   .object({
     reportingStatus: PlanningCcliUsageReportingStatusPersistenceSchema.optional(),
     serviceId: NonEmptyStringSchema
+  })
+  .strict();
+
+export const ListPlanningRehearsalAssetVisibilityPersistenceInputSchema = z
+  .object({
+    serviceId: NonEmptyStringSchema,
+    serviceItemId: OptionalNonEmptyStringSchema
   })
   .strict();
 
@@ -277,6 +307,19 @@ export const RecordPlanningCcliUsagePersistenceInputSchema = z
   })
   .strict();
 
+export const SetPlanningRehearsalAssetVisibilityPersistenceInputSchema = z
+  .object({
+    assetId: NonEmptyStringSchema,
+    assetType: PlanningRehearsalAssetTypePersistenceSchema,
+    isVisible: z.boolean(),
+    serviceId: NonEmptyStringSchema,
+    serviceItemId: NonEmptyStringSchema,
+    title: NonEmptyStringSchema,
+    updatedAt: z.string().datetime(),
+    visibleToRoleIds: z.array(NonEmptyStringSchema).min(1)
+  })
+  .strict();
+
 export const CreatePlanningServicePersistenceOperationSchema = z.object({
   input: CreatePlanningServicePersistenceInputSchema,
   options: RepositoryWriteOptionsSchema
@@ -322,6 +365,11 @@ export const RecordPlanningCcliUsagePersistenceOperationSchema = z.object({
   options: RepositoryWriteOptionsSchema
 });
 
+export const SetPlanningRehearsalAssetVisibilityPersistenceOperationSchema = z.object({
+  input: SetPlanningRehearsalAssetVisibilityPersistenceInputSchema,
+  options: RepositoryWriteOptionsSchema
+});
+
 export const ListPlanningServicesPersistenceOperationSchema = z.object({
   input: ListPlanningServicesPersistenceInputSchema,
   options: RepositoryReadOptionsSchema
@@ -357,6 +405,11 @@ export const ListPlanningCcliUsageLogsPersistenceOperationSchema = z.object({
   options: RepositoryReadOptionsSchema
 });
 
+export const ListPlanningRehearsalAssetVisibilityPersistenceOperationSchema = z.object({
+  input: ListPlanningRehearsalAssetVisibilityPersistenceInputSchema,
+  options: RepositoryReadOptionsSchema
+});
+
 export type PlanningServicePersistenceStatus = z.infer<
   typeof PlanningServicePersistenceStatusSchema
 >;
@@ -377,6 +430,9 @@ export type PlanningCcliUsageTypePersistence = z.infer<
 >;
 export type PlanningCcliUsageReportingStatusPersistence = z.infer<
   typeof PlanningCcliUsageReportingStatusPersistenceSchema
+>;
+export type PlanningRehearsalAssetTypePersistence = z.infer<
+  typeof PlanningRehearsalAssetTypePersistenceSchema
 >;
 export type PlanningPersistenceConfirmationIntent = z.infer<
   typeof PlanningPersistenceConfirmationIntentSchema
@@ -405,6 +461,9 @@ export type PlanningReadinessPersistenceRecord = z.infer<
 export type PlanningCcliUsageLogPersistenceRecord = z.infer<
   typeof PlanningCcliUsageLogPersistenceRecordSchema
 >;
+export type PlanningRehearsalAssetVisibilityPersistenceRecord = z.infer<
+  typeof PlanningRehearsalAssetVisibilityPersistenceRecordSchema
+>;
 export type PlanningServicesPersistenceFilterInput = z.infer<
   typeof PlanningServicesPersistenceFilterInputSchema
 >;
@@ -432,6 +491,9 @@ export type GetPlanningServiceReadinessPersistenceInput = z.infer<
 export type ListPlanningCcliUsageLogsPersistenceInput = z.infer<
   typeof ListPlanningCcliUsageLogsPersistenceInputSchema
 >;
+export type ListPlanningRehearsalAssetVisibilityPersistenceInput = z.infer<
+  typeof ListPlanningRehearsalAssetVisibilityPersistenceInputSchema
+>;
 export type CreatePlanningServicePersistenceInput = z.infer<
   typeof CreatePlanningServicePersistenceInputSchema
 >;
@@ -458,6 +520,9 @@ export type UpdatePlanningAssignmentStatusPersistenceInput = z.infer<
 >;
 export type RecordPlanningCcliUsagePersistenceInput = z.infer<
   typeof RecordPlanningCcliUsagePersistenceInputSchema
+>;
+export type SetPlanningRehearsalAssetVisibilityPersistenceInput = z.infer<
+  typeof SetPlanningRehearsalAssetVisibilityPersistenceInputSchema
 >;
 
 export interface PlanningPersistenceOperation<TInput> {
@@ -488,6 +553,8 @@ export type UpdatePlanningAssignmentStatusPersistenceOperation =
   PlanningPersistenceOperation<UpdatePlanningAssignmentStatusPersistenceInput>;
 export type RecordPlanningCcliUsagePersistenceOperation =
   PlanningPersistenceOperation<RecordPlanningCcliUsagePersistenceInput>;
+export type SetPlanningRehearsalAssetVisibilityPersistenceOperation =
+  PlanningPersistenceOperation<SetPlanningRehearsalAssetVisibilityPersistenceInput>;
 export type ListPlanningServicesPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningServicesPersistenceInput>;
 export type GetPlanningServicePersistenceOperation =
@@ -502,6 +569,8 @@ export type GetPlanningServiceReadinessPersistenceOperation =
   PlanningReadPersistenceOperation<GetPlanningServiceReadinessPersistenceInput>;
 export type ListPlanningCcliUsageLogsPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningCcliUsageLogsPersistenceInput>;
+export type ListPlanningRehearsalAssetVisibilityPersistenceOperation =
+  PlanningReadPersistenceOperation<ListPlanningRehearsalAssetVisibilityPersistenceInput>;
 
 export interface PlanningCcliUsageLogPersistenceRepository {
   readonly recordCcliUsage: (
@@ -510,6 +579,15 @@ export interface PlanningCcliUsageLogPersistenceRepository {
   readonly listCcliUsageLogs: (
     operation: ListPlanningCcliUsageLogsPersistenceOperation
   ) => Promise<readonly PlanningCcliUsageLogPersistenceRecord[]>;
+}
+
+export interface PlanningRehearsalAssetVisibilityPersistenceRepository {
+  readonly setRehearsalAssetVisibility: (
+    operation: SetPlanningRehearsalAssetVisibilityPersistenceOperation
+  ) => Promise<PlanningRehearsalAssetVisibilityPersistenceRecord>;
+  readonly listRehearsalAssetVisibility: (
+    operation: ListPlanningRehearsalAssetVisibilityPersistenceOperation
+  ) => Promise<readonly PlanningRehearsalAssetVisibilityPersistenceRecord[]>;
 }
 
 export interface PlanningServiceCommandPersistenceRepository {

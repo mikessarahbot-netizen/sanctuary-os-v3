@@ -6,17 +6,21 @@ import {
   ListPlanningServicesPersistenceOperationSchema,
   ListPlanningServiceTemplatesPersistenceOperationSchema,
   ListPlanningCcliUsageLogsPersistenceOperationSchema,
+  ListPlanningRehearsalAssetVisibilityPersistenceOperationSchema,
   RecordPlanningCcliUsagePersistenceOperationSchema,
   RepositoryWriteOptionsSchema,
+  SetPlanningRehearsalAssetVisibilityPersistenceOperationSchema,
   UpdatePlanningServicePersistenceOperationSchema,
   type PlanningCcliUsageLogPersistenceRecord,
   type PlanningReadinessPersistenceRecord,
+  type PlanningRehearsalAssetVisibilityPersistenceRecord,
   type PlanningServicePersistenceRecord,
   type PlanningServiceTemplatePersistenceRecord,
   type PlanningSongLibraryItemPersistenceRecord
 } from "./index.js";
 import type {
   PlanningCcliUsageLogPersistenceRepository,
+  PlanningRehearsalAssetVisibilityPersistenceRepository,
   PlanningServiceCommandPersistenceRepository,
   PlanningServiceQueryPersistenceRepository
 } from "./index.js";
@@ -84,6 +88,19 @@ const ccliUsageLogRecord: PlanningCcliUsageLogPersistenceRecord = {
   title: "Open The Gates",
   usageType: "service",
   usedAt: "2026-06-21T14:00:00.000Z"
+};
+
+const rehearsalAssetVisibilityRecord: PlanningRehearsalAssetVisibilityPersistenceRecord = {
+  assetId: "asset_chart_1",
+  assetType: "chart",
+  isVisible: true,
+  rehearsalAssetVisibilityId: "rehearsal_asset_visibility_1",
+  serviceId: "service_1",
+  serviceItemId: "item_1",
+  tenantId: "tenant_1",
+  title: "Open The Gates Chart",
+  updatedAt: "2026-06-21T13:00:00.000Z",
+  visibleToRoleIds: ["role_vocal", "role_guitar"]
 };
 
 describe("Planning repository contracts", () => {
@@ -288,6 +305,71 @@ describe("Planning repository contracts", () => {
             tenantId: "tenant_1"
           },
           intent: "create"
+        }
+      })
+    ).toThrow();
+  });
+
+  it("validates adapter-free Planning rehearsal asset visibility operation shapes", () => {
+    expect(
+      SetPlanningRehearsalAssetVisibilityPersistenceOperationSchema.parse({
+        input: {
+          assetId: "asset_chart_1",
+          assetType: "chart",
+          isVisible: true,
+          serviceId: "service_1",
+          serviceItemId: "item_1",
+          title: "Open The Gates Chart",
+          updatedAt: "2026-06-21T13:00:00.000Z",
+          visibleToRoleIds: ["role_vocal", "role_guitar"]
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_asset",
+            tenantId: "tenant_1"
+          },
+          intent: "update"
+        }
+      }).input.assetType
+    ).toBe("chart");
+
+    expect(
+      ListPlanningRehearsalAssetVisibilityPersistenceOperationSchema.parse({
+        input: {
+          serviceId: "service_1",
+          serviceItemId: "item_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_asset_list",
+            tenantId: "tenant_1"
+          }
+        }
+      }).input.serviceItemId
+    ).toBe("item_1");
+
+    expect(() =>
+      SetPlanningRehearsalAssetVisibilityPersistenceOperationSchema.parse({
+        input: {
+          assetId: "asset_chart_1",
+          assetType: "chart",
+          isVisible: true,
+          rawMediaPayload: "no file bytes here",
+          serviceId: "service_1",
+          serviceItemId: "item_1",
+          title: "Open The Gates Chart",
+          updatedAt: "2026-06-21T13:00:00.000Z",
+          visibleToRoleIds: []
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_asset",
+            tenantId: "tenant_1"
+          },
+          intent: "update"
         }
       })
     ).toThrow();
@@ -592,5 +674,72 @@ describe("Planning repository contracts", () => {
         }
       })
     ).resolves.toEqual([ccliUsageLogRecord]);
+  });
+
+  it("defines an adapter-free Planning rehearsal asset visibility persistence repository interface", async () => {
+    const repository: PlanningRehearsalAssetVisibilityPersistenceRepository = {
+      listRehearsalAssetVisibility: (operation) =>
+        Promise.resolve([
+          {
+            ...rehearsalAssetVisibilityRecord,
+            serviceId: operation.input.serviceId,
+            serviceItemId:
+              operation.input.serviceItemId ?? rehearsalAssetVisibilityRecord.serviceItemId,
+            tenantId: operation.options.context.tenantId
+          }
+        ]),
+      setRehearsalAssetVisibility: (operation) =>
+        Promise.resolve({
+          ...rehearsalAssetVisibilityRecord,
+          assetId: operation.input.assetId,
+          assetType: operation.input.assetType,
+          isVisible: operation.input.isVisible,
+          serviceId: operation.input.serviceId,
+          serviceItemId: operation.input.serviceItemId,
+          tenantId: operation.options.context.tenantId,
+          title: operation.input.title,
+          updatedAt: operation.input.updatedAt,
+          visibleToRoleIds: operation.input.visibleToRoleIds
+        })
+    };
+
+    await expect(
+      repository.setRehearsalAssetVisibility({
+        input: {
+          assetId: "asset_chart_1",
+          assetType: "chart",
+          isVisible: true,
+          serviceId: "service_1",
+          serviceItemId: "item_1",
+          title: "Open The Gates Chart",
+          updatedAt: "2026-06-21T13:00:00.000Z",
+          visibleToRoleIds: ["role_vocal", "role_guitar"]
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_asset",
+            tenantId: "tenant_1"
+          },
+          intent: "update"
+        }
+      })
+    ).resolves.toEqual(rehearsalAssetVisibilityRecord);
+
+    await expect(
+      repository.listRehearsalAssetVisibility({
+        input: {
+          serviceId: "service_1",
+          serviceItemId: "item_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_rehearsal_asset_list",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).resolves.toEqual([rehearsalAssetVisibilityRecord]);
   });
 });

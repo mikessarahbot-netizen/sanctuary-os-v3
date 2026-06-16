@@ -19,10 +19,10 @@ Implement adapter-free Planning rehearsal asset visibility contracts in the DB/A
 Database migrations · concrete production persistence adapter · UI components · media storage · chart rendering · mobile rehearsal UX · GraphQL resolver wiring · GraphQL server runtime
 
 ## Progress
-- [ ] Add DB rehearsal asset visibility persistence contracts
-- [ ] Add API Planning rehearsal asset visibility service contracts
-- [ ] Add focused DB/API contract tests
-- [ ] Run lint, typecheck, and tests
+- [x] Add DB rehearsal asset visibility persistence contracts
+- [x] Add API Planning rehearsal asset visibility service contracts
+- [x] Add focused DB/API contract tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
