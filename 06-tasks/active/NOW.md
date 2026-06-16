@@ -19,10 +19,10 @@ Implement the first SQL-first Planning command repository adapter slice for serv
 Live PostgreSQL execution · connection strings or secrets · GraphQL/resolver changes · API service wiring · UI · queue workers · CCLI reporting adapter · rehearsal adapter · readiness adapter · ORM/query-builder adoption
 
 ## Progress
-- [ ] Re-sync with required docs, DB plan, ADR, and adapter contract
-- [ ] Add SQL-first adapter boundary for service create/update/template duplication
-- [ ] Add adapter-level tests without live database requirements
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, DB plan, ADR, and adapter contract
+- [x] Add SQL-first adapter boundary for service create/update/template duplication
+- [x] Add adapter-level tests without live database requirements
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
