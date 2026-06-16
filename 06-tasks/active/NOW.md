@@ -19,9 +19,9 @@ Implement an adapter-free in-memory Planning CCLI usage repository test adapter.
 Production database adapter · migrations · concrete storage · UI components · CCLI/SongSelect vendor calls · credentials · reporting jobs · media storage · chart rendering · notifications · GraphQL resolver changes
 
 ## Progress
-- [ ] Add in-memory Planning CCLI usage repository test adapter
-- [ ] Add focused CCLI usage service integration tests
-- [ ] Run lint, typecheck, and tests
+- [x] Add in-memory Planning CCLI usage repository test adapter
+- [x] Add focused CCLI usage service integration tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
