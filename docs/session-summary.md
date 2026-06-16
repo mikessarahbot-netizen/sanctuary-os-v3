@@ -36,6 +36,22 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 12:11 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, product vision, system map, engineering rules, `05-plans/api-plan.md`, `05-plans/planning-module-plan.md`, active task state, and the prior session summary.
+- Implemented Zod-validated Planning command schemas for create/update service, add/update/reorder service items, assign volunteer, and update assignment status.
+- Added Planning command service/repository interfaces with `AuthenticatedActor` command boundaries, actor tenant scope forwarding, Planning role gates, returned-record tenant/service mismatch guards, and explicit confirmation intent for publish/cancel service updates.
+- Added validated `service.published` and `assignment.statusChanged` event payload contracts and post-command event publication.
+- Added focused command tests for confirmation validation, tenant scope, role gates, cross-tenant rejection, and validated event publication.
+- Verified `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass.
+
+Next task:
+- Implement Planning GraphQL schema/resolver contracts that delegate to the service layer.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:10 EDT · feature/planning-readiness-domain
 
 Tasks completed:

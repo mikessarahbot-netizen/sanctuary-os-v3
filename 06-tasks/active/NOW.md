@@ -1,33 +1,32 @@
 # NOW
 
 ## Task
-Implement Planning service command contracts.
+Implement Planning GraphQL schema/resolver contracts that delegate to the service layer.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Add Zod-validated service command schemas for Planning mutations from `05-plans/planning-module-plan.md`
-- Add service-layer interfaces for create/update service, add/update/reorder service items, assign volunteer, and update assignment status
-- Require `AuthenticatedActor`, tenant scope, and Planning roles at service boundaries
-- Represent destructive or publish-like operations with explicit confirmation intent
-- Add tests for command validation, tenant scope, and role gates
+- Add GraphQL schema/type contract placeholders for Planning mutations from `05-plans/planning-module-plan.md`
+- Add resolver contracts that parse GraphQL input and delegate to Planning service-layer commands
+- Keep resolvers thin; no persistence, UI, or vendor integrations
+- Preserve service-layer tenant scope, role gates, and confirmation-intent requirements
+- Add tests that resolver contracts call the service layer with validated command shapes
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-Database persistence · GraphQL resolvers · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation
+Database persistence · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation
 
 ## Progress
-- [ ] Add Planning command schemas
-- [ ] Add service-layer interfaces
-- [ ] Add role/tenant/confirmation helpers
-- [ ] Add tests
+- [ ] Add Planning GraphQL schema/type contracts
+- [ ] Add thin resolver contract functions
+- [ ] Add input validation/delegation tests
 - [ ] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
-Planning service command contracts are implemented, validated by tests, committed, pushed, and documented in session handoff.
+Planning GraphQL schema/resolver contracts delegate to the service layer, are validated by tests, committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Implement Planning GraphQL schema/resolver contracts that delegate to the service layer.
+Implement Planning persistence repository contracts for service commands.
