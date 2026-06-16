@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 14:57 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Wired Planning GraphQL rehearsal acknowledgement record/list contracts to the existing Planning rehearsal acknowledgement service boundary.
+- Added SDL contracts for `recordRehearsalAcknowledgement(input)` and `rehearsalAcknowledgements(input)`, including service ID, service item ID, asset ID, assignment ID, person ID, readiness signal, notes, tenant ID, acknowledgement ID, and acknowledged timestamp.
+- Added thin resolvers that Zod-parse GraphQL-style `{ input }` args/context and delegate to `recordAcknowledgement` / `listAcknowledgements` without notification delivery, realtime fanout, mobile UI, attendance workflows, media storage, or playback integration.
+- Added focused GraphQL tests for resolver delegation, request context propagation, returned acknowledgement shape, empty list behavior, invalid input rejection, and service error propagation.
+- Ran and passed focused API GraphQL tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+- Committed and pushed `61919d4 feat(planning): add rehearsal acknowledgement graphql`.
+
+Next task:
+- Run a Planning API contract release-check against `05-plans/api-plan.md` and `05-plans/planning-module-plan.md`, then write findings to `07-reviews/architecture/`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:52 EDT · feature/planning-readiness-domain
 
 Tasks completed:

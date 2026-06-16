@@ -1,33 +1,32 @@
 # NOW
 
 ## Task
-Wire Planning GraphQL rehearsal acknowledgement record/list contracts to the service boundary.
+Run a Planning API contract release-check and write findings to `07-reviews/architecture/`.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
 - Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, and `05-plans/planning-module-plan.md`
-- Add thin GraphQL SDL contracts for recording Planning rehearsal acknowledgements and listing acknowledgements by service
-- Add resolver contracts that Zod-parse GraphQL-style `{ input }` args/context, authorize through the existing Planning rehearsal acknowledgement service, and delegate to record/list service methods
-- Preserve tenant scope, actor/request metadata, service ID, service item ID, person ID, acknowledgement status, notes, and acknowledged timestamp
-- Add focused GraphQL tests for resolver delegation, request context propagation, returned acknowledgement shape, empty list behavior, invalid input rejection, and service error propagation
-- Keep notification delivery, realtime fanout, mobile UI, attendance workflows, media storage, and playback integration out of scope
+- Audit current Planning API/domain/service/GraphQL contracts against the API and Planning plans
+- Verify tenant scoping, thin resolver delegation, Zod trust-boundary validation, service-owned role checks, explicit publish/destructive confirmation handling, validated event/job handoff, and Planning v1 domain coverage
 - Run lint, typecheck, and tests
-- Commit and push the completed slice
+- Write release-check findings to `07-reviews/architecture/planning-api-contract-release-check.md`
+- Update this task with completion status
+- Commit and push the release-check
 - Run session handoff
 
 ## Out of scope
-Notification delivery · realtime fanout · mobile UI · attendance workflows · media storage · playback integration
+New runtime features · new public GraphQL operations · UI · vendor adapters · database migrations · queue workers · notification delivery
 
 ## Progress
-- [x] Re-sync with required docs and current implementation
-- [x] Add GraphQL rehearsal acknowledgement record/list contracts
-- [x] Add focused GraphQL rehearsal acknowledgement tests
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push slice
+- [ ] Re-sync with required docs and current implementation
+- [ ] Audit Planning API contracts against plans and standards
+- [ ] Run lint, typecheck, and tests
+- [ ] Write findings to `07-reviews/architecture/planning-api-contract-release-check.md`
+- [ ] Commit and push release-check
 - [ ] Session handoff
 
 ## Done when
-Planning GraphQL exposes adapter-free rehearsal acknowledgement record/list contracts that delegate to the existing service boundary; gates pass; the slice is committed, pushed, and documented in session handoff.
+The Planning API contract release-check is documented with evidence-backed findings, gates pass, and the slice is committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+Select the next approved project slice based on the release-check findings and existing plans.
