@@ -18,11 +18,11 @@ Implement Planning duplicate-service-from-template command contracts.
 Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · CCLI/SongSelect implementation · AI setlist generation · GraphQL resolver wiring · GraphQL server runtime
 
 ## Progress
-- [ ] Add DB duplicate-from-template operation/repository contracts
-- [ ] Add Planning command service duplicateServiceFromTemplate contract
-- [ ] Add focused DB/API contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
+- [x] Add DB duplicate-from-template operation/repository contracts
+- [x] Add Planning command service duplicateServiceFromTemplate contract
+- [x] Add focused DB/API contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
 - [ ] Session handoff
 
 ## Done when

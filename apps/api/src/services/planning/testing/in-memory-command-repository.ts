@@ -9,6 +9,7 @@ import {
   AddPlanningServiceItemPersistenceOperationSchema,
   AssignPlanningVolunteerPersistenceOperationSchema,
   CreatePlanningServicePersistenceOperationSchema,
+  DuplicatePlanningServiceFromTemplatePersistenceOperationSchema,
   ReorderPlanningServiceItemsPersistenceOperationSchema,
   UpdatePlanningAssignmentStatusPersistenceOperationSchema,
   UpdatePlanningServiceItemPersistenceOperationSchema,
@@ -19,6 +20,7 @@ export type InMemoryPlanningCommandOperationName =
   | "addServiceItem"
   | "assignVolunteer"
   | "createService"
+  | "duplicateServiceFromTemplate"
   | "reorderServiceItems"
   | "updateAssignmentStatus"
   | "updateService"
@@ -144,6 +146,29 @@ export const createInMemoryPlanningCommandRepositoryAdapter =
           serviceId: `service_${String(nextServiceNumber)}`,
           status: "draft",
           tenantId: operation.options.context.tenantId
+        };
+        nextServiceNumber += 1;
+        services.set(service.serviceId, service);
+
+        return Promise.resolve(service);
+      },
+
+      duplicateServiceFromTemplate: (
+        rawOperation
+      ): Promise<PlanningServicePersistenceRecord> => {
+        const operation =
+          DuplicatePlanningServiceFromTemplatePersistenceOperationSchema.parse(rawOperation);
+        recordOperation("duplicateServiceFromTemplate", operation.options);
+
+        const service: PlanningServicePersistenceRecord = {
+          serviceId: `service_${String(nextServiceNumber)}`,
+          serviceTypeId: operation.input.serviceTemplateId,
+          ...(operation.input.startsAt !== undefined
+            ? { startsAt: operation.input.startsAt }
+            : {}),
+          status: "draft",
+          tenantId: operation.options.context.tenantId,
+          title: operation.input.title
         };
         nextServiceNumber += 1;
         services.set(service.serviceId, service);

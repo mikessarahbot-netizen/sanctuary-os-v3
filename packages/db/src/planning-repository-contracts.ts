@@ -178,6 +178,12 @@ export const CreatePlanningServicePersistenceInputSchema = z.object({
   title: NonEmptyStringSchema
 });
 
+export const DuplicatePlanningServiceFromTemplatePersistenceInputSchema = z.object({
+  serviceTemplateId: NonEmptyStringSchema,
+  startsAt: z.string().datetime().optional(),
+  title: NonEmptyStringSchema
+});
+
 export const UpdatePlanningServicePersistenceInputSchema = z.object({
   confirmationIntent: PlanningPersistenceConfirmationIntentSchema.optional(),
   serviceId: NonEmptyStringSchema,
@@ -225,6 +231,11 @@ export const UpdatePlanningAssignmentStatusPersistenceInputSchema = z.object({
 
 export const CreatePlanningServicePersistenceOperationSchema = z.object({
   input: CreatePlanningServicePersistenceInputSchema,
+  options: RepositoryWriteOptionsSchema
+});
+
+export const DuplicatePlanningServiceFromTemplatePersistenceOperationSchema = z.object({
+  input: DuplicatePlanningServiceFromTemplatePersistenceInputSchema,
   options: RepositoryWriteOptionsSchema
 });
 
@@ -354,6 +365,9 @@ export type GetPlanningServiceReadinessPersistenceInput = z.infer<
 export type CreatePlanningServicePersistenceInput = z.infer<
   typeof CreatePlanningServicePersistenceInputSchema
 >;
+export type DuplicatePlanningServiceFromTemplatePersistenceInput = z.infer<
+  typeof DuplicatePlanningServiceFromTemplatePersistenceInputSchema
+>;
 export type UpdatePlanningServicePersistenceInput = z.infer<
   typeof UpdatePlanningServicePersistenceInputSchema
 >;
@@ -385,6 +399,8 @@ export interface PlanningReadPersistenceOperation<TInput> {
 
 export type CreatePlanningServicePersistenceOperation =
   PlanningPersistenceOperation<CreatePlanningServicePersistenceInput>;
+export type DuplicatePlanningServiceFromTemplatePersistenceOperation =
+  PlanningPersistenceOperation<DuplicatePlanningServiceFromTemplatePersistenceInput>;
 export type UpdatePlanningServicePersistenceOperation =
   PlanningPersistenceOperation<UpdatePlanningServicePersistenceInput>;
 export type AddPlanningServiceItemPersistenceOperation =
@@ -413,6 +429,9 @@ export type GetPlanningServiceReadinessPersistenceOperation =
 export interface PlanningServiceCommandPersistenceRepository {
   readonly createService: (
     operation: CreatePlanningServicePersistenceOperation
+  ) => Promise<PlanningServicePersistenceRecord>;
+  readonly duplicateServiceFromTemplate: (
+    operation: DuplicatePlanningServiceFromTemplatePersistenceOperation
   ) => Promise<PlanningServicePersistenceRecord>;
   readonly updateService: (
     operation: UpdatePlanningServicePersistenceOperation

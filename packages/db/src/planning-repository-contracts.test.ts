@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CreatePlanningServicePersistenceOperationSchema,
+  DuplicatePlanningServiceFromTemplatePersistenceOperationSchema,
   ListPlanningSongLibraryPersistenceOperationSchema,
   ListPlanningServicesPersistenceOperationSchema,
   ListPlanningServiceTemplatesPersistenceOperationSchema,
@@ -100,6 +101,24 @@ describe("Planning repository contracts", () => {
         }
       }).options.intent
     ).toBe("create");
+
+    expect(
+      DuplicatePlanningServiceFromTemplatePersistenceOperationSchema.parse({
+        input: {
+          serviceTemplateId: "template_sunday",
+          startsAt: "2026-06-21T14:00:00.000Z",
+          title: "Sunday From Template"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_template",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
+      }).input.serviceTemplateId
+    ).toBe("template_sunday");
 
     expect(
       UpdatePlanningServicePersistenceOperationSchema.parse({
@@ -223,6 +242,14 @@ describe("Planning repository contracts", () => {
           tenantId: operation.options.context.tenantId,
           title: operation.input.title
         }),
+      duplicateServiceFromTemplate: (operation) =>
+        Promise.resolve({
+          ...serviceRecord,
+          serviceId: "service_from_template",
+          startsAt: operation.input.startsAt,
+          tenantId: operation.options.context.tenantId,
+          title: operation.input.title
+        }),
       reorderServiceItems: (operation) =>
         Promise.resolve([
           {
@@ -277,6 +304,29 @@ describe("Planning repository contracts", () => {
         }
       })
     ).resolves.toEqual(serviceRecord);
+
+    await expect(
+      repository.duplicateServiceFromTemplate({
+        input: {
+          serviceTemplateId: "template_sunday",
+          startsAt: "2026-06-21T14:00:00.000Z",
+          title: "Sunday From Template"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_template",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
+      })
+    ).resolves.toEqual({
+      ...serviceRecord,
+      serviceId: "service_from_template",
+      startsAt: "2026-06-21T14:00:00.000Z",
+      title: "Sunday From Template"
+    });
   });
 
   it("defines an adapter-free Planning query persistence repository interface", async () => {

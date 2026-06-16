@@ -88,6 +88,15 @@ export const CreatePlanningServiceCommandSchema = PlanningCommandBaseSchema.exte
   })
 });
 
+export const DuplicatePlanningServiceFromTemplateCommandSchema =
+  PlanningCommandBaseSchema.extend({
+    input: z.object({
+      serviceTemplateId: NonEmptyStringSchema,
+      startsAt: z.string().datetime().optional(),
+      title: NonEmptyStringSchema
+    })
+  });
+
 export const UpdatePlanningServiceCommandSchema = PlanningCommandBaseSchema.extend({
   input: z
     .object({
@@ -176,6 +185,9 @@ export type PlanningServiceRecord = z.infer<typeof PlanningServiceRecordSchema>;
 export type PlanningServiceItemRecord = z.infer<typeof PlanningServiceItemRecordSchema>;
 export type PlanningAssignmentRecord = z.infer<typeof PlanningAssignmentRecordSchema>;
 export type CreatePlanningServiceCommand = z.infer<typeof CreatePlanningServiceCommandSchema>;
+export type DuplicatePlanningServiceFromTemplateCommand = z.infer<
+  typeof DuplicatePlanningServiceFromTemplateCommandSchema
+>;
 export type UpdatePlanningServiceCommand = z.infer<typeof UpdatePlanningServiceCommandSchema>;
 export type AddPlanningServiceItemCommand = z.infer<typeof AddPlanningServiceItemCommandSchema>;
 export type UpdatePlanningServiceItemCommand = z.infer<
@@ -193,6 +205,7 @@ export type UpdatePlanningAssignmentStatusCommand = z.infer<
 
 export interface PlanningCommandRepository {
   readonly createService: PlanningServiceCommandPersistenceRepository["createService"];
+  readonly duplicateServiceFromTemplate: PlanningServiceCommandPersistenceRepository["duplicateServiceFromTemplate"];
   readonly updateService: PlanningServiceCommandPersistenceRepository["updateService"];
   readonly addServiceItem: PlanningServiceCommandPersistenceRepository["addServiceItem"];
   readonly updateServiceItem: PlanningServiceCommandPersistenceRepository["updateServiceItem"];
@@ -209,6 +222,9 @@ export interface PlanningCommandServiceDependencies {
 export interface PlanningCommandService {
   readonly createService: (
     command: CreatePlanningServiceCommand
+  ) => Promise<PlanningServiceRecord>;
+  readonly duplicateServiceFromTemplate: (
+    command: DuplicatePlanningServiceFromTemplateCommand
   ) => Promise<PlanningServiceRecord>;
   readonly updateService: (
     command: UpdatePlanningServiceCommand
@@ -245,6 +261,33 @@ export const createPlanningCommandService = (
       ),
       command.actor.tenantId
     );
+  },
+
+  duplicateServiceFromTemplate: async (
+    rawCommand: DuplicatePlanningServiceFromTemplateCommand
+  ): Promise<PlanningServiceRecord> => {
+    const command = DuplicatePlanningServiceFromTemplateCommandSchema.parse(rawCommand);
+    assertPlanningCommandRole(command.actor);
+
+    const service = assertTenantScopedService(
+      await dependencies.planningRepository.duplicateServiceFromTemplate(
+        toPlanningPersistenceOperation(command, "create")
+      ),
+      command.actor.tenantId
+    );
+
+    if (service.title !== command.input.title) {
+      throw new Error("Planning duplicate service command title mismatch.");
+    }
+
+    if (
+      command.input.startsAt !== undefined &&
+      service.startsAt !== command.input.startsAt
+    ) {
+      throw new Error("Planning duplicate service command start time mismatch.");
+    }
+
+    return service;
   },
 
   updateService: async (

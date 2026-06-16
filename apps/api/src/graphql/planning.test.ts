@@ -111,6 +111,9 @@ const createPlanningCommandService = (
   createService: vi.fn<PlanningCommandService["createService"]>(() =>
     Promise.resolve(serviceRecord)
   ),
+  duplicateServiceFromTemplate: vi.fn<
+    PlanningCommandService["duplicateServiceFromTemplate"]
+  >(() => Promise.resolve(serviceRecord)),
   reorderServiceItems: vi.fn<PlanningCommandService["reorderServiceItems"]>(() =>
     Promise.resolve([serviceItemRecord])
   ),

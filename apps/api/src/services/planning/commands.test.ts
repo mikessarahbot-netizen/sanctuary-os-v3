@@ -3,6 +3,7 @@ import type { AuthenticatedActor } from "../../auth/index.js";
 import type { ApiEventEnvelope } from "../../events/index.js";
 import {
   createPlanningCommandService,
+  DuplicatePlanningServiceFromTemplateCommandSchema,
   ReorderPlanningServiceItemsCommandSchema,
   UpdatePlanningServiceCommandSchema,
   type PlanningAssignmentRecord,
@@ -48,6 +49,12 @@ const createRepository = (
   addServiceItem: () => Promise.resolve(serviceItemRecord),
   assignVolunteer: () => Promise.resolve(assignmentRecord),
   createService: () => Promise.resolve(serviceRecord),
+  duplicateServiceFromTemplate: () =>
+    Promise.resolve({
+      ...serviceRecord,
+      serviceId: "service_from_template",
+      title: "Sunday From Template"
+    }),
   reorderServiceItems: () => Promise.resolve([serviceItemRecord]),
   updateAssignmentStatus: () =>
     Promise.resolve({
@@ -112,6 +119,39 @@ describe("Planning command schemas", () => {
       })
     ).toThrow("Service item order cannot contain duplicate item IDs.");
   });
+
+  it("validates duplicate service from template input", () => {
+    expect(() =>
+      DuplicatePlanningServiceFromTemplateCommandSchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTemplateId: "",
+          title: "Sunday From Template"
+        },
+        requestId: "request_template"
+      })
+    ).toThrow();
+
+    expect(
+      DuplicatePlanningServiceFromTemplateCommandSchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTemplateId: "template_sunday",
+          startsAt: "2026-06-21T14:00:00.000Z",
+          title: "Sunday From Template"
+        },
+        requestId: "request_template"
+      }).input.serviceTemplateId
+    ).toBe("template_sunday");
+  });
 });
 
 describe("createPlanningCommandService", () => {
@@ -152,6 +192,60 @@ describe("createPlanningCommandService", () => {
         }
       })
     );
+  });
+
+  it("tenant-scopes duplicateServiceFromTemplate through the actor and repository boundary", async () => {
+    const duplicateServiceFromTemplate = vi.fn<
+      PlanningCommandRepository["duplicateServiceFromTemplate"]
+    >(() =>
+      Promise.resolve({
+        ...serviceRecord,
+        serviceId: "service_from_template",
+        startsAt: "2026-06-21T14:00:00.000Z",
+        title: "Sunday From Template"
+      })
+    );
+    const service = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository({ duplicateServiceFromTemplate })
+    });
+
+    await expect(
+      service.duplicateServiceFromTemplate({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTemplateId: "template_sunday",
+          startsAt: "2026-06-21T14:00:00.000Z",
+          title: "Sunday From Template"
+        },
+        requestId: "request_template"
+      })
+    ).resolves.toEqual({
+      ...serviceRecord,
+      serviceId: "service_from_template",
+      startsAt: "2026-06-21T14:00:00.000Z",
+      title: "Sunday From Template"
+    });
+
+    expect(duplicateServiceFromTemplate).toHaveBeenCalledWith({
+      input: {
+        serviceTemplateId: "template_sunday",
+        startsAt: "2026-06-21T14:00:00.000Z",
+        title: "Sunday From Template"
+      },
+      options: {
+        context: {
+          actorId: "actor_1",
+          requestId: "request_template",
+          tenantId: "tenant_1"
+        },
+        intent: "create"
+      }
+    });
   });
 
   it("maps confirmed service publish commands to destructive-confirmed persistence intent", async () => {
@@ -242,6 +336,33 @@ describe("createPlanningCommandService", () => {
     expect(createService).not.toHaveBeenCalled();
   });
 
+  it("rejects duplicateServiceFromTemplate actors without Planning command roles", async () => {
+    const duplicateServiceFromTemplate = vi.fn<
+      PlanningCommandRepository["duplicateServiceFromTemplate"]
+    >(() => Promise.resolve(serviceRecord));
+    const service = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository({ duplicateServiceFromTemplate })
+    });
+
+    await expect(
+      service.duplicateServiceFromTemplate({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTemplateId: "template_sunday",
+          title: "Sunday From Template"
+        },
+        requestId: "request_template"
+      })
+    ).rejects.toThrow("Actor is not allowed to mutate planning services.");
+
+    expect(duplicateServiceFromTemplate).not.toHaveBeenCalled();
+  });
+
   it("rejects cross-tenant service records returned by persistence", async () => {
     const publishAfterCommit = vi.fn<(event: ApiEventEnvelope) => Promise<void>>(() =>
       Promise.resolve()
@@ -278,6 +399,89 @@ describe("createPlanningCommandService", () => {
     ).rejects.toThrow("Planning service command tenant mismatch.");
 
     expect(publishAfterCommit).not.toHaveBeenCalled();
+  });
+
+  it("rejects duplicated services outside tenant or requested fields", async () => {
+    const tenantMismatchService = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository({
+        duplicateServiceFromTemplate: () =>
+          Promise.resolve({
+            ...serviceRecord,
+            tenantId: "tenant_2",
+            title: "Sunday From Template"
+          })
+      })
+    });
+
+    await expect(
+      tenantMismatchService.duplicateServiceFromTemplate({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTemplateId: "template_sunday",
+          title: "Sunday From Template"
+        },
+        requestId: "request_template"
+      })
+    ).rejects.toThrow("Planning service command tenant mismatch.");
+
+    const titleMismatchService = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository({
+        duplicateServiceFromTemplate: () =>
+          Promise.resolve({
+            ...serviceRecord,
+            title: "Wrong Title"
+          })
+      })
+    });
+
+    await expect(
+      titleMismatchService.duplicateServiceFromTemplate({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTemplateId: "template_sunday",
+          title: "Sunday From Template"
+        },
+        requestId: "request_template"
+      })
+    ).rejects.toThrow("Planning duplicate service command title mismatch.");
+
+    const startTimeMismatchService = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository({
+        duplicateServiceFromTemplate: () =>
+          Promise.resolve({
+            ...serviceRecord,
+            startsAt: "2026-06-22T14:00:00.000Z",
+            title: "Sunday From Template"
+          })
+      })
+    });
+
+    await expect(
+      startTimeMismatchService.duplicateServiceFromTemplate({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTemplateId: "template_sunday",
+          startsAt: "2026-06-21T14:00:00.000Z",
+          title: "Sunday From Template"
+        },
+        requestId: "request_template"
+      })
+    ).rejects.toThrow("Planning duplicate service command start time mismatch.");
   });
 
   it("publishes validated service and assignment events after command completion", async () => {
@@ -379,6 +583,15 @@ describe("createPlanningCommandService", () => {
       },
       requestId: "request_create"
     });
+    const duplicatedService = await service.duplicateServiceFromTemplate({
+      actor,
+      input: {
+        serviceTemplateId: "type_midweek",
+        startsAt: "2026-06-25T23:00:00.000Z",
+        title: "Midweek From Template"
+      },
+      requestId: "request_duplicate"
+    });
     const openingSong = await service.addServiceItem({
       actor,
       input: {
@@ -465,11 +678,24 @@ describe("createPlanningCommandService", () => {
       status: "published",
       tenantId: "tenant_1"
     });
+    expect(duplicatedService).toMatchObject({
+      serviceTypeId: "type_midweek",
+      startsAt: "2026-06-25T23:00:00.000Z",
+      status: "draft",
+      tenantId: "tenant_1",
+      title: "Midweek From Template"
+    });
     expect(repositoryAdapter.readOperations()).toMatchObject([
       {
         intent: "create",
         operationName: "createService",
         requestId: "request_create",
+        tenantId: "tenant_1"
+      },
+      {
+        intent: "create",
+        operationName: "duplicateServiceFromTemplate",
+        requestId: "request_duplicate",
         tenantId: "tenant_1"
       },
       {
