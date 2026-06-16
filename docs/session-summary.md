@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 14:22 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added a validated adapter-free API job dispatcher boundary for async job handoff.
+- Added strict CCLI reporting job payload validation for pending reporting work, with tenant, actor, request, job type, deterministic job ID, and sequence metadata preserved for assertions.
+- Added an in-memory job dispatcher that validates before recording, preserves enqueue order, returns deterministic `job_#` IDs, and supports clearing recorded jobs between tests.
+- Added Planning CCLI usage service `scheduleReportingJob` handoff through the validated dispatcher, preserving tenant/actor/request metadata and keeping concrete queue infrastructure and vendor calls out of scope.
+- Added focused API tests for dispatcher validation, malformed request rejection, ordering, clearing, and Planning CCLI reporting handoff authorization.
+- Ran and passed focused API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:16 EDT · feature/planning-readiness-domain
 
 Tasks completed:
