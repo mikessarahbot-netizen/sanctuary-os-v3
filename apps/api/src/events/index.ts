@@ -16,8 +16,15 @@ export const ApiEventEnvelopeSchema = z.object({
   tenantId: z.string().min(1)
 });
 
+export const ReadinessUpdatedEventPayloadSchema = z.object({
+  band: z.enum(["blocked", "needs-attention", "ready"]),
+  readinessScore: z.number().int().min(0).max(100),
+  serviceId: z.string().min(1)
+});
+
 export type ApiEventType = z.infer<typeof ApiEventTypeSchema>;
 export type ApiEventEnvelope = z.infer<typeof ApiEventEnvelopeSchema>;
+export type ReadinessUpdatedEventPayload = z.infer<typeof ReadinessUpdatedEventPayloadSchema>;
 
 export interface EventPublisher {
   readonly publishAfterCommit: (event: ApiEventEnvelope) => Promise<void>;

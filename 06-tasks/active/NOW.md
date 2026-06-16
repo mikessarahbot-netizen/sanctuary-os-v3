@@ -1,37 +1,35 @@
 # NOW
 
 ## Task
-Scaffold monorepo foundation — API, ChurchContext, and DB packages ready for implementation.
+Implement Planning readiness domain slice.
 
 ## In scope
-- Create branch `feature/foundation-monorepo-scaffold`
-- Scaffold `apps/api` from `05-plans/api-plan.md`
-- Scaffold `packages/church-context` from `03-context/church-context-schema.md`
-- Scaffold `packages/db`
-- Run lint, typecheck, and tests after each module scaffold
-- Commit and push each completed scaffold step
-- Run release check and write findings to `07-reviews/architecture/`
+- Create branch `feature/planning-readiness-domain`
+- Add Planning domain schemas for services, service items, assignments, rehearsal tracking, and CCLI usage
+- Add pure readiness score calculation based on `05-plans/planning-module-plan.md`
+- Add service boundary for `refreshReadinessScore` with Planning role checks and tenant-scope guards
+- Add validated `readiness.updated` WebSocket payload shape
+- Add tests for readiness scoring, service authorization, tenant mismatch, and payload publication
+- Run lint, typecheck, and tests
+- Commit and push the completed slice
+- Run session handoff
 
 ## Out of scope
-Business logic · database migrations · production GraphQL resolvers · UI components · prompt execution · vendor SDK integrations
+Database persistence · GraphQL resolvers · UI components · prompt execution · vendor SDK integrations · volunteer contact data
 
 ## Progress
-- [x] Created and checked out `feature/foundation-monorepo-scaffold`
-- [x] Scaffold `apps/api`
-- [x] Commit API scaffold locally (`chore(api): scaffold api workspace`)
-- [x] Push API scaffold (`origin/feature/foundation-monorepo-scaffold`)
-- [x] Scaffold `packages/church-context`
-- [x] Commit ChurchContext scaffold locally (`chore(church-context): scaffold context package`)
-- [x] Push ChurchContext scaffold (`origin/feature/foundation-monorepo-scaffold`)
-- [x] Scaffold `packages/db`
-- [x] Commit DB scaffold locally (`chore(db): scaffold persistence contracts`)
-- [x] Push DB scaffold (`origin/feature/foundation-monorepo-scaffold`)
-- [x] Run scaffold release check
-- [x] Write architecture review findings
-- [x] Session handoff for completed foundation scaffold
+- [x] Created and checked out `feature/planning-readiness-domain`
+- [x] Add Planning domain schemas
+- [x] Add readiness score calculation
+- [x] Add service boundary with role and tenant checks
+- [x] Add readiness event payload validation
+- [x] Add tests
+- [x] Run lint, typecheck, and tests
+- [ ] Commit and push slice
+- [ ] Session handoff
 
 ## Done when
-All three scaffold targets have typed placeholders, README guidance, lint/typecheck/test pass, commits exist for each module scaffold, branch is pushed, and release-check findings are recorded.
+Planning readiness domain types, pure calculation, and service boundary are implemented, validated by tests, committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Implement the first approved module slice from the scaffolded contracts.
+Implement the next approved Planning API service contract slice.
