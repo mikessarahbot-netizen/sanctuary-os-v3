@@ -126,6 +126,34 @@ export const ApiJobStatusLookupSchema = z
   })
   .strict();
 
+export const ApiJobStatusTransitionSchema = z
+  .object({
+    jobId: NonEmptyStringSchema,
+    requestedByActorId: NonEmptyStringSchema,
+    requestId: NonEmptyStringSchema,
+    safeErrorMessage: SafeErrorMessageSchema.optional(),
+    status: ApiJobStatusSchema.exclude(["queued"]),
+    tenantId: NonEmptyStringSchema
+  })
+  .strict()
+  .superRefine((transition, context) => {
+    if (transition.status === "failed" && transition.safeErrorMessage === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Failed API job transitions require a safe error message.",
+        path: ["safeErrorMessage"]
+      });
+    }
+
+    if (transition.status !== "failed" && transition.safeErrorMessage !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only failed API job transitions can include a safe error message.",
+        path: ["safeErrorMessage"]
+      });
+    }
+  });
+
 export type ApiJobType = z.infer<typeof ApiJobTypeSchema>;
 export type ApiJobRequest = z.infer<typeof ApiJobRequestSchema>;
 export type ApiCcliReportingJobPayload = z.infer<
@@ -136,6 +164,7 @@ export type ApiJobStatus = z.infer<typeof ApiJobStatusSchema>;
 export type ApiQueuedJob = z.infer<typeof ApiQueuedJobSchema>;
 export type ApiJobStatusRecord = z.infer<typeof ApiJobStatusRecordSchema>;
 export type ApiJobStatusLookup = z.infer<typeof ApiJobStatusLookupSchema>;
+export type ApiJobStatusTransition = z.infer<typeof ApiJobStatusTransitionSchema>;
 
 export interface JobDispatcher {
   readonly enqueue: (request: ApiJobRequest) => Promise<ApiJobEnqueueResult>;
@@ -147,12 +176,18 @@ export interface JobStatusReader {
   ) => Promise<ApiJobStatusRecord | null>;
 }
 
-export interface InMemoryJobDispatcher extends JobDispatcher {
+export interface JobStatusWriter {
+  readonly updateJobStatus: (
+    transition: ApiJobStatusTransition
+  ) => Promise<ApiJobStatusRecord | null>;
+}
+
+export interface InMemoryJobDispatcher
+  extends JobDispatcher,
+    JobStatusReader,
+    JobStatusWriter {
   readonly readQueuedJobs: () => readonly ApiQueuedJob[];
   readonly readJobStatuses: () => readonly ApiJobStatusRecord[];
-  readonly getJobStatus: (
-    lookup: ApiJobStatusLookup
-  ) => Promise<ApiJobStatusRecord | null>;
   readonly clear: () => void;
 }
 
@@ -162,6 +197,10 @@ export const validateApiJobRequest = (rawRequest: ApiJobRequest): ApiJobRequest 
 export const validateApiJobStatusRecord = (
   rawStatusRecord: ApiJobStatusRecord
 ): ApiJobStatusRecord => ApiJobStatusRecordSchema.parse(rawStatusRecord);
+
+export const validateApiJobStatusTransition = (
+  rawTransition: ApiJobStatusTransition
+): ApiJobStatusTransition => ApiJobStatusTransitionSchema.parse(rawTransition);
 
 export const createInMemoryJobDispatcher = (): InMemoryJobDispatcher => {
   const queuedJobs: ApiQueuedJob[] = [];
@@ -233,8 +272,63 @@ export const createInMemoryJobDispatcher = (): InMemoryJobDispatcher => {
       }
     },
     readJobStatuses: (): readonly ApiJobStatusRecord[] => [...jobStatuses],
-    readQueuedJobs: (): readonly ApiQueuedJob[] => [...queuedJobs]
+    readQueuedJobs: (): readonly ApiQueuedJob[] => [...queuedJobs],
+    updateJobStatus: (
+      transition: ApiJobStatusTransition
+    ): Promise<ApiJobStatusRecord | null> => {
+      try {
+        const parsedTransition = validateApiJobStatusTransition(transition);
+        const jobStatusIndex = jobStatuses.findIndex(
+          (status) =>
+            status.jobId === parsedTransition.jobId &&
+            status.tenantId === parsedTransition.tenantId
+        );
+
+        if (jobStatusIndex < 0) {
+          return Promise.resolve(null);
+        }
+
+        const currentStatus = jobStatuses[jobStatusIndex];
+
+        if (currentStatus === undefined) {
+          throw new Error("API job status record is missing.");
+        }
+
+        assertAllowedJobStatusTransition(
+          currentStatus.status,
+          parsedTransition.status
+        );
+
+        const updatedStatus = ApiJobStatusRecordSchema.parse({
+          ...currentStatus,
+          safeErrorMessage: parsedTransition.safeErrorMessage,
+          status: parsedTransition.status,
+          updatedAt: new Date().toISOString()
+        });
+
+        jobStatuses[jobStatusIndex] = updatedStatus;
+
+        return Promise.resolve(updatedStatus);
+      } catch (error: unknown) {
+        return Promise.reject(toJobDispatcherError(error));
+      }
+    }
   };
+};
+
+const assertAllowedJobStatusTransition = (
+  currentStatus: ApiJobStatus,
+  nextStatus: Exclude<ApiJobStatus, "queued">
+): void => {
+  if (currentStatus === "queued") {
+    return;
+  }
+
+  if (currentStatus === "running" && nextStatus !== "running") {
+    return;
+  }
+
+  throw new Error("API job status transition is not allowed.");
 };
 
 const toJobDispatcherError = (error: unknown): Error =>
