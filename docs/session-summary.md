@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:15 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, ChurchContext schema notes, and the setlist prompt spec.
+- Added adapter-free Planning `generateSetlist(input)` command contracts in the API command service layer.
+- Defined Zod schemas/types for generate-setlist command input, song-library candidates, prompt request, prompt result, and the returned reviewable setlist suggestion.
+- Added `PlanningCommandService.generateSetlist` with Planning command role checks, actor tenant/request propagation into the prompt request, AI-result validation, banned/paused-song enforcement, and `persisted: false` human-review metadata before any write.
+- Preserved existing Planning GraphQL resolver behavior; only test fixtures were updated to satisfy the expanded command service interface.
+- Added focused API tests for input validation, role rejection, tenant/request propagation, AI-result validation, unavailable-song rejection, reviewable result shape, and no automatic service-item mutation.
+- Ran and passed focused API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Wire Planning GraphQL `generateSetlist(input)` resolver contracts to the Planning command service.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:06 EDT · feature/planning-readiness-domain
 
 Tasks completed:

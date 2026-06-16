@@ -22,8 +22,8 @@ Database migrations · concrete production persistence adapter · UI components 
 - [x] Add Planning command service generateSetlist boundary
 - [x] Add focused API contract tests
 - [x] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning `generateSetlist(input)` command contracts are Zod-validated, tenant-scoped, role-gated, reviewable-before-write, adapter-free, covered by focused API tests, committed, pushed, and documented in session handoff.
