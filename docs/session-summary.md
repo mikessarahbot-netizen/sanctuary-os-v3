@@ -14,7 +14,7 @@ Tasks completed:
 - Ran and passed focused readiness tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
 
 Next task:
-- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+- Implement an adapter-free in-memory Planning query/readiness repository test adapter.
 
 Open questions:
 - None.

@@ -1,32 +1,32 @@
 # NOW
 
 ## Task
-Implement Planning readiness input contracts for rehearsal acknowledgements and CCLI status.
+Implement an adapter-free in-memory Planning query/readiness repository test adapter.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
 - Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, and `05-plans/planning-module-plan.md`
-- Extend adapter-free Planning readiness domain/service contracts so readiness inputs can represent rehearsal acknowledgement readiness signals alongside existing rehearsal asset visibility and CCLI current-status checks
-- Keep readiness calculation deterministic, tenant-scoped, and free of persistence adapter, GraphQL resolver, UI, media storage, chart rendering, notification, or vendor integration changes
-- Preserve existing readiness, command, query, CCLI, rehearsal visibility, rehearsal acknowledgement, and GraphQL behavior
-- Add focused domain/API tests for new readiness input validation and scoring behavior
+- Add a test-only in-memory adapter for Planning query/readiness repository contracts under `apps/api/src/services/planning/testing/`
+- Support tenant-scoped service, assignment, service template, song library, and readiness reads used by `createPlanningQueryService`
+- Zod-validate DB persistence operation shapes at the adapter boundary and preserve actor/request/tenant read context for assertions
+- Add focused API integration tests that exercise `createPlanningQueryService` through the in-memory adapter, including nullable lookups and tenant-scope rejection
+- Preserve existing Planning command, GraphQL, CCLI, rehearsal visibility, rehearsal acknowledgement, and readiness behavior
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-Database migrations · concrete production persistence adapter · UI components · media storage · chart rendering · notifications · mobile rehearsal UX · GraphQL resolver wiring · GraphQL server runtime · CCLI/SongSelect vendor calls
+Production database adapter · migrations · concrete storage · UI components · media storage · chart rendering · notifications · mobile rehearsal UX · GraphQL resolver changes · CCLI/SongSelect vendor calls
 
 ## Progress
-- [x] Add readiness input fields for rehearsal acknowledgement signals
-- [x] Update deterministic readiness scoring and recommendations
-- [x] Add focused domain/API tests
-- [x] Run lint, typecheck, and tests
-- [x] Commit and push slice
-- [x] Session handoff
+- [ ] Add in-memory Planning query/readiness repository test adapter
+- [ ] Add focused query service integration tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push slice
+- [ ] Session handoff
 
 ## Done when
-Planning readiness contracts account for rehearsal acknowledgement readiness signals and CCLI current-status inputs, remain adapter-free and tenant-scoped, are covered by focused tests, pass repository gates, are committed, pushed, and documented in session handoff.
+Planning query/readiness service contracts are exercised through a tenant-scoped, Zod-validating, adapter-free in-memory test repository; gates pass; the slice is committed, pushed, and documented in session handoff.
 
 ## Next task after this
 Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
