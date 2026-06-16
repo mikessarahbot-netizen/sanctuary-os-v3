@@ -14,7 +14,7 @@ Tasks completed:
 - Confirmed `2a0439d feat(planning): add rehearsal asset visibility contracts` is pushed to `origin/feature/planning-readiness-domain`.
 
 Next task:
-- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+- Implement adapter-free Planning rehearsal acknowledgement contracts in the DB/API service layers.
 
 Open questions:
 - None.
