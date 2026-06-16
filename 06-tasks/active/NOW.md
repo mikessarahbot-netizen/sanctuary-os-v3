@@ -18,10 +18,10 @@ Add migration framework tests and the initial Planning schema migration shape fo
 Live PostgreSQL execution · runtime repository adapter implementation · ORM/query-builder adoption · dependency installation · production connection configuration · GraphQL/resolver changes · service changes · UI
 
 ## Progress
-- [ ] Re-sync with required docs, DB plan, ADR, and adapter contract
-- [ ] Add migration framework tests
-- [ ] Add initial Planning schema migration shape
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, DB plan, ADR, and adapter contract
+- [x] Add migration framework tests
+- [x] Add initial Planning schema migration shape
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
