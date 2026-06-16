@@ -8,6 +8,8 @@ import type {
   PlanningCommandService,
   PlanningGeneratedSetlistResult,
   PlanningQueryService,
+  PlanningRehearsalAssetVisibilityRecord,
+  PlanningRehearsalAssetVisibilityService,
   PlanningServiceItemRecord,
   PlanningServiceRecord,
   PlanningServiceTemplateRecord,
@@ -159,6 +161,19 @@ const ccliUsageLogRecord: PlanningCcliUsageLogRecord = {
   usedAt: "2026-06-21T14:05:00.000Z"
 };
 
+const rehearsalAssetVisibilityRecord: PlanningRehearsalAssetVisibilityRecord = {
+  assetId: "asset_chart_1",
+  assetType: "chart",
+  isVisible: true,
+  rehearsalAssetVisibilityId: "visibility_1",
+  serviceId: "service_1",
+  serviceItemId: "item_1",
+  tenantId: "tenant_1",
+  title: "Opening Song Chart",
+  updatedAt: "2026-06-16T18:50:00.000Z",
+  visibleToRoleIds: ["role_vocal", "role_guitar"]
+};
+
 const createPlanningCcliUsageService = (
   overrides: Partial<PlanningCcliUsageService> = {}
 ): PlanningCcliUsageService => ({
@@ -174,6 +189,18 @@ const createPlanningCcliUsageService = (
   scheduleReportingJob: vi.fn<PlanningCcliUsageService["scheduleReportingJob"]>(() =>
     Promise.resolve({ jobId: "job_1" })
   ),
+  ...overrides
+});
+
+const createPlanningRehearsalAssetVisibilityService = (
+  overrides: Partial<PlanningRehearsalAssetVisibilityService> = {}
+): PlanningRehearsalAssetVisibilityService => ({
+  listAssetVisibility: vi.fn<
+    PlanningRehearsalAssetVisibilityService["listAssetVisibility"]
+  >(() => Promise.resolve([])),
+  setAssetVisibility: vi.fn<
+    PlanningRehearsalAssetVisibilityService["setAssetVisibility"]
+  >(() => Promise.resolve(rehearsalAssetVisibilityRecord)),
   ...overrides
 });
 
@@ -270,6 +297,12 @@ describe("planningGraphqlTypeDefs", () => {
     expect(planningGraphqlTypeDefs).toContain(
       "ccliUsageLogs(input: CcliUsageLogsInput!): [PlanningCcliUsageLog!]!"
     );
+    expect(planningGraphqlTypeDefs).toContain(
+      "type PlanningRehearsalAssetVisibility"
+    );
+    expect(planningGraphqlTypeDefs).toContain(
+      "rehearsalAssetVisibility(input: RehearsalAssetVisibilityInput!): [PlanningRehearsalAssetVisibility!]!"
+    );
   });
 
   it("declares the planned Planning mutation contract placeholders", () => {
@@ -301,6 +334,12 @@ describe("planningGraphqlTypeDefs", () => {
     expect(planningGraphqlTypeDefs).toContain("input RecordCcliUsageInput");
     expect(planningGraphqlTypeDefs).toContain(
       "recordCcliUsage(input: RecordCcliUsageInput!): PlanningCcliUsageLog!"
+    );
+    expect(planningGraphqlTypeDefs).toContain(
+      "input SetRehearsalAssetVisibilityInput"
+    );
+    expect(planningGraphqlTypeDefs).toContain(
+      "setRehearsalAssetVisibility(input: SetRehearsalAssetVisibilityInput!): PlanningRehearsalAssetVisibility!"
     );
     expect(planningGraphqlTypeDefs).toContain("input ScheduleCcliReportingJobInput");
     expect(planningGraphqlTypeDefs).toContain(
@@ -815,6 +854,240 @@ describe("createPlanningGraphqlResolvers", () => {
         graphqlContext
       )
     ).resolves.toEqual([]);
+  });
+
+  it("delegates setRehearsalAssetVisibility to the Planning rehearsal asset visibility service with actor and request scope", async () => {
+    const setAssetVisibility = vi.fn<
+      PlanningRehearsalAssetVisibilityService["setAssetVisibility"]
+    >(() => Promise.resolve(rehearsalAssetVisibilityRecord));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAssetVisibilityService:
+        createPlanningRehearsalAssetVisibilityService({
+          setAssetVisibility
+        })
+    });
+
+    await expect(
+      resolvers.Mutation.setRehearsalAssetVisibility(
+        undefined,
+        {
+          input: {
+            assetId: "asset_chart_1",
+            assetType: "chart",
+            isVisible: true,
+            serviceId: "service_1",
+            serviceItemId: "item_1",
+            title: "Opening Song Chart",
+            updatedAt: "2026-06-16T18:50:00.000Z",
+            visibleToRoleIds: ["role_vocal", "role_guitar"]
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_visibility_set"
+        }
+      )
+    ).resolves.toEqual(rehearsalAssetVisibilityRecord);
+
+    expect(setAssetVisibility).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        assetId: "asset_chart_1",
+        assetType: "chart",
+        isVisible: true,
+        serviceId: "service_1",
+        serviceItemId: "item_1",
+        title: "Opening Song Chart",
+        updatedAt: "2026-06-16T18:50:00.000Z",
+        visibleToRoleIds: ["role_vocal", "role_guitar"]
+      },
+      requestId: "request_visibility_set"
+    });
+  });
+
+  it("delegates rehearsalAssetVisibility to the Planning rehearsal asset visibility service and preserves visibility shape", async () => {
+    const listAssetVisibility = vi.fn<
+      PlanningRehearsalAssetVisibilityService["listAssetVisibility"]
+    >(() => Promise.resolve([rehearsalAssetVisibilityRecord]));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAssetVisibilityService:
+        createPlanningRehearsalAssetVisibilityService({
+          listAssetVisibility
+        })
+    });
+
+    await expect(
+      resolvers.Query.rehearsalAssetVisibility(
+        undefined,
+        {
+          input: {
+            serviceId: "service_1",
+            serviceItemId: "item_1"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_visibility_list"
+        }
+      )
+    ).resolves.toEqual([rehearsalAssetVisibilityRecord]);
+
+    expect(listAssetVisibility).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        serviceId: "service_1",
+        serviceItemId: "item_1"
+      },
+      requestId: "request_visibility_list"
+    });
+  });
+
+  it("returns empty rehearsal asset visibility query results", async () => {
+    const listAssetVisibility = vi.fn<
+      PlanningRehearsalAssetVisibilityService["listAssetVisibility"]
+    >(() => Promise.resolve([]));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAssetVisibilityService:
+        createPlanningRehearsalAssetVisibilityService({
+          listAssetVisibility
+        })
+    });
+
+    await expect(
+      resolvers.Query.rehearsalAssetVisibility(
+        undefined,
+        {
+          input: {
+            serviceId: "service_without_assets"
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toEqual([]);
+  });
+
+  it("rejects invalid rehearsal asset visibility input before delegating", async () => {
+    const setAssetVisibility = vi.fn<
+      PlanningRehearsalAssetVisibilityService["setAssetVisibility"]
+    >(() => Promise.resolve(rehearsalAssetVisibilityRecord));
+    const listAssetVisibility = vi.fn<
+      PlanningRehearsalAssetVisibilityService["listAssetVisibility"]
+    >(() => Promise.resolve([rehearsalAssetVisibilityRecord]));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAssetVisibilityService:
+        createPlanningRehearsalAssetVisibilityService({
+          listAssetVisibility,
+          setAssetVisibility
+        })
+    });
+
+    await expect(
+      resolvers.Mutation.setRehearsalAssetVisibility(
+        undefined,
+        {
+          input: {
+            assetId: "asset_chart_1",
+            assetType: "raw_media",
+            isVisible: true,
+            serviceId: "service_1",
+            serviceItemId: "item_1",
+            title: "Opening Song Chart",
+            updatedAt: "2026-06-16T18:50:00.000Z",
+            visibleToRoleIds: ["role_vocal"]
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(setAssetVisibility).not.toHaveBeenCalled();
+
+    await expect(
+      resolvers.Query.rehearsalAssetVisibility(
+        undefined,
+        {
+          input: {
+            serviceId: "",
+            serviceItemId: "item_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(listAssetVisibility).not.toHaveBeenCalled();
+  });
+
+  it("propagates Planning rehearsal asset visibility service set and list errors", async () => {
+    const setAssetVisibility = vi.fn<
+      PlanningRehearsalAssetVisibilityService["setAssetVisibility"]
+    >(() =>
+      Promise.reject(
+        new Error(
+          "Actor is not allowed to manage Planning rehearsal asset visibility."
+        )
+      )
+    );
+    const listAssetVisibility = vi.fn<
+      PlanningRehearsalAssetVisibilityService["listAssetVisibility"]
+    >(() =>
+      Promise.reject(new Error("Planning rehearsal asset visibility tenant mismatch."))
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAssetVisibilityService:
+        createPlanningRehearsalAssetVisibilityService({
+          listAssetVisibility,
+          setAssetVisibility
+        })
+    });
+
+    await expect(
+      resolvers.Mutation.setRehearsalAssetVisibility(
+        undefined,
+        {
+          input: {
+            assetId: "asset_chart_1",
+            assetType: "chart",
+            isVisible: true,
+            serviceId: "service_1",
+            serviceItemId: "item_1",
+            title: "Opening Song Chart",
+            updatedAt: "2026-06-16T18:50:00.000Z",
+            visibleToRoleIds: ["role_vocal"]
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow(
+      "Actor is not allowed to manage Planning rehearsal asset visibility."
+    );
+
+    await expect(
+      resolvers.Query.rehearsalAssetVisibility(
+        undefined,
+        {
+          input: {
+            serviceId: "service_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow("Planning rehearsal asset visibility tenant mismatch.");
   });
 
   it("delegates ccliReportingJobStatus to the Planning CCLI usage service and preserves status shape", async () => {
