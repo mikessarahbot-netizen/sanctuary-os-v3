@@ -19,12 +19,12 @@ Wire Planning GraphQL CCLI reporting job schedule/status contracts to the servic
 Production queue/broker · worker execution · retry policies · CCLI/SongSelect credentials · vendor reporting submission · file exports · UI · notifications
 
 ## Progress
-- [ ] Re-sync with required docs and current implementation
-- [ ] Add GraphQL CCLI reporting job schedule/status contracts
-- [ ] Add focused GraphQL CCLI reporting job tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs and current implementation
+- [x] Add GraphQL CCLI reporting job schedule/status contracts
+- [x] Add focused GraphQL CCLI reporting job tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning GraphQL exposes adapter-free CCLI reporting job schedule/status contracts that delegate to the existing service boundary; gates pass; the slice is committed, pushed, and documented in session handoff.

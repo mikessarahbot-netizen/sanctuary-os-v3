@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PlanningReadinessResult } from "../domain/planning/index.js";
+import type { ApiJobStatusRecord } from "../jobs/index.js";
 import type {
+  PlanningCcliUsageService,
   PlanningAssignmentRecord,
   PlanningCommandService,
   PlanningGeneratedSetlistResult,
@@ -126,6 +128,40 @@ const generatedSetlistResult: PlanningGeneratedSetlistResult = {
   usageWarnings: []
 };
 
+const ccliReportingJobStatus: ApiJobStatusRecord = {
+  enqueuedAt: "2026-06-16T18:30:00.000Z",
+  jobId: "job_1",
+  jobType: "ccli-reporting",
+  payload: {
+    reportingStatus: "pending",
+    serviceId: "service_1"
+  },
+  requestedByActorId: "actor_1",
+  requestId: "request_ccli_report",
+  sequence: 1,
+  status: "queued",
+  tenantId: "tenant_1",
+  updatedAt: "2026-06-16T18:30:00.000Z"
+};
+
+const createPlanningCcliUsageService = (
+  overrides: Partial<PlanningCcliUsageService> = {}
+): PlanningCcliUsageService => ({
+  getReportingJobStatus: vi.fn<PlanningCcliUsageService["getReportingJobStatus"]>(() =>
+    Promise.resolve(ccliReportingJobStatus)
+  ),
+  listUsageLogs: vi.fn<PlanningCcliUsageService["listUsageLogs"]>(() =>
+    Promise.resolve([])
+  ),
+  recordUsage: vi.fn<PlanningCcliUsageService["recordUsage"]>(() =>
+    Promise.reject(new Error("GraphQL CCLI usage record fixture is not configured."))
+  ),
+  scheduleReportingJob: vi.fn<PlanningCcliUsageService["scheduleReportingJob"]>(() =>
+    Promise.resolve({ jobId: "job_1" })
+  ),
+  ...overrides
+});
+
 const createPlanningCommandService = (
   overrides: Partial<PlanningCommandService> = {}
 ): PlanningCommandService => ({
@@ -211,6 +247,10 @@ describe("planningGraphqlTypeDefs", () => {
     expect(planningGraphqlTypeDefs).toContain(
       "serviceReadiness(serviceId: ID!): PlanningReadiness"
     );
+    expect(planningGraphqlTypeDefs).toContain("type ApiJobStatusRecord");
+    expect(planningGraphqlTypeDefs).toContain(
+      "ccliReportingJobStatus(input: CcliReportingJobStatusInput!): ApiJobStatusRecord"
+    );
   });
 
   it("declares the planned Planning mutation contract placeholders", () => {
@@ -238,6 +278,10 @@ describe("planningGraphqlTypeDefs", () => {
     );
     expect(planningGraphqlTypeDefs).toContain(
       "refreshReadinessScore(input: RefreshReadinessScoreInput!)"
+    );
+    expect(planningGraphqlTypeDefs).toContain("input ScheduleCcliReportingJobInput");
+    expect(planningGraphqlTypeDefs).toContain(
+      "scheduleCcliReportingJob(input: ScheduleCcliReportingJobInput!): ApiJobStatusEnqueueResult!"
     );
   });
 });
@@ -593,6 +637,219 @@ describe("createPlanningGraphqlResolvers", () => {
       requestId: "request_1",
       serviceId: "service_1"
     });
+  });
+
+  it("delegates scheduleCcliReportingJob to the Planning CCLI usage service with actor and request scope", async () => {
+    const scheduleReportingJob = vi.fn<
+      PlanningCcliUsageService["scheduleReportingJob"]
+    >(() => Promise.resolve({ jobId: "job_1" }));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        scheduleReportingJob
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.scheduleCcliReportingJob(
+        undefined,
+        {
+          input: {
+            reportingStatus: "pending",
+            serviceId: "service_1"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_ccli_report"
+        }
+      )
+    ).resolves.toEqual({ jobId: "job_1" });
+
+    expect(scheduleReportingJob).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        reportingStatus: "pending",
+        serviceId: "service_1"
+      },
+      requestId: "request_ccli_report"
+    });
+  });
+
+  it("delegates ccliReportingJobStatus to the Planning CCLI usage service and preserves status shape", async () => {
+    const getReportingJobStatus = vi.fn<
+      PlanningCcliUsageService["getReportingJobStatus"]
+    >(() =>
+      Promise.resolve({
+        ...ccliReportingJobStatus,
+        safeErrorMessage: "CCLI reporting is temporarily unavailable.",
+        status: "failed",
+        updatedAt: "2026-06-16T18:45:00.000Z"
+      })
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        getReportingJobStatus
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Query.ccliReportingJobStatus(
+        undefined,
+        {
+          input: {
+            jobId: "job_1"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_ccli_status"
+        }
+      )
+    ).resolves.toEqual({
+      ...ccliReportingJobStatus,
+      safeErrorMessage: "CCLI reporting is temporarily unavailable.",
+      status: "failed",
+      updatedAt: "2026-06-16T18:45:00.000Z"
+    });
+
+    expect(getReportingJobStatus).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        jobId: "job_1"
+      },
+      requestId: "request_ccli_status"
+    });
+  });
+
+  it("returns null for missing CCLI reporting job status lookups", async () => {
+    const getReportingJobStatus = vi.fn<
+      PlanningCcliUsageService["getReportingJobStatus"]
+    >(() => Promise.resolve(null));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        getReportingJobStatus
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Query.ccliReportingJobStatus(
+        undefined,
+        {
+          input: {
+            jobId: "job_missing"
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toBeNull();
+  });
+
+  it("rejects invalid CCLI reporting job input before delegating", async () => {
+    const scheduleReportingJob = vi.fn<
+      PlanningCcliUsageService["scheduleReportingJob"]
+    >(() => Promise.resolve({ jobId: "job_1" }));
+    const getReportingJobStatus = vi.fn<
+      PlanningCcliUsageService["getReportingJobStatus"]
+    >(() => Promise.resolve(ccliReportingJobStatus));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        getReportingJobStatus,
+        scheduleReportingJob
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.scheduleCcliReportingJob(
+        undefined,
+        {
+          input: {
+            reportingStatus: "reported",
+            serviceId: "service_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(scheduleReportingJob).not.toHaveBeenCalled();
+
+    await expect(
+      resolvers.Query.ccliReportingJobStatus(
+        undefined,
+        {
+          input: {
+            jobId: ""
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(getReportingJobStatus).not.toHaveBeenCalled();
+  });
+
+  it("propagates unconfigured Planning CCLI usage service errors", async () => {
+    const scheduleReportingJob = vi.fn<
+      PlanningCcliUsageService["scheduleReportingJob"]
+    >(() =>
+      Promise.reject(
+        new Error("Planning CCLI reporting job dispatcher is not configured.")
+      )
+    );
+    const getReportingJobStatus = vi.fn<
+      PlanningCcliUsageService["getReportingJobStatus"]
+    >(() =>
+      Promise.reject(
+        new Error("Planning CCLI reporting job status reader is not configured.")
+      )
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        getReportingJobStatus,
+        scheduleReportingJob
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.scheduleCcliReportingJob(
+        undefined,
+        {
+          input: {
+            serviceId: "service_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow("Planning CCLI reporting job dispatcher is not configured.");
+
+    await expect(
+      resolvers.Query.ccliReportingJobStatus(
+        undefined,
+        {
+          input: {
+            jobId: "job_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow(
+      "Planning CCLI reporting job status reader is not configured."
+    );
   });
 
   it("delegates services query to the Planning query service with actor and request scope", async () => {

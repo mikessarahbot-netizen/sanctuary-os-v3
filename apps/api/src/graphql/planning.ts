@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { AuthenticatedActorSchema } from "../auth/index.js";
 import type { PlanningReadinessResult } from "../domain/planning/index.js";
+import type { ApiJobStatusRecord } from "../jobs/index.js";
+import type { PlanningCcliUsageService } from "../services/planning/ccli-usage.js";
+import {
+  GetPlanningCcliReportingJobStatusQuerySchema,
+  SchedulePlanningCcliReportingJobCommandSchema
+} from "../services/planning/ccli-usage.js";
 import type {
   PlanningAssignmentRecord,
   PlanningCommandService,
@@ -39,6 +45,7 @@ const NonEmptyStringSchema = z.string().min(1);
 
 export const planningGraphqlTypeDefs = /* GraphQL */ `
   scalar DateTime
+  scalar JSON
 
   enum PlanningServiceStatus {
     draft
@@ -73,6 +80,12 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     low
     medium
     high
+  }
+
+  enum PlanningCcliUsageReportingStatus {
+    pending
+    reported
+    skipped
   }
 
   type PlanningService {
@@ -185,6 +198,27 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     usageWarnings: [String!]!
   }
 
+  enum PlanningApiJobStatus {
+    queued
+    running
+    succeeded
+    failed
+  }
+
+  type ApiJobStatusRecord {
+    enqueuedAt: DateTime!
+    jobId: ID!
+    jobType: String!
+    payload: JSON!
+    requestedByActorId: ID!
+    requestId: ID!
+    safeErrorMessage: String
+    sequence: Int!
+    status: PlanningApiJobStatus!
+    tenantId: ID!
+    updatedAt: DateTime!
+  }
+
   input PlanningConfirmationIntentInput {
     confirmed: Boolean!
     reason: String!
@@ -274,6 +308,15 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     serviceId: ID!
   }
 
+  input ScheduleCcliReportingJobInput {
+    reportingStatus: PlanningCcliUsageReportingStatus
+    serviceId: ID!
+  }
+
+  input CcliReportingJobStatusInput {
+    jobId: ID!
+  }
+
   input PlanningServicesFilterInput {
     serviceTypeId: ID
     startsAtOrAfter: DateTime
@@ -296,6 +339,7 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     songLibrary(searchInput: PlanningSongLibrarySearchInput!): [PlanningSongLibraryItem!]!
     serviceAssignments(serviceId: ID!): [PlanningAssignment!]!
     serviceReadiness(serviceId: ID!): PlanningReadiness
+    ccliReportingJobStatus(input: CcliReportingJobStatusInput!): ApiJobStatusRecord
   }
 
   extend type Mutation {
@@ -309,6 +353,11 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     updateAssignmentStatus(input: UpdateAssignmentStatusInput!): PlanningAssignment!
     generateSetlist(input: GenerateSetlistInput!): PlanningGeneratedSetlist!
     refreshReadinessScore(input: RefreshReadinessScoreInput!): PlanningReadiness!
+    scheduleCcliReportingJob(input: ScheduleCcliReportingJobInput!): ApiJobStatusEnqueueResult!
+  }
+
+  type ApiJobStatusEnqueueResult {
+    jobId: ID!
   }
 `;
 
@@ -324,6 +373,7 @@ const GraphqlInputArgsSchema = z.object({
 export type PlanningGraphqlContext = z.infer<typeof PlanningGraphqlContextSchema>;
 
 export interface PlanningGraphqlResolverDependencies {
+  readonly planningCcliUsageService?: PlanningCcliUsageService;
   readonly planningCommandService: PlanningCommandService;
   readonly planningQueryService: PlanningQueryService;
   readonly planningReadinessService: PlanningReadinessService;
@@ -336,6 +386,7 @@ export interface PlanningQueryResolvers {
   readonly songLibrary: GraphqlQueryResolver<readonly PlanningSongLibraryItemRecord[]>;
   readonly serviceAssignments: GraphqlQueryResolver<readonly PlanningAssignmentRecord[]>;
   readonly serviceReadiness: GraphqlQueryResolver<PlanningReadinessResult | null>;
+  readonly ccliReportingJobStatus: GraphqlQueryResolver<ApiJobStatusRecord | null>;
 }
 
 export interface PlanningMutationResolvers {
@@ -351,6 +402,9 @@ export interface PlanningMutationResolvers {
   readonly updateAssignmentStatus: GraphqlMutationResolver<PlanningAssignmentRecord>;
   readonly generateSetlist: GraphqlMutationResolver<PlanningGeneratedSetlistResult>;
   readonly refreshReadinessScore: GraphqlMutationResolver<PlanningReadinessResult>;
+  readonly scheduleCcliReportingJob: GraphqlMutationResolver<{
+    readonly jobId: string;
+  }>;
 }
 
 export interface PlanningGraphqlResolvers {
@@ -502,6 +556,24 @@ export const createPlanningGraphqlResolvers = (
           requestId: graphqlContext.requestId
         })
       );
+    },
+
+    ccliReportingJobStatus: async (
+      _parent,
+      args,
+      context
+    ): Promise<ApiJobStatusRecord | null> => {
+      const graphqlContext = parseContext(context);
+
+      return getPlanningCcliUsageService(
+        dependencies
+      ).getReportingJobStatus(
+        GetPlanningCcliReportingJobStatusQuerySchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
     }
   },
 
@@ -649,9 +721,37 @@ export const createPlanningGraphqlResolvers = (
           serviceId: input.serviceId
         })
       );
+    },
+
+    scheduleCcliReportingJob: async (
+      _parent,
+      args,
+      context
+    ): Promise<{ readonly jobId: string }> => {
+      const graphqlContext = parseContext(context);
+
+      return getPlanningCcliUsageService(
+        dependencies
+      ).scheduleReportingJob(
+        SchedulePlanningCcliReportingJobCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
     }
   }
 });
+
+const getPlanningCcliUsageService = (
+  dependencies: PlanningGraphqlResolverDependencies
+): PlanningCcliUsageService => {
+  if (dependencies.planningCcliUsageService === undefined) {
+    throw new Error("Planning CCLI usage service is not configured.");
+  }
+
+  return dependencies.planningCcliUsageService;
+};
 
 const parseContext = (context: PlanningGraphqlContext): PlanningGraphqlContext =>
   PlanningGraphqlContextSchema.parse(context);
