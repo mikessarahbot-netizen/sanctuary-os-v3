@@ -4,10 +4,15 @@ import type { ApiEventEnvelope } from "../../events/index.js";
 import {
   createPlanningCommandService,
   DuplicatePlanningServiceFromTemplateCommandSchema,
+  GeneratePlanningSetlistCommandSchema,
   ReorderPlanningServiceItemsCommandSchema,
   UpdatePlanningServiceCommandSchema,
   type PlanningAssignmentRecord,
   type PlanningCommandRepository,
+  type PlanningGeneratedSetlistResult,
+  type PlanningSetlistGenerator,
+  type PlanningSetlistPromptResult,
+  type PlanningSetlistSongCandidate,
   type PlanningServiceItemRecord,
   type PlanningServiceRecord
 } from "./commands.js";
@@ -40,6 +45,58 @@ const assignmentRecord: PlanningAssignmentRecord = {
   roleId: "role_vocal",
   serviceId: "service_1",
   status: "pending",
+  tenantId: "tenant_1"
+};
+
+const setlistSongLibrary: PlanningSetlistSongCandidate[] = [
+  {
+    artist: "Sanctuary Collective",
+    availableKeys: ["G", "A"],
+    defaultKey: "G",
+    isBannedOrPaused: false,
+    songId: "song_1",
+    title: "Open The Gates",
+    usageCount: 4
+  },
+  {
+    artist: "Sanctuary Collective",
+    availableKeys: ["D"],
+    defaultKey: "D",
+    isBannedOrPaused: true,
+    songId: "song_paused",
+    title: "Paused Song",
+    usageCount: 8
+  }
+];
+
+const setlistPromptResult: PlanningSetlistPromptResult = {
+  alternatives: [],
+  confidence: 0.82,
+  flowAnalysis: "Builds from invitation into response.",
+  needsReview: true,
+  recommendedSetlist: [
+    {
+      key: "G",
+      rationale: "Familiar opener that matches the theme.",
+      songId: "song_1",
+      title: "Open The Gates"
+    }
+  ],
+  reviewNotes: ["Review keys with the worship leader before adding items."],
+  status: "suggested",
+  usageWarnings: []
+};
+
+const generatedSetlistResult: PlanningGeneratedSetlistResult = {
+  ...setlistPromptResult,
+  generatedByActorId: "actor_1",
+  humanReview: {
+    gate: "ai-suggested-write",
+    required: true
+  },
+  persisted: false,
+  requestId: "request_setlist",
+  serviceId: "service_1",
   tenantId: "tenant_1"
 };
 
@@ -151,6 +208,51 @@ describe("Planning command schemas", () => {
         requestId: "request_template"
       }).input.serviceTemplateId
     ).toBe("template_sunday");
+  });
+
+  it("validates generate setlist input against available songs", () => {
+    expect(() =>
+      GeneratePlanningSetlistCommandSchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          churchContextSummary: "Non-PII planning summary.",
+          serviceId: "service_1",
+          serviceType: "Sunday",
+          songLibrary: [
+            {
+              isBannedOrPaused: true,
+              songId: "song_paused",
+              title: "Paused Song"
+            }
+          ],
+          targetSetLength: 1
+        },
+        requestId: "request_setlist"
+      })
+    ).toThrow("Setlist generation requires at least one available song.");
+
+    expect(
+      GeneratePlanningSetlistCommandSchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          churchContextSummary: "Non-PII planning summary.",
+          planningConstraints: ["Use songs already in the library."],
+          serviceId: "service_1",
+          serviceType: "Sunday",
+          songLibrary: setlistSongLibrary,
+          targetSetLength: 1
+        },
+        requestId: "request_setlist"
+      }).input.targetSetLength
+    ).toBe(1);
   });
 });
 
@@ -361,6 +463,167 @@ describe("createPlanningCommandService", () => {
     ).rejects.toThrow("Actor is not allowed to mutate planning services.");
 
     expect(duplicateServiceFromTemplate).not.toHaveBeenCalled();
+  });
+
+  it("returns a reviewable generated setlist without mutating service items", async () => {
+    const addServiceItem = vi.fn<PlanningCommandRepository["addServiceItem"]>(() =>
+      Promise.resolve(serviceItemRecord)
+    );
+    const generateSetlist = vi.fn<PlanningSetlistGenerator["generateSetlist"]>(() =>
+      Promise.resolve(setlistPromptResult)
+    );
+    const service = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository({ addServiceItem }),
+      setlistGenerator: { generateSetlist }
+    });
+
+    await expect(
+      service.generateSetlist({
+        actor: {
+          actorId: "actor_1",
+          roles: ["worship_leader"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          churchContextSummary: "Non-PII planning summary.",
+          churchPreferences: ["Prefer congregational songs."],
+          planningConstraints: ["Avoid paused songs."],
+          recentUsageHistory: ["song_1 used 4 weeks ago."],
+          scriptureReference: "Psalm 24",
+          sermonTheme: "King of Glory",
+          serviceId: "service_1",
+          serviceType: "Sunday",
+          songLibrary: setlistSongLibrary,
+          targetSetLength: 1
+        },
+        requestId: "request_setlist"
+      })
+    ).resolves.toEqual(generatedSetlistResult);
+
+    expect(generateSetlist).toHaveBeenCalledWith({
+      churchContextSummary: "Non-PII planning summary.",
+      churchPreferences: ["Prefer congregational songs."],
+      planningConstraints: ["Avoid paused songs."],
+      recentUsageHistory: ["song_1 used 4 weeks ago."],
+      requestId: "request_setlist",
+      scriptureReference: "Psalm 24",
+      sermonTheme: "King of Glory",
+      serviceId: "service_1",
+      serviceType: "Sunday",
+      songLibrary: setlistSongLibrary,
+      targetSetLength: 1,
+      tenantId: "tenant_1"
+    });
+    expect(addServiceItem).not.toHaveBeenCalled();
+  });
+
+  it("rejects generate setlist actors without Planning command roles", async () => {
+    const generateSetlist = vi.fn<PlanningSetlistGenerator["generateSetlist"]>(() =>
+      Promise.resolve(setlistPromptResult)
+    );
+    const service = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository(),
+      setlistGenerator: { generateSetlist }
+    });
+
+    await expect(
+      service.generateSetlist({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          churchContextSummary: "Non-PII planning summary.",
+          churchPreferences: [],
+          planningConstraints: [],
+          recentUsageHistory: [],
+          serviceId: "service_1",
+          serviceType: "Sunday",
+          songLibrary: setlistSongLibrary,
+          targetSetLength: 1
+        },
+        requestId: "request_setlist"
+      })
+    ).rejects.toThrow("Actor is not allowed to mutate planning services.");
+
+    expect(generateSetlist).not.toHaveBeenCalled();
+  });
+
+  it("validates generated setlist output before returning it", async () => {
+    const unavailableSongService = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository(),
+      setlistGenerator: {
+        generateSetlist: () =>
+          Promise.resolve({
+            ...setlistPromptResult,
+            recommendedSetlist: [
+              {
+                rationale: "Not in the allowed library.",
+                songId: "song_missing",
+                title: "Missing Song"
+              }
+            ]
+          })
+      }
+    });
+
+    await expect(
+      unavailableSongService.generateSetlist({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          churchContextSummary: "Non-PII planning summary.",
+          churchPreferences: [],
+          planningConstraints: [],
+          recentUsageHistory: [],
+          serviceId: "service_1",
+          serviceType: "Sunday",
+          songLibrary: setlistSongLibrary,
+          targetSetLength: 1
+        },
+        requestId: "request_setlist"
+      })
+    ).rejects.toThrow("Planning generated setlist includes unavailable song.");
+
+    const unreviewableService = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository(),
+      setlistGenerator: {
+        generateSetlist: () =>
+          Promise.resolve({
+            ...setlistPromptResult,
+            needsReview: false
+          })
+      }
+    });
+
+    await expect(
+      unreviewableService.generateSetlist({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          churchContextSummary: "Non-PII planning summary.",
+          churchPreferences: [],
+          planningConstraints: [],
+          recentUsageHistory: [],
+          serviceId: "service_1",
+          serviceType: "Sunday",
+          songLibrary: setlistSongLibrary,
+          targetSetLength: 1
+        },
+        requestId: "request_setlist"
+      })
+    ).rejects.toThrow();
   });
 
   it("rejects cross-tenant service records returned by persistence", async () => {

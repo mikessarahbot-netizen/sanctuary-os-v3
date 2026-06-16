@@ -114,6 +114,33 @@ const createPlanningCommandService = (
   duplicateServiceFromTemplate: vi.fn<
     PlanningCommandService["duplicateServiceFromTemplate"]
   >(() => Promise.resolve(serviceRecord)),
+  generateSetlist: vi.fn<PlanningCommandService["generateSetlist"]>(() =>
+    Promise.resolve({
+      alternatives: [],
+      confidence: 0.8,
+      flowAnalysis: "Builds from gathering to response.",
+      needsReview: true,
+      recommendedSetlist: [
+        {
+          rationale: "Known opener.",
+          songId: "song_1",
+          title: "Opening Song"
+        }
+      ],
+      reviewNotes: ["Review before adding to the plan."],
+      generatedByActorId: "actor_1",
+      humanReview: {
+        gate: "ai-suggested-write",
+        required: true
+      },
+      persisted: false,
+      requestId: "request_1",
+      serviceId: "service_1",
+      status: "suggested",
+      tenantId: "tenant_1",
+      usageWarnings: []
+    })
+  ),
   reorderServiceItems: vi.fn<PlanningCommandService["reorderServiceItems"]>(() =>
     Promise.resolve([serviceItemRecord])
   ),

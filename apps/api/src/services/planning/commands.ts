@@ -75,6 +75,54 @@ export const PlanningAssignmentRecordSchema = z.object({
   tenantId: NonEmptyStringSchema
 });
 
+export const PlanningSetlistSongCandidateSchema = z.object({
+  artist: OptionalNonEmptyStringSchema,
+  availableKeys: z.array(NonEmptyStringSchema).default([]),
+  defaultKey: OptionalNonEmptyStringSchema,
+  isBannedOrPaused: z.boolean().default(false),
+  songId: NonEmptyStringSchema,
+  title: NonEmptyStringSchema,
+  usageCount: z.number().int().nonnegative().default(0)
+});
+
+export const PlanningSetlistRecommendationSchema = z.object({
+  key: OptionalNonEmptyStringSchema,
+  rationale: NonEmptyStringSchema,
+  serviceMoment: OptionalNonEmptyStringSchema,
+  songId: NonEmptyStringSchema,
+  title: NonEmptyStringSchema
+});
+
+export const PlanningSetlistAlternativeSchema = z.object({
+  reason: NonEmptyStringSchema,
+  songId: NonEmptyStringSchema,
+  title: NonEmptyStringSchema
+});
+
+export const PlanningSetlistPromptResultSchema = z.object({
+  alternatives: z.array(PlanningSetlistAlternativeSchema).default([]),
+  confidence: z.number().min(0).max(1),
+  flowAnalysis: NonEmptyStringSchema,
+  needsReview: z.literal(true),
+  recommendedSetlist: z.array(PlanningSetlistRecommendationSchema),
+  reviewNotes: z.array(NonEmptyStringSchema).min(1),
+  status: z.enum(["suggested", "insufficient_context", "blocked"]),
+  usageWarnings: z.array(NonEmptyStringSchema)
+});
+
+export const PlanningGeneratedSetlistResultSchema =
+  PlanningSetlistPromptResultSchema.extend({
+    generatedByActorId: NonEmptyStringSchema,
+    humanReview: z.object({
+      gate: z.literal("ai-suggested-write"),
+      required: z.literal(true)
+    }),
+    persisted: z.literal(false),
+    requestId: NonEmptyStringSchema,
+    serviceId: NonEmptyStringSchema,
+    tenantId: NonEmptyStringSchema
+  });
+
 const PlanningCommandBaseSchema = z.object({
   actor: AuthenticatedActorSchema,
   requestId: NonEmptyStringSchema
@@ -177,6 +225,58 @@ export const UpdatePlanningAssignmentStatusCommandSchema = PlanningCommandBaseSc
   })
 });
 
+export const GeneratePlanningSetlistCommandSchema = PlanningCommandBaseSchema.extend({
+  input: z
+    .object({
+      churchContextSummary: NonEmptyStringSchema,
+      churchPreferences: z.array(NonEmptyStringSchema).default([]),
+      planningConstraints: z.array(NonEmptyStringSchema).default([]),
+      recentUsageHistory: z.array(NonEmptyStringSchema).default([]),
+      scriptureReference: OptionalNonEmptyStringSchema,
+      sermonTheme: OptionalNonEmptyStringSchema,
+      serviceId: NonEmptyStringSchema,
+      serviceType: NonEmptyStringSchema,
+      songLibrary: z.array(PlanningSetlistSongCandidateSchema).min(1),
+      targetSetLength: z.number().int().min(1).max(12)
+    })
+    .superRefine((input, context) => {
+      const availableSongCount = input.songLibrary.filter(
+        (song) => !song.isBannedOrPaused
+      ).length;
+
+      if (availableSongCount === 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Setlist generation requires at least one available song.",
+          path: ["songLibrary"]
+        });
+      }
+
+      if (input.targetSetLength > availableSongCount) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Target set length cannot exceed available song count.",
+          path: ["targetSetLength"]
+        });
+      }
+    })
+});
+
+export const PlanningSetlistPromptRequestSchema = z.object({
+  churchContextSummary: NonEmptyStringSchema,
+  churchPreferences: z.array(NonEmptyStringSchema),
+  planningConstraints: z.array(NonEmptyStringSchema),
+  recentUsageHistory: z.array(NonEmptyStringSchema),
+  requestId: NonEmptyStringSchema,
+  scriptureReference: OptionalNonEmptyStringSchema,
+  sermonTheme: OptionalNonEmptyStringSchema,
+  serviceId: NonEmptyStringSchema,
+  serviceType: NonEmptyStringSchema,
+  songLibrary: z.array(PlanningSetlistSongCandidateSchema).min(1),
+  targetSetLength: z.number().int().min(1).max(12),
+  tenantId: NonEmptyStringSchema
+});
+
 export type PlanningServiceCommandRole = z.infer<typeof PlanningServiceCommandRoleSchema>;
 export type PlanningServiceStatus = z.infer<typeof PlanningServiceStatusSchema>;
 export type PlanningServiceItemType = z.infer<typeof PlanningServiceItemTypeSchema>;
@@ -184,6 +284,18 @@ export type PlanningConfirmationIntent = z.infer<typeof PlanningConfirmationInte
 export type PlanningServiceRecord = z.infer<typeof PlanningServiceRecordSchema>;
 export type PlanningServiceItemRecord = z.infer<typeof PlanningServiceItemRecordSchema>;
 export type PlanningAssignmentRecord = z.infer<typeof PlanningAssignmentRecordSchema>;
+export type PlanningSetlistSongCandidate = z.infer<
+  typeof PlanningSetlistSongCandidateSchema
+>;
+export type PlanningSetlistRecommendation = z.infer<
+  typeof PlanningSetlistRecommendationSchema
+>;
+export type PlanningSetlistPromptResult = z.infer<
+  typeof PlanningSetlistPromptResultSchema
+>;
+export type PlanningGeneratedSetlistResult = z.infer<
+  typeof PlanningGeneratedSetlistResultSchema
+>;
 export type CreatePlanningServiceCommand = z.infer<typeof CreatePlanningServiceCommandSchema>;
 export type DuplicatePlanningServiceFromTemplateCommand = z.infer<
   typeof DuplicatePlanningServiceFromTemplateCommandSchema
@@ -202,6 +314,12 @@ export type AssignPlanningVolunteerCommand = z.infer<
 export type UpdatePlanningAssignmentStatusCommand = z.infer<
   typeof UpdatePlanningAssignmentStatusCommandSchema
 >;
+export type GeneratePlanningSetlistCommand = z.infer<
+  typeof GeneratePlanningSetlistCommandSchema
+>;
+export type PlanningSetlistPromptRequest = z.infer<
+  typeof PlanningSetlistPromptRequestSchema
+>;
 
 export interface PlanningCommandRepository {
   readonly createService: PlanningServiceCommandPersistenceRepository["createService"];
@@ -216,7 +334,12 @@ export interface PlanningCommandRepository {
 
 export interface PlanningCommandServiceDependencies {
   readonly eventPublisher: EventPublisher;
+  readonly setlistGenerator?: PlanningSetlistGenerator;
   readonly planningRepository: PlanningCommandRepository;
+}
+
+export interface PlanningSetlistGenerator {
+  readonly generateSetlist: (request: PlanningSetlistPromptRequest) => Promise<unknown>;
 }
 
 export interface PlanningCommandService {
@@ -244,6 +367,9 @@ export interface PlanningCommandService {
   readonly updateAssignmentStatus: (
     command: UpdatePlanningAssignmentStatusCommand
   ) => Promise<PlanningAssignmentRecord>;
+  readonly generateSetlist: (
+    command: GeneratePlanningSetlistCommand
+  ) => Promise<PlanningGeneratedSetlistResult>;
 }
 
 export const createPlanningCommandService = (
@@ -422,6 +548,43 @@ export const createPlanningCommandService = (
     );
 
     return assignment;
+  },
+
+  generateSetlist: async (
+    rawCommand: GeneratePlanningSetlistCommand
+  ): Promise<PlanningGeneratedSetlistResult> => {
+    const command = GeneratePlanningSetlistCommandSchema.parse(rawCommand);
+    assertPlanningCommandRole(command.actor);
+
+    const generator = dependencies.setlistGenerator;
+
+    if (generator === undefined) {
+      throw new Error("Planning setlist generator is not configured.");
+    }
+
+    const promptRequest = PlanningSetlistPromptRequestSchema.parse({
+      ...command.input,
+      requestId: command.requestId,
+      tenantId: command.actor.tenantId
+    });
+    const promptResult = PlanningSetlistPromptResultSchema.parse(
+      await generator.generateSetlist(promptRequest)
+    );
+
+    assertGeneratedSongsFromLibrary(promptResult, command.input.songLibrary);
+
+    return PlanningGeneratedSetlistResultSchema.parse({
+      ...promptResult,
+      generatedByActorId: command.actor.actorId,
+      humanReview: {
+        gate: "ai-suggested-write",
+        required: true
+      },
+      persisted: false,
+      requestId: command.requestId,
+      serviceId: command.input.serviceId,
+      tenantId: command.actor.tenantId
+    });
   }
 });
 
@@ -529,4 +692,19 @@ const publishServicePublishedEvent = async (
       tenantId: service.tenantId
     })
   );
+};
+
+const assertGeneratedSongsFromLibrary = (
+  result: PlanningSetlistPromptResult,
+  songLibrary: readonly PlanningSetlistSongCandidate[]
+): void => {
+  const availableSongIds = new Set(
+    songLibrary.filter((song) => !song.isBannedOrPaused).map((song) => song.songId)
+  );
+
+  for (const recommendation of result.recommendedSetlist) {
+    if (!availableSongIds.has(recommendation.songId)) {
+      throw new Error("Planning generated setlist includes unavailable song.");
+    }
+  }
 };

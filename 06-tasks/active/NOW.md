@@ -18,10 +18,10 @@ Implement Planning generate-setlist command contracts.
 Database migrations · concrete production persistence adapter · UI components · vendor SDK integrations · direct Claude/OpenAI calls · automatic writes to service items · CCLI/SongSelect implementation · GraphQL resolver wiring · GraphQL server runtime
 
 ## Progress
-- [ ] Add generate-setlist command/prompt contract schemas
-- [ ] Add Planning command service generateSetlist boundary
-- [ ] Add focused API contract tests
-- [ ] Run lint, typecheck, and tests
+- [x] Add generate-setlist command/prompt contract schemas
+- [x] Add Planning command service generateSetlist boundary
+- [x] Add focused API contract tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
