@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PlanningReadinessResult } from "../domain/planning/index.js";
 import type { ApiJobStatusRecord } from "../jobs/index.js";
 import type {
+  PlanningCcliUsageLogRecord,
   PlanningCcliUsageService,
   PlanningAssignmentRecord,
   PlanningCommandService,
@@ -144,6 +145,20 @@ const ccliReportingJobStatus: ApiJobStatusRecord = {
   updatedAt: "2026-06-16T18:30:00.000Z"
 };
 
+const ccliUsageLogRecord: PlanningCcliUsageLogRecord = {
+  ccliSongNumber: "123456",
+  ccliUsageLogId: "ccli_log_1",
+  notes: "Sunday gathering use.",
+  reportingStatus: "pending",
+  serviceId: "service_1",
+  serviceItemId: "item_1",
+  songId: "song_1",
+  tenantId: "tenant_1",
+  title: "Opening Song",
+  usageType: "service",
+  usedAt: "2026-06-21T14:05:00.000Z"
+};
+
 const createPlanningCcliUsageService = (
   overrides: Partial<PlanningCcliUsageService> = {}
 ): PlanningCcliUsageService => ({
@@ -251,6 +266,10 @@ describe("planningGraphqlTypeDefs", () => {
     expect(planningGraphqlTypeDefs).toContain(
       "ccliReportingJobStatus(input: CcliReportingJobStatusInput!): ApiJobStatusRecord"
     );
+    expect(planningGraphqlTypeDefs).toContain("type PlanningCcliUsageLog");
+    expect(planningGraphqlTypeDefs).toContain(
+      "ccliUsageLogs(input: CcliUsageLogsInput!): [PlanningCcliUsageLog!]!"
+    );
   });
 
   it("declares the planned Planning mutation contract placeholders", () => {
@@ -278,6 +297,10 @@ describe("planningGraphqlTypeDefs", () => {
     );
     expect(planningGraphqlTypeDefs).toContain(
       "refreshReadinessScore(input: RefreshReadinessScoreInput!)"
+    );
+    expect(planningGraphqlTypeDefs).toContain("input RecordCcliUsageInput");
+    expect(planningGraphqlTypeDefs).toContain(
+      "recordCcliUsage(input: RecordCcliUsageInput!): PlanningCcliUsageLog!"
     );
     expect(planningGraphqlTypeDefs).toContain("input ScheduleCcliReportingJobInput");
     expect(planningGraphqlTypeDefs).toContain(
@@ -678,6 +701,122 @@ describe("createPlanningGraphqlResolvers", () => {
     });
   });
 
+  it("delegates recordCcliUsage to the Planning CCLI usage service with actor and request scope", async () => {
+    const recordUsage = vi.fn<PlanningCcliUsageService["recordUsage"]>(() =>
+      Promise.resolve(ccliUsageLogRecord)
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        recordUsage
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.recordCcliUsage(
+        undefined,
+        {
+          input: {
+            ccliSongNumber: "123456",
+            notes: "Sunday gathering use.",
+            serviceId: "service_1",
+            serviceItemId: "item_1",
+            songId: "song_1",
+            title: "Opening Song",
+            usageType: "service",
+            usedAt: "2026-06-21T14:05:00.000Z"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_ccli_record"
+        }
+      )
+    ).resolves.toEqual(ccliUsageLogRecord);
+
+    expect(recordUsage).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        ccliSongNumber: "123456",
+        notes: "Sunday gathering use.",
+        serviceId: "service_1",
+        serviceItemId: "item_1",
+        songId: "song_1",
+        title: "Opening Song",
+        usageType: "service",
+        usedAt: "2026-06-21T14:05:00.000Z"
+      },
+      requestId: "request_ccli_record"
+    });
+  });
+
+  it("delegates ccliUsageLogs to the Planning CCLI usage service and preserves log shape", async () => {
+    const listUsageLogs = vi.fn<PlanningCcliUsageService["listUsageLogs"]>(() =>
+      Promise.resolve([ccliUsageLogRecord])
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        listUsageLogs
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Query.ccliUsageLogs(
+        undefined,
+        {
+          input: {
+            reportingStatus: "pending",
+            serviceId: "service_1"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_ccli_list"
+        }
+      )
+    ).resolves.toEqual([ccliUsageLogRecord]);
+
+    expect(listUsageLogs).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        reportingStatus: "pending",
+        serviceId: "service_1"
+      },
+      requestId: "request_ccli_list"
+    });
+  });
+
+  it("returns empty CCLI usage log query results", async () => {
+    const listUsageLogs = vi.fn<PlanningCcliUsageService["listUsageLogs"]>(() =>
+      Promise.resolve([])
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        listUsageLogs
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Query.ccliUsageLogs(
+        undefined,
+        {
+          input: {
+            serviceId: "service_without_usage"
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toEqual([]);
+  });
+
   it("delegates ccliReportingJobStatus to the Planning CCLI usage service and preserves status shape", async () => {
     const getReportingJobStatus = vi.fn<
       PlanningCcliUsageService["getReportingJobStatus"]
@@ -798,6 +937,104 @@ describe("createPlanningGraphqlResolvers", () => {
     ).rejects.toThrow();
 
     expect(getReportingJobStatus).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid CCLI usage log input before delegating", async () => {
+    const recordUsage = vi.fn<PlanningCcliUsageService["recordUsage"]>(() =>
+      Promise.resolve(ccliUsageLogRecord)
+    );
+    const listUsageLogs = vi.fn<PlanningCcliUsageService["listUsageLogs"]>(() =>
+      Promise.resolve([ccliUsageLogRecord])
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        listUsageLogs,
+        recordUsage
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.recordCcliUsage(
+        undefined,
+        {
+          input: {
+            credentials: "secret-token",
+            serviceId: "service_1",
+            songId: "song_1",
+            title: "Opening Song",
+            usageType: "service",
+            usedAt: "2026-06-21T14:05:00.000Z"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(recordUsage).not.toHaveBeenCalled();
+
+    await expect(
+      resolvers.Query.ccliUsageLogs(
+        undefined,
+        {
+          input: {
+            reportingStatus: "pending",
+            serviceId: ""
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(listUsageLogs).not.toHaveBeenCalled();
+  });
+
+  it("propagates Planning CCLI usage service record and list errors", async () => {
+    const recordUsage = vi.fn<PlanningCcliUsageService["recordUsage"]>(() =>
+      Promise.reject(new Error("Actor is not allowed to manage Planning CCLI usage logs."))
+    );
+    const listUsageLogs = vi.fn<PlanningCcliUsageService["listUsageLogs"]>(() =>
+      Promise.reject(new Error("Planning CCLI usage log tenant mismatch."))
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCcliUsageService: createPlanningCcliUsageService({
+        listUsageLogs,
+        recordUsage
+      }),
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.recordCcliUsage(
+        undefined,
+        {
+          input: {
+            serviceId: "service_1",
+            songId: "song_1",
+            title: "Opening Song",
+            usageType: "service",
+            usedAt: "2026-06-21T14:05:00.000Z"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow("Actor is not allowed to manage Planning CCLI usage logs.");
+
+    await expect(
+      resolvers.Query.ccliUsageLogs(
+        undefined,
+        {
+          input: {
+            serviceId: "service_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow("Planning CCLI usage log tenant mismatch.");
   });
 
   it("propagates unconfigured Planning CCLI usage service errors", async () => {

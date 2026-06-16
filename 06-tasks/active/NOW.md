@@ -19,12 +19,12 @@ Wire Planning GraphQL CCLI usage log record/list contracts to the service bounda
 CCLI/SongSelect credentials · vendor reporting submission · file exports · production queue/broker · worker execution · UI · notifications
 
 ## Progress
-- [ ] Re-sync with required docs and current implementation
-- [ ] Add GraphQL CCLI usage log record/list contracts
-- [ ] Add focused GraphQL CCLI usage log tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs and current implementation
+- [x] Add GraphQL CCLI usage log record/list contracts
+- [x] Add focused GraphQL CCLI usage log tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning GraphQL exposes adapter-free CCLI usage log record/list contracts that delegate to the existing service boundary; gates pass; the slice is committed, pushed, and documented in session handoff.
