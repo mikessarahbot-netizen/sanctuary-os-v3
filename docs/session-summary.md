@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:26 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, and the Planning production adapter contract.
+- Completed the SQL-first Planning command repository adapter in `packages/db` for `addServiceItem`, `updateServiceItem`, `reorderServiceItems`, `assignVolunteer`, and `updateAssignmentStatus`.
+- Extended adapter row validation for service items and assignments, ID generation dependencies, explicit tenant-scoped SQL statements, audit inserts, and transaction propagation.
+- Covered service item create/update, atomic reorder validation, assignment create/status update, tenant predicates, audit metadata, supplied transaction behavior, no volunteer contact storage, and malformed reorder outcomes with live-DB-free adapter tests.
+- Kept the slice free of live database connections, secrets, dependency installation, GraphQL/resolver changes, API service wiring, UI, workers, vendor SDKs, CCLI, rehearsal, readiness, query repository changes, and ORM/query-builder adoption.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `602aec7 feat(db): complete planning command sql adapter`.
+
+Next task:
+- Implement the SQL-first Planning query repository adapter for services, service detail, templates, song library search, assignments, and readiness lookup.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:21 EDT · feature/planning-readiness-domain
 
 Tasks completed:
