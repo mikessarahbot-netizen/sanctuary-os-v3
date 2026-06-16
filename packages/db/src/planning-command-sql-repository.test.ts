@@ -16,7 +16,10 @@ interface RecordingSqlExecutor extends PlanningSqlExecutor {
 }
 
 const createRecordingExecutor = (
-  resultRows: readonly PlanningSqlQueryResult["rows"][number][]
+  resultRows: readonly (
+    | PlanningSqlQueryResult["rows"][number]
+    | readonly PlanningSqlQueryResult["rows"][number][]
+  )[]
 ): RecordingSqlExecutor => {
   const statements: PlanningSqlStatement[] = [];
   const transactions: TransactionHandle[] = [];
@@ -36,9 +39,15 @@ const createRecordingExecutor = (
         return Promise.resolve({ rows: [] });
       }
 
-      const row = rowsByQuery.shift();
+      const rowOrRows = rowsByQuery.shift();
 
-      return Promise.resolve({ rows: row === undefined ? [] : [row] });
+      if (rowOrRows === undefined) {
+        return Promise.resolve({ rows: [] });
+      }
+
+      return Promise.resolve({
+        rows: Array.isArray(rowOrRows) ? rowOrRows : [rowOrRows]
+      });
     },
     runInTransaction: async <Result>(
       operation: (transaction: TransactionHandle) => Promise<Result>
@@ -52,7 +61,9 @@ const createRecordingExecutor = (
 };
 
 const createRepository = (executor: PlanningSqlExecutor) => {
+  let nextAssignmentId = 1;
   let nextAuditId = 1;
+  let nextServiceItemId = 1;
   let nextServiceId = 1;
 
   return createPlanningServiceCommandSqlRepository({
@@ -63,6 +74,16 @@ const createRepository = (executor: PlanningSqlExecutor) => {
         const auditLogId = `audit_${String(nextAuditId)}`;
         nextAuditId += 1;
         return auditLogId;
+      },
+      assignmentId: () => {
+        const assignmentId = `assignment_${String(nextAssignmentId)}`;
+        nextAssignmentId += 1;
+        return assignmentId;
+      },
+      serviceItemId: () => {
+        const serviceItemId = `item_${String(nextServiceItemId)}`;
+        nextServiceItemId += 1;
+        return serviceItemId;
       },
       serviceId: () => {
         const serviceId = `service_${String(nextServiceId)}`;
@@ -99,6 +120,76 @@ const expectParameters = (
 };
 
 describe("Planning SQL command repository slice", () => {
+  it("adds tenant-scoped service items and audits the item mutation", async () => {
+    const executor = createRecordingExecutor([
+      {
+        duration_minutes: 5,
+        notes: "Opening song.",
+        service_id: "service_1",
+        service_item_id: "item_1",
+        song_id: "song_1",
+        sort_order: 0,
+        tenant_id: "tenant_1",
+        title: "Open The Gates",
+        type: "song"
+      }
+    ]);
+    const repository = createRepository(executor);
+
+    await expect(
+      repository.addServiceItem({
+        input: {
+          durationMinutes: 5,
+          notes: "Opening song.",
+          serviceId: "service_1",
+          songId: "song_1",
+          title: "Open The Gates",
+          type: "song"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_add_item",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
+      })
+    ).resolves.toEqual({
+      durationMinutes: 5,
+      notes: "Opening song.",
+      serviceId: "service_1",
+      serviceItemId: "item_1",
+      songId: "song_1",
+      sortOrder: 0,
+      tenantId: "tenant_1",
+      title: "Open The Gates",
+      type: "song"
+    });
+
+    expect(executor.statements).toHaveLength(2);
+    const itemInsert = statementAt(executor, 0);
+    const auditInsert = statementAt(executor, 1);
+
+    expectSqlContains(itemInsert, "INSERT INTO planning_service_items");
+    expectSqlContains(itemInsert, "WHERE service.tenant_id = $1");
+    expectSqlContains(itemInsert, "AND service.service_id = $3");
+    expectParameters(itemInsert, [
+      "tenant_1",
+      "item_1",
+      "service_1",
+      "song_1",
+      "Open The Gates",
+      "song",
+      5,
+      "Opening song.",
+      fixedNow,
+      fixedNow
+    ]);
+    expect(auditInsert.parameters[4]).toBe("addServiceItem");
+    expect(auditInsert.parameters[6]).toBe("item_1");
+  });
+
   it("creates tenant-scoped services and writes audit metadata in one transaction", async () => {
     const executor = createRecordingExecutor([
       {
@@ -227,6 +318,109 @@ describe("Planning SQL command repository slice", () => {
     expect(auditInsert.parameters[4]).toBe("duplicateServiceFromTemplate");
   });
 
+  it("reorders service items atomically with tenant and service validation", async () => {
+    const executor = createRecordingExecutor([
+      [
+        {
+          duration_minutes: null,
+          notes: null,
+          service_id: "service_1",
+          service_item_id: "item_2",
+          song_id: null,
+          sort_order: 0,
+          tenant_id: "tenant_1",
+          title: "Prayer",
+          type: "prayer"
+        },
+        {
+          duration_minutes: 5,
+          notes: "Opening song.",
+          service_id: "service_1",
+          service_item_id: "item_1",
+          song_id: "song_1",
+          sort_order: 1,
+          tenant_id: "tenant_1",
+          title: "Open The Gates",
+          type: "song"
+        }
+      ]
+    ]);
+    const repository = createRepository(executor);
+
+    await expect(
+      repository.reorderServiceItems({
+        input: {
+          orderedServiceItemIds: ["item_2", "item_1"],
+          serviceId: "service_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_reorder",
+            tenantId: "tenant_1"
+          },
+          intent: "update"
+        }
+      })
+    ).resolves.toEqual([
+      {
+        serviceId: "service_1",
+        serviceItemId: "item_2",
+        sortOrder: 0,
+        tenantId: "tenant_1",
+        title: "Prayer",
+        type: "prayer"
+      },
+      {
+        durationMinutes: 5,
+        notes: "Opening song.",
+        serviceId: "service_1",
+        serviceItemId: "item_1",
+        songId: "song_1",
+        sortOrder: 1,
+        tenantId: "tenant_1",
+        title: "Open The Gates",
+        type: "song"
+      }
+    ]);
+
+    expect(executor.transactions).toEqual([{ transactionId: "tx_1" }]);
+    const reorder = statementAt(executor, 0);
+    const auditInsert = statementAt(executor, 1);
+
+    expectSqlContains(reorder, "WITH requested(service_item_id, ordinal)");
+    expectSqlContains(reorder, "FROM unnest($3::text[]) WITH ORDINALITY");
+    expectSqlContains(reorder, "AND item.tenant_id = $1");
+    expectSqlContains(reorder, "AND item.service_id = $2");
+    expectParameters(reorder, ["tenant_1", "service_1", ["item_2", "item_1"], fixedNow]);
+    expect(auditInsert.parameters[4]).toBe("reorderServiceItems");
+    expect(auditInsert.parameters[6]).toBe("service_1");
+  });
+
+  it("rejects reorder results that do not update every requested item", async () => {
+    const executor = createRecordingExecutor([[]]);
+    const repository = createRepository(executor);
+
+    await expect(
+      repository.reorderServiceItems({
+        input: {
+          orderedServiceItemIds: ["item_missing"],
+          serviceId: "service_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_reorder_missing",
+            tenantId: "tenant_1"
+          },
+          intent: "update"
+        }
+      })
+    ).rejects.toThrow("Planning service item reorder did not update every requested item.");
+
+    expect(executor.statements).toHaveLength(1);
+  });
+
   it("updates services with tenant predicates and confirmation audit reason", async () => {
     const suppliedTransaction = { transactionId: "service_tx" };
     const executor = createRecordingExecutor([
@@ -294,6 +488,173 @@ describe("Planning SQL command repository slice", () => {
       "Planner confirmed publishing the service.",
       fixedNow
     ]);
+  });
+
+  it("updates tenant-scoped service items and writes audit metadata", async () => {
+    const suppliedTransaction = { transactionId: "item_tx" };
+    const executor = createRecordingExecutor([
+      {
+        duration_minutes: 6,
+        notes: "Updated note.",
+        service_id: "service_1",
+        service_item_id: "item_1",
+        song_id: "song_1",
+        sort_order: 0,
+        tenant_id: "tenant_1",
+        title: "Updated Song",
+        type: "song"
+      }
+    ]);
+    const repository = createRepository(executor);
+
+    await repository.updateServiceItem({
+      input: {
+        durationMinutes: 6,
+        notes: "Updated note.",
+        serviceId: "service_1",
+        serviceItemId: "item_1",
+        title: "Updated Song"
+      },
+      options: {
+        context: {
+          actorId: "actor_1",
+          requestId: "request_update_item",
+          tenantId: "tenant_1"
+        },
+        intent: "update",
+        transaction: suppliedTransaction
+      }
+    });
+
+    expect(executor.transactions).toEqual([]);
+    const update = statementAt(executor, 0);
+    const auditInsert = statementAt(executor, 1);
+
+    expect(update.transaction).toEqual(suppliedTransaction);
+    expectSqlContains(update, "UPDATE planning_service_items");
+    expectSqlContains(update, "WHERE tenant_id = $1");
+    expectSqlContains(update, "AND service_id = $2");
+    expectSqlContains(update, "AND service_item_id = $3");
+    expectParameters(update, [
+      "tenant_1",
+      "service_1",
+      "item_1",
+      null,
+      "Updated Song",
+      null,
+      6,
+      "Updated note.",
+      fixedNow
+    ]);
+    expect(auditInsert.parameters[4]).toBe("updateServiceItem");
+    expect(auditInsert.parameters[6]).toBe("item_1");
+  });
+
+  it("assigns volunteers without storing contact data", async () => {
+    const executor = createRecordingExecutor([
+      {
+        assignment_id: "assignment_1",
+        person_id: "person_1",
+        role_id: "role_vocal",
+        service_id: "service_1",
+        status: "pending",
+        tenant_id: "tenant_1"
+      }
+    ]);
+    const repository = createRepository(executor);
+
+    await expect(
+      repository.assignVolunteer({
+        input: {
+          personId: "person_1",
+          roleId: "role_vocal",
+          serviceId: "service_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_assign",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
+      })
+    ).resolves.toEqual({
+      assignmentId: "assignment_1",
+      personId: "person_1",
+      roleId: "role_vocal",
+      serviceId: "service_1",
+      status: "pending",
+      tenantId: "tenant_1"
+    });
+
+    const insert = statementAt(executor, 0);
+    const auditInsert = statementAt(executor, 1);
+
+    expectSqlContains(insert, "INSERT INTO planning_assignments");
+    expectSqlContains(insert, "WHERE service.tenant_id = $1");
+    expectSqlContains(insert, "AND service.service_id = $3");
+    expect(insert.sql).not.toContain("email");
+    expect(insert.sql).not.toContain("phone");
+    expectParameters(insert, [
+      "tenant_1",
+      "assignment_1",
+      "service_1",
+      "person_1",
+      "role_vocal",
+      "pending",
+      fixedNow,
+      fixedNow
+    ]);
+    expect(auditInsert.parameters[4]).toBe("assignVolunteer");
+    expect(auditInsert.parameters[6]).toBe("assignment_1");
+  });
+
+  it("updates assignment status with tenant, service, and assignment predicates", async () => {
+    const executor = createRecordingExecutor([
+      {
+        assignment_id: "assignment_1",
+        person_id: "person_1",
+        role_id: "role_vocal",
+        service_id: "service_1",
+        status: "confirmed",
+        tenant_id: "tenant_1"
+      }
+    ]);
+    const repository = createRepository(executor);
+
+    await repository.updateAssignmentStatus({
+      input: {
+        assignmentId: "assignment_1",
+        serviceId: "service_1",
+        status: "confirmed"
+      },
+      options: {
+        context: {
+          actorId: "actor_1",
+          requestId: "request_assignment_status",
+          tenantId: "tenant_1"
+        },
+        intent: "update"
+      }
+    });
+
+    const update = statementAt(executor, 0);
+    const auditInsert = statementAt(executor, 1);
+
+    expectSqlContains(update, "UPDATE planning_assignments");
+    expectSqlContains(update, "WHERE tenant_id = $1");
+    expectSqlContains(update, "AND service_id = $2");
+    expectSqlContains(update, "AND assignment_id = $3");
+    expectParameters(update, [
+      "tenant_1",
+      "service_1",
+      "assignment_1",
+      "confirmed",
+      fixedNow
+    ]);
+    expect(auditInsert.parameters[4]).toBe("updateAssignmentStatus");
+    expect(auditInsert.parameters[6]).toBe("assignment_1");
   });
 
   it("rejects destructive service status updates without confirmation intent", async () => {
