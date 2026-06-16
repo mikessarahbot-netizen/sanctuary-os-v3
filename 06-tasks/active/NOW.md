@@ -19,10 +19,10 @@ Implement adapter-free Planning CCLI usage log contracts in the DB/API service l
 Database migrations · concrete production persistence adapter · UI components · vendor SDK integrations · direct CCLI/SongSelect calls · reporting-file export · GraphQL resolver wiring · GraphQL server runtime
 
 ## Progress
-- [ ] Add DB CCLI usage log persistence contracts
-- [ ] Add API Planning CCLI usage log service contracts
-- [ ] Add focused DB/API contract tests
-- [ ] Run lint, typecheck, and tests
+- [x] Add DB CCLI usage log persistence contracts
+- [x] Add API Planning CCLI usage log service contracts
+- [x] Add focused DB/API contract tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 

@@ -5,14 +5,18 @@ import {
   ListPlanningSongLibraryPersistenceOperationSchema,
   ListPlanningServicesPersistenceOperationSchema,
   ListPlanningServiceTemplatesPersistenceOperationSchema,
+  ListPlanningCcliUsageLogsPersistenceOperationSchema,
+  RecordPlanningCcliUsagePersistenceOperationSchema,
   RepositoryWriteOptionsSchema,
   UpdatePlanningServicePersistenceOperationSchema,
+  type PlanningCcliUsageLogPersistenceRecord,
   type PlanningReadinessPersistenceRecord,
   type PlanningServicePersistenceRecord,
   type PlanningServiceTemplatePersistenceRecord,
   type PlanningSongLibraryItemPersistenceRecord
 } from "./index.js";
 import type {
+  PlanningCcliUsageLogPersistenceRepository,
   PlanningServiceCommandPersistenceRepository,
   PlanningServiceQueryPersistenceRepository
 } from "./index.js";
@@ -67,6 +71,19 @@ const readinessRecord: PlanningReadinessPersistenceRecord = {
   serviceId: "service_1",
   strengths: [],
   tenantId: "tenant_1"
+};
+
+const ccliUsageLogRecord: PlanningCcliUsageLogPersistenceRecord = {
+  ccliSongNumber: "123456",
+  ccliUsageLogId: "ccli_log_1",
+  reportingStatus: "pending",
+  serviceId: "service_1",
+  serviceItemId: "item_1",
+  songId: "song_1",
+  tenantId: "tenant_1",
+  title: "Open The Gates",
+  usageType: "service",
+  usedAt: "2026-06-21T14:00:00.000Z"
 };
 
 describe("Planning repository contracts", () => {
@@ -210,6 +227,67 @@ describe("Planning repository contracts", () => {
             requestId: "request_4",
             tenantId: "tenant_1"
           }
+        }
+      })
+    ).toThrow();
+  });
+
+  it("validates adapter-free Planning CCLI usage log operation shapes", () => {
+    expect(
+      RecordPlanningCcliUsagePersistenceOperationSchema.parse({
+        input: {
+          ccliSongNumber: "123456",
+          serviceId: "service_1",
+          serviceItemId: "item_1",
+          songId: "song_1",
+          title: "Open The Gates",
+          usageType: "service",
+          usedAt: "2026-06-21T14:00:00.000Z"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_ccli",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
+      }).input.usageType
+    ).toBe("service");
+
+    expect(
+      ListPlanningCcliUsageLogsPersistenceOperationSchema.parse({
+        input: {
+          reportingStatus: "pending",
+          serviceId: "service_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_ccli_list",
+            tenantId: "tenant_1"
+          }
+        }
+      }).input.reportingStatus
+    ).toBe("pending");
+
+    expect(() =>
+      RecordPlanningCcliUsagePersistenceOperationSchema.parse({
+        input: {
+          ccliSongNumber: "secret-token",
+          serviceId: "service_1",
+          songId: "song_1",
+          title: "Open The Gates",
+          usageType: "service",
+          usedAt: "not-a-date"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_ccli",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
         }
       })
     ).toThrow();
@@ -449,5 +527,70 @@ describe("Planning repository contracts", () => {
         }
       })
     ).resolves.toEqual([songLibraryItemRecord]);
+  });
+
+  it("defines an adapter-free Planning CCLI usage persistence repository interface", async () => {
+    const repository: PlanningCcliUsageLogPersistenceRepository = {
+      listCcliUsageLogs: (operation) =>
+        Promise.resolve([
+          {
+            ...ccliUsageLogRecord,
+            reportingStatus:
+              operation.input.reportingStatus ?? ccliUsageLogRecord.reportingStatus,
+            serviceId: operation.input.serviceId,
+            tenantId: operation.options.context.tenantId
+          }
+        ]),
+      recordCcliUsage: (operation) =>
+        Promise.resolve({
+          ...ccliUsageLogRecord,
+          ccliSongNumber: operation.input.ccliSongNumber,
+          serviceId: operation.input.serviceId,
+          serviceItemId: operation.input.serviceItemId,
+          songId: operation.input.songId,
+          tenantId: operation.options.context.tenantId,
+          title: operation.input.title,
+          usageType: operation.input.usageType,
+          usedAt: operation.input.usedAt
+        })
+    };
+
+    await expect(
+      repository.recordCcliUsage({
+        input: {
+          ccliSongNumber: "123456",
+          serviceId: "service_1",
+          serviceItemId: "item_1",
+          songId: "song_1",
+          title: "Open The Gates",
+          usageType: "service",
+          usedAt: "2026-06-21T14:00:00.000Z"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_ccli",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
+      })
+    ).resolves.toEqual(ccliUsageLogRecord);
+
+    await expect(
+      repository.listCcliUsageLogs({
+        input: {
+          reportingStatus: "pending",
+          serviceId: "service_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_ccli_list",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).resolves.toEqual([ccliUsageLogRecord]);
   });
 });

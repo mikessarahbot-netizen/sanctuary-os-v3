@@ -40,6 +40,18 @@ export const PlanningReadinessPersistenceBandSchema = z.enum([
 
 export const PlanningSongEnergyPersistenceSchema = z.enum(["low", "medium", "high"]);
 
+export const PlanningCcliUsageTypePersistenceSchema = z.enum([
+  "service",
+  "rehearsal",
+  "livestream"
+]);
+
+export const PlanningCcliUsageReportingStatusPersistenceSchema = z.enum([
+  "pending",
+  "reported",
+  "skipped"
+]);
+
 export const PlanningPersistenceConfirmationIntentSchema = z.object({
   confirmed: z.literal(true),
   reason: NonEmptyStringSchema
@@ -119,6 +131,22 @@ export const PlanningReadinessPersistenceRecordSchema = z.object({
   tenantId: NonEmptyStringSchema
 });
 
+export const PlanningCcliUsageLogPersistenceRecordSchema = z
+  .object({
+    ccliSongNumber: OptionalNonEmptyStringSchema,
+    ccliUsageLogId: NonEmptyStringSchema,
+    notes: OptionalNonEmptyStringSchema,
+    reportingStatus: PlanningCcliUsageReportingStatusPersistenceSchema,
+    serviceId: NonEmptyStringSchema,
+    serviceItemId: OptionalNonEmptyStringSchema,
+    songId: NonEmptyStringSchema,
+    tenantId: NonEmptyStringSchema,
+    title: NonEmptyStringSchema,
+    usageType: PlanningCcliUsageTypePersistenceSchema,
+    usedAt: z.string().datetime()
+  })
+  .strict();
+
 export const PlanningServicesPersistenceFilterInputSchema = z.object({
   serviceTypeId: OptionalNonEmptyStringSchema,
   startsAtOrAfter: z.string().datetime().optional(),
@@ -171,6 +199,13 @@ export const ListPlanningServiceAssignmentsPersistenceInputSchema = z.object({
 export const GetPlanningServiceReadinessPersistenceInputSchema = z.object({
   serviceId: NonEmptyStringSchema
 });
+
+export const ListPlanningCcliUsageLogsPersistenceInputSchema = z
+  .object({
+    reportingStatus: PlanningCcliUsageReportingStatusPersistenceSchema.optional(),
+    serviceId: NonEmptyStringSchema
+  })
+  .strict();
 
 export const CreatePlanningServicePersistenceInputSchema = z.object({
   serviceTypeId: NonEmptyStringSchema,
@@ -229,6 +264,19 @@ export const UpdatePlanningAssignmentStatusPersistenceInputSchema = z.object({
   status: PlanningAssignmentPersistenceStatusSchema
 });
 
+export const RecordPlanningCcliUsagePersistenceInputSchema = z
+  .object({
+    ccliSongNumber: OptionalNonEmptyStringSchema,
+    notes: OptionalNonEmptyStringSchema,
+    serviceId: NonEmptyStringSchema,
+    serviceItemId: OptionalNonEmptyStringSchema,
+    songId: NonEmptyStringSchema,
+    title: NonEmptyStringSchema,
+    usageType: PlanningCcliUsageTypePersistenceSchema,
+    usedAt: z.string().datetime()
+  })
+  .strict();
+
 export const CreatePlanningServicePersistenceOperationSchema = z.object({
   input: CreatePlanningServicePersistenceInputSchema,
   options: RepositoryWriteOptionsSchema
@@ -269,6 +317,11 @@ export const UpdatePlanningAssignmentStatusPersistenceOperationSchema = z.object
   options: RepositoryWriteOptionsSchema
 });
 
+export const RecordPlanningCcliUsagePersistenceOperationSchema = z.object({
+  input: RecordPlanningCcliUsagePersistenceInputSchema,
+  options: RepositoryWriteOptionsSchema
+});
+
 export const ListPlanningServicesPersistenceOperationSchema = z.object({
   input: ListPlanningServicesPersistenceInputSchema,
   options: RepositoryReadOptionsSchema
@@ -299,6 +352,11 @@ export const GetPlanningServiceReadinessPersistenceOperationSchema = z.object({
   options: RepositoryReadOptionsSchema
 });
 
+export const ListPlanningCcliUsageLogsPersistenceOperationSchema = z.object({
+  input: ListPlanningCcliUsageLogsPersistenceInputSchema,
+  options: RepositoryReadOptionsSchema
+});
+
 export type PlanningServicePersistenceStatus = z.infer<
   typeof PlanningServicePersistenceStatusSchema
 >;
@@ -313,6 +371,12 @@ export type PlanningReadinessPersistenceBand = z.infer<
 >;
 export type PlanningSongEnergyPersistence = z.infer<
   typeof PlanningSongEnergyPersistenceSchema
+>;
+export type PlanningCcliUsageTypePersistence = z.infer<
+  typeof PlanningCcliUsageTypePersistenceSchema
+>;
+export type PlanningCcliUsageReportingStatusPersistence = z.infer<
+  typeof PlanningCcliUsageReportingStatusPersistenceSchema
 >;
 export type PlanningPersistenceConfirmationIntent = z.infer<
   typeof PlanningPersistenceConfirmationIntentSchema
@@ -338,6 +402,9 @@ export type PlanningReadinessPersistenceCheck = z.infer<
 export type PlanningReadinessPersistenceRecord = z.infer<
   typeof PlanningReadinessPersistenceRecordSchema
 >;
+export type PlanningCcliUsageLogPersistenceRecord = z.infer<
+  typeof PlanningCcliUsageLogPersistenceRecordSchema
+>;
 export type PlanningServicesPersistenceFilterInput = z.infer<
   typeof PlanningServicesPersistenceFilterInputSchema
 >;
@@ -362,6 +429,9 @@ export type ListPlanningServiceAssignmentsPersistenceInput = z.infer<
 export type GetPlanningServiceReadinessPersistenceInput = z.infer<
   typeof GetPlanningServiceReadinessPersistenceInputSchema
 >;
+export type ListPlanningCcliUsageLogsPersistenceInput = z.infer<
+  typeof ListPlanningCcliUsageLogsPersistenceInputSchema
+>;
 export type CreatePlanningServicePersistenceInput = z.infer<
   typeof CreatePlanningServicePersistenceInputSchema
 >;
@@ -385,6 +455,9 @@ export type AssignPlanningVolunteerPersistenceInput = z.infer<
 >;
 export type UpdatePlanningAssignmentStatusPersistenceInput = z.infer<
   typeof UpdatePlanningAssignmentStatusPersistenceInputSchema
+>;
+export type RecordPlanningCcliUsagePersistenceInput = z.infer<
+  typeof RecordPlanningCcliUsagePersistenceInputSchema
 >;
 
 export interface PlanningPersistenceOperation<TInput> {
@@ -413,6 +486,8 @@ export type AssignPlanningVolunteerPersistenceOperation =
   PlanningPersistenceOperation<AssignPlanningVolunteerPersistenceInput>;
 export type UpdatePlanningAssignmentStatusPersistenceOperation =
   PlanningPersistenceOperation<UpdatePlanningAssignmentStatusPersistenceInput>;
+export type RecordPlanningCcliUsagePersistenceOperation =
+  PlanningPersistenceOperation<RecordPlanningCcliUsagePersistenceInput>;
 export type ListPlanningServicesPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningServicesPersistenceInput>;
 export type GetPlanningServicePersistenceOperation =
@@ -425,6 +500,17 @@ export type ListPlanningServiceAssignmentsPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningServiceAssignmentsPersistenceInput>;
 export type GetPlanningServiceReadinessPersistenceOperation =
   PlanningReadPersistenceOperation<GetPlanningServiceReadinessPersistenceInput>;
+export type ListPlanningCcliUsageLogsPersistenceOperation =
+  PlanningReadPersistenceOperation<ListPlanningCcliUsageLogsPersistenceInput>;
+
+export interface PlanningCcliUsageLogPersistenceRepository {
+  readonly recordCcliUsage: (
+    operation: RecordPlanningCcliUsagePersistenceOperation
+  ) => Promise<PlanningCcliUsageLogPersistenceRecord>;
+  readonly listCcliUsageLogs: (
+    operation: ListPlanningCcliUsageLogsPersistenceOperation
+  ) => Promise<readonly PlanningCcliUsageLogPersistenceRecord[]>;
+}
 
 export interface PlanningServiceCommandPersistenceRepository {
   readonly createService: (
