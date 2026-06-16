@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 14:11 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, ChurchContext schema notes, setlist prompt spec, API plan, and Planning plan.
+- Integrated the Planning `generateSetlist` service boundary with the validated `planning-setlist` ChurchContext projection contract.
+- Added optional Planning setlist ChurchContext builder dependency support and a compatibility projection wrapper for the existing GraphQL input path.
+- Validated projection envelopes before prompt request construction, including tenant, request, actor, and service metadata checks.
+- Derived setlist prompt request inputs from the validated projection while preserving human-review behavior, banned/paused-song enforcement, AI output validation, and no automatic service-item writes.
+- Added focused service tests for projection builder usage, prompt metadata propagation, invalid projection rejection, and existing GraphQL compatibility behavior.
+- Ran and passed focused API checks, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `3aa7973 feat(planning): integrate setlist context projection`.
+
+Next task:
+- Implement an adapter-free validated Planning event publisher for realtime event handoff.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:04 EDT · feature/planning-readiness-domain
 
 Tasks completed:
