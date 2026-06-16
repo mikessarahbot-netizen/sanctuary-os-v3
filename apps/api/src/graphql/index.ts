@@ -29,5 +29,3 @@ export interface GraphqlSurface {
 }
 
 export * from "./planning.js";
-
-export * from "./planning.js";
