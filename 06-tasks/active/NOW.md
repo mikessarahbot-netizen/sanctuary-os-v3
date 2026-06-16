@@ -22,8 +22,8 @@ Production database adapter · migrations · concrete storage · UI components �
 - [x] Add in-memory Planning CCLI usage repository test adapter
 - [x] Add focused CCLI usage service integration tests
 - [x] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning CCLI usage service contracts are exercised through a tenant-scoped, Zod-validating, adapter-free in-memory test repository; gates pass; the slice is committed, pushed, and documented in session handoff.

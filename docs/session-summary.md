@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:58 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added a test-only in-memory Planning CCLI usage repository adapter under `apps/api/src/services/planning/testing/`.
+- The adapter Zod-validates CCLI usage read/write DB operation shapes, stores seeded tenant-scoped usage logs, records actor/request/tenant context, and records mutation intent for write assertions.
+- Added focused API integration tests that exercise `createPlanningCcliUsageService` through the adapter.
+- Covered tenant/status-filtered reads, usage log writes, tenant-local empty reads, operation recording, and malformed DB operation rejection.
+- Ran and passed focused API checks, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Implement Planning setlist ChurchContext projection contracts in the API context layer.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:54 EDT · feature/planning-readiness-domain
 
 Tasks completed:
