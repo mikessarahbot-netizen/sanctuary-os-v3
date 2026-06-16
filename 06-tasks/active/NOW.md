@@ -17,11 +17,11 @@ Write an ADR choosing the database adapter and migration tooling path for Planni
 Runtime adapter implementation · migrations · schema files · dependency installation · connection strings · secrets · UI · GraphQL/resolver changes · service changes
 
 ## Progress
-- [ ] Re-sync with required docs, DB plan, ADR 0002, and adapter contract
-- [ ] Add DB adapter/migration tooling ADR
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push ADR
-- [ ] Session handoff
+- [x] Re-sync with required docs, DB plan, ADR 0002, and adapter contract
+- [x] Add DB adapter/migration tooling ADR
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push ADR
+- [x] Session handoff
 
 ## Done when
 The ADR records a clear tooling path for the first Planning production persistence implementation; gates pass; the slice is committed, pushed, and documented in session handoff.

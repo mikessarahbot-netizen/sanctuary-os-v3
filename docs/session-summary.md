@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:10 EDT · feature/planning-db-adapter-adr
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, Planning API contract release-check, ADR 0002, and the Planning production adapter contract.
+- Created `feature/planning-db-adapter-adr` from the same commit as `feature/planning-readiness-domain` because that branch was already checked out in another worktree.
+- Added ADR 0003 choosing a SQL-first PostgreSQL adapter with a small PostgreSQL client and explicit reviewed SQL migrations owned by `packages/db`.
+- Evaluated SQL-first PostgreSQL, typed query-builder, and ORM-backed adapter paths against tenant scope reviewability, deterministic migrations, transaction-handle behavior, local tests without secrets, and future SQLite compatibility.
+- Kept the slice documentation-only with no runtime adapter implementation, migrations, schema files, dependency installation, connection strings, secrets, UI, GraphQL, or service changes.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Select the first approved DB implementation slice from `05-plans/db-plan.md` and ADR 0003, starting with the package-owned migration runner/registry and Planning schema migration tests.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:07 EDT · feature/planning-readiness-domain
 
 Tasks completed:
