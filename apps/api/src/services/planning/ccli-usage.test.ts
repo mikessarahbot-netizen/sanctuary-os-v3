@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { createInMemoryJobDispatcher } from "../../jobs/index.js";
 import {
   createPlanningCcliUsageService,
   ListPlanningCcliUsageLogsQuerySchema,
   RecordPlanningCcliUsageCommandSchema,
+  SchedulePlanningCcliReportingJobCommandSchema,
   type PlanningCcliUsageLogRecord,
   type PlanningCcliUsageRepository
 } from "./ccli-usage.js";
@@ -63,6 +65,21 @@ describe("Planning CCLI usage schemas", () => {
           serviceId: "service_1"
         },
         requestId: "request_ccli_list"
+      }).input.reportingStatus
+    ).toBe("pending");
+
+    expect(
+      SchedulePlanningCcliReportingJobCommandSchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          reportingStatus: "pending",
+          serviceId: "service_1"
+        },
+        requestId: "request_ccli_report"
       }).input.reportingStatus
     ).toBe("pending");
 
@@ -204,6 +221,90 @@ describe("createPlanningCcliUsageService", () => {
     ).rejects.toThrow("Actor is not allowed to manage Planning CCLI usage logs.");
 
     expect(recordCcliUsage).not.toHaveBeenCalled();
+  });
+
+  it("schedules CCLI reporting through a tenant-scoped async job handoff", async () => {
+    const jobDispatcher = createInMemoryJobDispatcher();
+    const service = createPlanningCcliUsageService({
+      jobDispatcher,
+      planningRepository: createRepository()
+    });
+
+    await expect(
+      service.scheduleReportingJob({
+        actor: {
+          actorId: "actor_1",
+          roles: ["worship_leader"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          reportingStatus: "pending",
+          serviceId: "service_1"
+        },
+        requestId: "request_ccli_report"
+      })
+    ).resolves.toEqual({ jobId: "job_1" });
+
+    expect(jobDispatcher.readQueuedJobs()).toMatchObject([
+      {
+        jobId: "job_1",
+        request: {
+          jobType: "ccli-reporting",
+          payload: {
+            reportingStatus: "pending",
+            serviceId: "service_1"
+          },
+          requestedByActorId: "actor_1",
+          requestId: "request_ccli_report",
+          tenantId: "tenant_1"
+        },
+        sequence: 1
+      }
+    ]);
+  });
+
+  it("rejects CCLI reporting job scheduling without roles or dispatcher", async () => {
+    const jobDispatcher = createInMemoryJobDispatcher();
+    const service = createPlanningCcliUsageService({
+      jobDispatcher,
+      planningRepository: createRepository()
+    });
+
+    await expect(
+      service.scheduleReportingJob({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          reportingStatus: "pending",
+          serviceId: "service_1"
+        },
+        requestId: "request_ccli_report"
+      })
+    ).rejects.toThrow("Actor is not allowed to manage Planning CCLI usage logs.");
+
+    expect(jobDispatcher.readQueuedJobs()).toEqual([]);
+
+    const unconfiguredService = createPlanningCcliUsageService({
+      planningRepository: createRepository()
+    });
+
+    await expect(
+      unconfiguredService.scheduleReportingJob({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          reportingStatus: "pending",
+          serviceId: "service_1"
+        },
+        requestId: "request_ccli_report"
+      })
+    ).rejects.toThrow("Planning CCLI reporting job dispatcher is not configured.");
   });
 
   it("rejects CCLI usage logs returned outside tenant, service, or status scope", async () => {

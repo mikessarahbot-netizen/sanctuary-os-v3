@@ -19,12 +19,12 @@ Implement an adapter-free validated API job dispatcher for Planning CCLI reporti
 Production queue/broker · retry worker · polling GraphQL/API endpoint · CCLI/SongSelect credentials · vendor reporting submission · file exports · UI · notifications
 
 ## Progress
-- [ ] Re-sync with required docs and current implementation
-- [ ] Add validated adapter-free API job dispatcher
-- [ ] Add focused CCLI reporting job handoff tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs and current implementation
+- [x] Add validated adapter-free API job dispatcher
+- [x] Add focused CCLI reporting job handoff tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 API async job requests, especially Planning `ccli-reporting`, can be exercised through a validated adapter-free dispatcher that records ordered job handoffs with tenant/actor/request-safe metadata; gates pass; the slice is committed, pushed, and documented in session handoff.

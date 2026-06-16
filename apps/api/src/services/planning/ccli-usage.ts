@@ -7,6 +7,8 @@ import type {
   PlanningReadPersistenceOperation,
   RepositoryMutationIntent
 } from "@sanctuary-os/db";
+import type { JobDispatcher } from "../../jobs/index.js";
+import { ApiJobEnqueueResultSchema } from "../../jobs/index.js";
 
 const NonEmptyStringSchema = z.string().min(1);
 const OptionalNonEmptyStringSchema = NonEmptyStringSchema.optional();
@@ -72,6 +74,16 @@ export const ListPlanningCcliUsageLogsQuerySchema = PlanningCcliUsageBaseSchema.
     .strict()
 });
 
+export const SchedulePlanningCcliReportingJobCommandSchema =
+  PlanningCcliUsageBaseSchema.extend({
+    input: z
+      .object({
+        reportingStatus: z.literal("pending").default("pending"),
+        serviceId: NonEmptyStringSchema
+      })
+      .strict()
+  });
+
 export type PlanningCcliUsageRole = z.infer<typeof PlanningCcliUsageRoleSchema>;
 export type PlanningCcliUsageType = z.infer<typeof PlanningCcliUsageTypeSchema>;
 export type PlanningCcliUsageReportingStatus = z.infer<
@@ -86,6 +98,9 @@ export type RecordPlanningCcliUsageCommand = z.infer<
 export type ListPlanningCcliUsageLogsQuery = z.infer<
   typeof ListPlanningCcliUsageLogsQuerySchema
 >;
+export type SchedulePlanningCcliReportingJobCommand = z.infer<
+  typeof SchedulePlanningCcliReportingJobCommandSchema
+>;
 
 export interface PlanningCcliUsageRepository {
   readonly recordCcliUsage: PlanningCcliUsageLogPersistenceRepository["recordCcliUsage"];
@@ -93,6 +108,7 @@ export interface PlanningCcliUsageRepository {
 }
 
 export interface PlanningCcliUsageServiceDependencies {
+  readonly jobDispatcher?: JobDispatcher;
   readonly planningRepository: PlanningCcliUsageRepository;
 }
 
@@ -103,6 +119,9 @@ export interface PlanningCcliUsageService {
   readonly listUsageLogs: (
     query: ListPlanningCcliUsageLogsQuery
   ) => Promise<readonly PlanningCcliUsageLogRecord[]>;
+  readonly scheduleReportingJob: (
+    command: SchedulePlanningCcliReportingJobCommand
+  ) => Promise<{ readonly jobId: string }>;
 }
 
 export const createPlanningCcliUsageService = (
@@ -148,6 +167,32 @@ export const createPlanningCcliUsageService = (
           query.input.reportingStatus
         )
       );
+  },
+
+  scheduleReportingJob: async (
+    rawCommand: SchedulePlanningCcliReportingJobCommand
+  ): Promise<{ readonly jobId: string }> => {
+    const command = SchedulePlanningCcliReportingJobCommandSchema.parse(rawCommand);
+    assertPlanningCcliUsageRole(command.actor);
+
+    const jobDispatcher = dependencies.jobDispatcher;
+
+    if (jobDispatcher === undefined) {
+      throw new Error("Planning CCLI reporting job dispatcher is not configured.");
+    }
+
+    return ApiJobEnqueueResultSchema.parse(
+      await jobDispatcher.enqueue({
+        jobType: "ccli-reporting",
+        payload: {
+          reportingStatus: command.input.reportingStatus,
+          serviceId: command.input.serviceId
+        },
+        requestedByActorId: command.actor.actorId,
+        requestId: command.requestId,
+        tenantId: command.actor.tenantId
+      })
+    );
   }
 });
 
