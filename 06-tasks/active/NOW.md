@@ -1,31 +1,31 @@
 # NOW
 
 ## Task
-Implement Planning persistence repository contracts for service commands.
+Implement Planning repository in-memory test adapter for service command integration tests.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Add repository contract types for Planning service command persistence boundaries
-- Map command-service repository methods to tenant-scoped DB package operation contracts
-- Keep implementation adapter-free: no database connection, migrations, ORM, or SQL
-- Add tests for tenant scope, mutation intent, and repository contract shape
+- Add a test-only in-memory adapter implementing `PlanningServiceCommandPersistenceRepository`
+- Use the adapter in Planning command service integration tests
+- Preserve tenant-scoped operation handling and mutation-intent assertions
+- Keep implementation adapter-free for production: no database connection, migrations, ORM, or SQL
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-Database migrations · concrete persistence adapters · GraphQL changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data
+Database migrations · production persistence adapters · GraphQL changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data
 
 ## Progress
-- [x] Add Planning persistence repository contracts
-- [x] Map repository methods to DB operation contract shapes
-- [x] Add tenant-scope and mutation-intent tests
-- [x] Run lint, typecheck, and tests
-- [x] Commit and push slice
-- [x] Session handoff
+- [ ] Add Planning in-memory repository test adapter
+- [ ] Integrate adapter with command service tests
+- [ ] Add tenant-scope and mutation-intent integration assertions
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push slice
+- [ ] Session handoff
 
 ## Done when
-Planning persistence repository contracts are defined without concrete adapters, validated by tests, committed, pushed, and documented in session handoff.
+Planning command service integration tests exercise a test-only in-memory repository adapter that implements the DB package persistence contract, with validation passing, committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Implement Planning repository in-memory test adapter for service command integration tests.
+Implement Planning service repository adapter contract notes for the eventual production database adapter.
