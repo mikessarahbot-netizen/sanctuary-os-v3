@@ -2,6 +2,7 @@ export * from "./config.js";
 export * from "./migrations.js";
 export * from "./planning-command-sql-repository.js";
 export * from "./planning-migrations.js";
+export * from "./planning-query-sql-repository.js";
 export * from "./planning-repository-contracts.js";
 export * from "./repository-contracts.js";
 export * from "./tenant-scope.js";

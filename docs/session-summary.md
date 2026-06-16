@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:32 EDT · feature/planning-query-sql-adapter
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, and the existing Planning SQL command adapter.
+- Created `feature/planning-query-sql-adapter` from the pushed Planning readiness handoff because `feature/planning-readiness-domain` was already checked out in another worktree.
+- Added a SQL-first Planning query repository adapter in `packages/db` for `listServices`, `getService`, `listServiceTemplates`, `listSongLibrary`, `listServiceAssignments`, and `getServiceReadiness`.
+- Kept tenant predicates, optional read transaction propagation, parameterized filters, null-on-missing behavior, Zod row validation, ordered reads, and no-contact/no-secret query boundaries visible at the adapter boundary.
+- Added adapter-level executor tests that run without a live database or checked-in secrets.
+- Kept the slice free of live PostgreSQL execution, connection strings, GraphQL/resolver changes, API service wiring, UI, workers, vendor SDKs, command adapter changes, CCLI write adapter changes, rehearsal adapter changes, readiness write adapter changes, and ORM/query-builder adoption.
+- Ran and passed focused DB tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Implement the SQL-first Planning CCLI usage persistence adapter.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:26 EDT · feature/planning-readiness-domain
 
 Tasks completed:
