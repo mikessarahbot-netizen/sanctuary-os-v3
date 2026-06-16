@@ -19,9 +19,9 @@ Implement an adapter-free in-memory Planning rehearsal tracking repository test 
 Production database adapter · migrations · concrete storage · UI components · media storage · chart rendering · notifications · mobile rehearsal UX · GraphQL resolver changes · CCLI/SongSelect vendor calls
 
 ## Progress
-- [ ] Add in-memory Planning rehearsal tracking repository test adapter
-- [ ] Add focused rehearsal service integration tests
-- [ ] Run lint, typecheck, and tests
+- [x] Add in-memory Planning rehearsal tracking repository test adapter
+- [x] Add focused rehearsal service integration tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
