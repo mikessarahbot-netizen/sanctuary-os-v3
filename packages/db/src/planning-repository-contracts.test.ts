@@ -11,6 +11,7 @@ import {
   RecordPlanningCcliUsagePersistenceOperationSchema,
   RecordPlanningRehearsalAcknowledgementPersistenceOperationSchema,
   RepositoryWriteOptionsSchema,
+  SavePlanningServiceReadinessPersistenceOperationSchema,
   SetPlanningRehearsalAssetVisibilityPersistenceOperationSchema,
   UpdatePlanningServicePersistenceOperationSchema,
   type PlanningCcliUsageLogPersistenceRecord,
@@ -23,6 +24,7 @@ import {
 } from "./index.js";
 import type {
   PlanningCcliUsageLogPersistenceRepository,
+  PlanningReadinessPersistenceRepository,
   PlanningRehearsalAcknowledgementPersistenceRepository,
   PlanningRehearsalAssetVisibilityPersistenceRepository,
   PlanningServiceCommandPersistenceRepository,
@@ -451,6 +453,62 @@ describe("Planning repository contracts", () => {
             tenantId: "tenant_1"
           },
           intent: "create"
+        }
+      })
+    ).toThrow();
+  });
+
+  it("validates adapter-free Planning readiness save operation shapes", () => {
+    expect(
+      SavePlanningServiceReadinessPersistenceOperationSchema.parse({
+        input: {
+          band: "needs-attention",
+          checks: [
+            {
+              code: "required-roles",
+              label: "Required roles assigned",
+              maxScore: 25,
+              score: 15
+            }
+          ],
+          readinessScore: 65,
+          recommendedActions: ["Finish: Required roles assigned."],
+          risks: ["Required roles assigned is incomplete."],
+          serviceId: "service_1",
+          strengths: [],
+          tenantId: "tenant_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_readiness_save",
+            tenantId: "tenant_1"
+          },
+          intent: "update"
+        }
+      }).input.band
+    ).toBe("needs-attention");
+
+    expect(() =>
+      SavePlanningServiceReadinessPersistenceOperationSchema.parse({
+        input: {
+          band: "almost-ready",
+          checks: [],
+          contactSnapshot: "no PII",
+          readinessScore: 101,
+          recommendedActions: [],
+          risks: [],
+          serviceId: "service_1",
+          strengths: [],
+          tenantId: "tenant_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_readiness_save_invalid",
+            tenantId: "tenant_1"
+          },
+          intent: "update"
         }
       })
     ).toThrow();
@@ -894,5 +952,32 @@ describe("Planning repository contracts", () => {
         }
       })
     ).resolves.toEqual([rehearsalAcknowledgementRecord]);
+  });
+
+  it("defines an adapter-free Planning readiness persistence repository interface", async () => {
+    const repository: PlanningReadinessPersistenceRepository = {
+      saveServiceReadiness: (operation) =>
+        Promise.resolve({
+          ...operation.input,
+          tenantId: operation.options.context.tenantId
+        })
+    };
+
+    await expect(
+      repository.saveServiceReadiness({
+        input: {
+          ...readinessRecord,
+          tenantId: "tenant_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_readiness_save",
+            tenantId: "tenant_1"
+          },
+          intent: "update"
+        }
+      })
+    ).resolves.toEqual(readinessRecord);
   });
 });

@@ -244,6 +244,9 @@ export const GetPlanningServiceReadinessPersistenceInputSchema = z.object({
   serviceId: NonEmptyStringSchema
 });
 
+export const SavePlanningServiceReadinessPersistenceInputSchema =
+  PlanningReadinessPersistenceRecordSchema.strict();
+
 export const ListPlanningCcliUsageLogsPersistenceInputSchema = z
   .object({
     reportingStatus: PlanningCcliUsageReportingStatusPersistenceSchema.optional(),
@@ -420,6 +423,11 @@ export const RecordPlanningRehearsalAcknowledgementPersistenceOperationSchema =
     options: RepositoryWriteOptionsSchema
   });
 
+export const SavePlanningServiceReadinessPersistenceOperationSchema = z.object({
+  input: SavePlanningServiceReadinessPersistenceInputSchema,
+  options: RepositoryWriteOptionsSchema
+});
+
 export const ListPlanningServicesPersistenceOperationSchema = z.object({
   input: ListPlanningServicesPersistenceInputSchema,
   options: RepositoryReadOptionsSchema
@@ -550,6 +558,9 @@ export type ListPlanningServiceAssignmentsPersistenceInput = z.infer<
 export type GetPlanningServiceReadinessPersistenceInput = z.infer<
   typeof GetPlanningServiceReadinessPersistenceInputSchema
 >;
+export type SavePlanningServiceReadinessPersistenceInput = z.infer<
+  typeof SavePlanningServiceReadinessPersistenceInputSchema
+>;
 export type ListPlanningCcliUsageLogsPersistenceInput = z.infer<
   typeof ListPlanningCcliUsageLogsPersistenceInputSchema
 >;
@@ -625,6 +636,8 @@ export type SetPlanningRehearsalAssetVisibilityPersistenceOperation =
   PlanningPersistenceOperation<SetPlanningRehearsalAssetVisibilityPersistenceInput>;
 export type RecordPlanningRehearsalAcknowledgementPersistenceOperation =
   PlanningPersistenceOperation<RecordPlanningRehearsalAcknowledgementPersistenceInput>;
+export type SavePlanningServiceReadinessPersistenceOperation =
+  PlanningPersistenceOperation<SavePlanningServiceReadinessPersistenceInput>;
 export type ListPlanningServicesPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningServicesPersistenceInput>;
 export type GetPlanningServicePersistenceOperation =
@@ -669,6 +682,12 @@ export interface PlanningRehearsalAcknowledgementPersistenceRepository {
   readonly listRehearsalAcknowledgements: (
     operation: ListPlanningRehearsalAcknowledgementsPersistenceOperation
   ) => Promise<readonly PlanningRehearsalAcknowledgementPersistenceRecord[]>;
+}
+
+export interface PlanningReadinessPersistenceRepository {
+  readonly saveServiceReadiness: (
+    operation: SavePlanningServiceReadinessPersistenceOperation
+  ) => Promise<PlanningReadinessPersistenceRecord>;
 }
 
 export interface PlanningServiceCommandPersistenceRepository {
