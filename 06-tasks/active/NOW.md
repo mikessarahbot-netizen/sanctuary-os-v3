@@ -17,9 +17,9 @@ Create a database adapter implementation plan for Planning production persistenc
 Runtime database adapter implementation · migrations · schema files · ORM/query-builder installation · connection strings · secrets · UI · GraphQL/resolver changes
 
 ## Progress
-- [ ] Re-sync with required docs, ADR, release-check, and adapter contract
-- [ ] Add `05-plans/db-plan.md`
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, ADR, release-check, and adapter contract
+- [x] Add `05-plans/db-plan.md`
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push plan
 - [ ] Session handoff
 
