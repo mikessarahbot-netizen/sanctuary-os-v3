@@ -99,132 +99,138 @@ export const createInMemoryPlanningQueryRepositoryAdapter = (
       rawOperation
     ): Promise<PlanningServicePersistenceRecord | null> =>
       Promise.resolve().then(() => {
-      const operation = GetPlanningServicePersistenceOperationSchema.parse(rawOperation);
-      recordOperation("getService", operation.options.context);
+        const operation = GetPlanningServicePersistenceOperationSchema.parse(rawOperation);
+        recordOperation("getService", operation.options.context);
 
-      const service = services.get(operation.input.serviceId);
+        const service = services.get(operation.input.serviceId);
 
-      return service !== undefined && service.tenantId === operation.options.context.tenantId
-        ? service
-        : null;
+        return service !== undefined && service.tenantId === operation.options.context.tenantId
+          ? service
+          : null;
       }),
 
     getServiceReadiness: (
       rawOperation
     ): Promise<PlanningReadinessPersistenceRecord | null> =>
       Promise.resolve().then(() => {
-      const operation = GetPlanningServiceReadinessPersistenceOperationSchema.parse(rawOperation);
-      recordOperation("getServiceReadiness", operation.options.context);
+        const operation =
+          GetPlanningServiceReadinessPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("getServiceReadiness", operation.options.context);
 
-      const readiness = readinessRecords.get(operation.input.serviceId);
+        const readiness = readinessRecords.get(operation.input.serviceId);
 
-      return readiness !== undefined && readiness.tenantId === operation.options.context.tenantId
-        ? readiness
-        : null;
+        return readiness !== undefined &&
+          readiness.tenantId === operation.options.context.tenantId
+          ? readiness
+          : null;
       }),
 
     listServiceAssignments: (
       rawOperation
     ): Promise<readonly PlanningAssignmentPersistenceRecord[]> =>
       Promise.resolve().then(() => {
-      const operation =
-        ListPlanningServiceAssignmentsPersistenceOperationSchema.parse(rawOperation);
-      recordOperation("listServiceAssignments", operation.options.context);
+        const operation =
+          ListPlanningServiceAssignmentsPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("listServiceAssignments", operation.options.context);
 
-      return assignments.filter(
-        (assignment) =>
-          assignment.tenantId === operation.options.context.tenantId &&
-          assignment.serviceId === operation.input.serviceId
-      );
+        return assignments.filter(
+          (assignment) =>
+            assignment.tenantId === operation.options.context.tenantId &&
+            assignment.serviceId === operation.input.serviceId
+        );
       }),
 
     listServices: (
       rawOperation
     ): Promise<readonly PlanningServicePersistenceRecord[]> =>
       Promise.resolve().then(() => {
-      const operation = ListPlanningServicesPersistenceOperationSchema.parse(rawOperation);
-      recordOperation("listServices", operation.options.context);
-      const filter = operation.input.filter;
+        const operation = ListPlanningServicesPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("listServices", operation.options.context);
+        const filter = operation.input.filter;
 
-      return [...services.values()].filter((service) => {
-        if (service.tenantId !== operation.options.context.tenantId) {
-          return false;
-        }
+        return [...services.values()].filter((service) => {
+          if (service.tenantId !== operation.options.context.tenantId) {
+            return false;
+          }
 
-        if (filter?.serviceTypeId !== undefined && service.serviceTypeId !== filter.serviceTypeId) {
-          return false;
-        }
+          if (
+            filter?.serviceTypeId !== undefined &&
+            service.serviceTypeId !== filter.serviceTypeId
+          ) {
+            return false;
+          }
 
-        if (filter?.status !== undefined && service.status !== filter.status) {
-          return false;
-        }
+          if (filter?.status !== undefined && service.status !== filter.status) {
+            return false;
+          }
 
-        if (
-          filter?.startsAtOrAfter !== undefined &&
-          (service.startsAt === undefined || service.startsAt < filter.startsAtOrAfter)
-        ) {
-          return false;
-        }
+          if (
+            filter?.startsAtOrAfter !== undefined &&
+            (service.startsAt === undefined || service.startsAt < filter.startsAtOrAfter)
+          ) {
+            return false;
+          }
 
-        if (
-          filter?.startsBefore !== undefined &&
-          (service.startsAt === undefined || service.startsAt >= filter.startsBefore)
-        ) {
-          return false;
-        }
+          if (
+            filter?.startsBefore !== undefined &&
+            (service.startsAt === undefined || service.startsAt >= filter.startsBefore)
+          ) {
+            return false;
+          }
 
-        return true;
-      });
+          return true;
+        });
       }),
 
     listServiceTemplates: (
       rawOperation
     ): Promise<readonly PlanningServiceTemplatePersistenceRecord[]> =>
       Promise.resolve().then(() => {
-      const operation = ListPlanningServiceTemplatesPersistenceOperationSchema.parse(rawOperation);
-      recordOperation("listServiceTemplates", operation.options.context);
+        const operation =
+          ListPlanningServiceTemplatesPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("listServiceTemplates", operation.options.context);
 
-      return serviceTemplates.filter(
-        (template) =>
-          template.tenantId === operation.options.context.tenantId &&
-          template.serviceTypeId === operation.input.serviceTypeId
-      );
+        return serviceTemplates.filter(
+          (template) =>
+            template.tenantId === operation.options.context.tenantId &&
+            template.serviceTypeId === operation.input.serviceTypeId
+        );
       }),
 
     listSongLibrary: (
       rawOperation
     ): Promise<readonly PlanningSongLibraryItemPersistenceRecord[]> =>
       Promise.resolve().then(() => {
-      const operation = ListPlanningSongLibraryPersistenceOperationSchema.parse(rawOperation);
-      recordOperation("listSongLibrary", operation.options.context);
-      const { includeBannedOrPaused, key, limit, query } = operation.input.searchInput;
-      const normalizedQuery = query?.toLocaleLowerCase();
+        const operation = ListPlanningSongLibraryPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("listSongLibrary", operation.options.context);
+        const { includeBannedOrPaused, key, limit, query } = operation.input.searchInput;
+        const normalizedQuery = query?.toLocaleLowerCase();
 
-      const songs = songLibraryItems.filter((song) => {
-        if (song.tenantId !== operation.options.context.tenantId) {
-          return false;
-        }
+        const songs = songLibraryItems.filter((song) => {
+          if (song.tenantId !== operation.options.context.tenantId) {
+            return false;
+          }
 
-        if (includeBannedOrPaused !== true && song.isBannedOrPaused) {
-          return false;
-        }
+          if (includeBannedOrPaused !== true && song.isBannedOrPaused) {
+            return false;
+          }
 
-        if (key !== undefined && !song.availableKeys.includes(key)) {
-          return false;
-        }
+          if (key !== undefined && !song.availableKeys.includes(key)) {
+            return false;
+          }
 
-        if (
-          normalizedQuery !== undefined &&
-          !song.title.toLocaleLowerCase().includes(normalizedQuery) &&
-          !(song.artist?.toLocaleLowerCase().includes(normalizedQuery) ?? false)
-        ) {
-          return false;
-        }
+          if (
+            normalizedQuery !== undefined &&
+            !song.title.toLocaleLowerCase().includes(normalizedQuery) &&
+            !(song.artist?.toLocaleLowerCase().includes(normalizedQuery) ?? false)
+          ) {
+            return false;
+          }
 
-        return true;
-      });
+          return true;
+        });
 
-      return limit === undefined ? songs : songs.slice(0, limit);
+        return limit === undefined ? songs : songs.slice(0, limit);
       })
   };
 
