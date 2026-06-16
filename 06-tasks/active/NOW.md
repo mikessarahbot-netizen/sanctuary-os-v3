@@ -19,15 +19,16 @@ Business logic · database migrations · production GraphQL resolvers · UI comp
 - [x] Created and checked out `feature/foundation-monorepo-scaffold`
 - [x] Scaffold `apps/api`
 - [x] Commit API scaffold locally (`chore(api): scaffold api workspace`)
-- [ ] Push API scaffold (`origin` remote not configured)
+- [x] Push API scaffold (`origin/feature/foundation-monorepo-scaffold`)
 - [x] Scaffold `packages/church-context`
 - [x] Commit ChurchContext scaffold locally (`chore(church-context): scaffold context package`)
-- [ ] Push ChurchContext scaffold (`origin` remote not configured)
+- [x] Push ChurchContext scaffold (`origin/feature/foundation-monorepo-scaffold`)
 - [x] Scaffold `packages/db`
 - [x] Commit DB scaffold locally (`chore(db): scaffold persistence contracts`)
-- [ ] Push DB scaffold (`origin` remote not configured)
+- [x] Push DB scaffold (`origin/feature/foundation-monorepo-scaffold`)
 - [x] Run scaffold release check
 - [x] Write architecture review findings
+- [x] Session handoff for completed foundation scaffold
 
 ## Done when
 All three scaffold targets have typed placeholders, README guidance, lint/typecheck/test pass, commits exist for each module scaffold, branch is pushed, and release-check findings are recorded.
