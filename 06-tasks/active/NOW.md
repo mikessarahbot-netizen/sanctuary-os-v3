@@ -19,10 +19,10 @@ Wire Planning GraphQL rehearsal acknowledgement record/list contracts to the ser
 Notification delivery · realtime fanout · mobile UI · attendance workflows · media storage · playback integration
 
 ## Progress
-- [ ] Re-sync with required docs and current implementation
-- [ ] Add GraphQL rehearsal acknowledgement record/list contracts
-- [ ] Add focused GraphQL rehearsal acknowledgement tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current implementation
+- [x] Add GraphQL rehearsal acknowledgement record/list contracts
+- [x] Add focused GraphQL rehearsal acknowledgement tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 

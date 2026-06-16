@@ -8,6 +8,8 @@ import type {
   PlanningCommandService,
   PlanningGeneratedSetlistResult,
   PlanningQueryService,
+  PlanningRehearsalAcknowledgementRecord,
+  PlanningRehearsalAcknowledgementService,
   PlanningRehearsalAssetVisibilityRecord,
   PlanningRehearsalAssetVisibilityService,
   PlanningServiceItemRecord,
@@ -174,6 +176,19 @@ const rehearsalAssetVisibilityRecord: PlanningRehearsalAssetVisibilityRecord = {
   visibleToRoleIds: ["role_vocal", "role_guitar"]
 };
 
+const rehearsalAcknowledgementRecord: PlanningRehearsalAcknowledgementRecord = {
+  acknowledgedAt: "2026-06-21T15:00:00.000Z",
+  assetId: "asset_chart_1",
+  assignmentId: "assignment_1",
+  notes: "Reviewed chart and ready for rehearsal.",
+  personId: "person_1",
+  readinessSignal: "ready",
+  rehearsalAcknowledgementId: "rehearsal_ack_1",
+  serviceId: "service_1",
+  serviceItemId: "item_1",
+  tenantId: "tenant_1"
+};
+
 const createPlanningCcliUsageService = (
   overrides: Partial<PlanningCcliUsageService> = {}
 ): PlanningCcliUsageService => ({
@@ -189,6 +204,18 @@ const createPlanningCcliUsageService = (
   scheduleReportingJob: vi.fn<PlanningCcliUsageService["scheduleReportingJob"]>(() =>
     Promise.resolve({ jobId: "job_1" })
   ),
+  ...overrides
+});
+
+const createPlanningRehearsalAcknowledgementService = (
+  overrides: Partial<PlanningRehearsalAcknowledgementService> = {}
+): PlanningRehearsalAcknowledgementService => ({
+  listAcknowledgements: vi.fn<
+    PlanningRehearsalAcknowledgementService["listAcknowledgements"]
+  >(() => Promise.resolve([])),
+  recordAcknowledgement: vi.fn<
+    PlanningRehearsalAcknowledgementService["recordAcknowledgement"]
+  >(() => Promise.resolve(rehearsalAcknowledgementRecord)),
   ...overrides
 });
 
@@ -303,6 +330,12 @@ describe("planningGraphqlTypeDefs", () => {
     expect(planningGraphqlTypeDefs).toContain(
       "rehearsalAssetVisibility(input: RehearsalAssetVisibilityInput!): [PlanningRehearsalAssetVisibility!]!"
     );
+    expect(planningGraphqlTypeDefs).toContain(
+      "type PlanningRehearsalAcknowledgement"
+    );
+    expect(planningGraphqlTypeDefs).toContain(
+      "rehearsalAcknowledgements(input: RehearsalAcknowledgementsInput!): [PlanningRehearsalAcknowledgement!]!"
+    );
   });
 
   it("declares the planned Planning mutation contract placeholders", () => {
@@ -340,6 +373,12 @@ describe("planningGraphqlTypeDefs", () => {
     );
     expect(planningGraphqlTypeDefs).toContain(
       "setRehearsalAssetVisibility(input: SetRehearsalAssetVisibilityInput!): PlanningRehearsalAssetVisibility!"
+    );
+    expect(planningGraphqlTypeDefs).toContain(
+      "input RecordRehearsalAcknowledgementInput"
+    );
+    expect(planningGraphqlTypeDefs).toContain(
+      "recordRehearsalAcknowledgement(input: RecordRehearsalAcknowledgementInput!): PlanningRehearsalAcknowledgement!"
     );
     expect(planningGraphqlTypeDefs).toContain("input ScheduleCcliReportingJobInput");
     expect(planningGraphqlTypeDefs).toContain(
@@ -1088,6 +1127,243 @@ describe("createPlanningGraphqlResolvers", () => {
         graphqlContext
       )
     ).rejects.toThrow("Planning rehearsal asset visibility tenant mismatch.");
+  });
+
+  it("delegates recordRehearsalAcknowledgement to the Planning rehearsal acknowledgement service with actor and request scope", async () => {
+    const recordAcknowledgement = vi.fn<
+      PlanningRehearsalAcknowledgementService["recordAcknowledgement"]
+    >(() => Promise.resolve(rehearsalAcknowledgementRecord));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAcknowledgementService:
+        createPlanningRehearsalAcknowledgementService({
+          recordAcknowledgement
+        })
+    });
+
+    await expect(
+      resolvers.Mutation.recordRehearsalAcknowledgement(
+        undefined,
+        {
+          input: {
+            acknowledgedAt: "2026-06-21T15:00:00.000Z",
+            assetId: "asset_chart_1",
+            assignmentId: "assignment_1",
+            notes: "Reviewed chart and ready for rehearsal.",
+            personId: "person_1",
+            readinessSignal: "ready",
+            serviceId: "service_1",
+            serviceItemId: "item_1"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_rehearsal_ack"
+        }
+      )
+    ).resolves.toEqual(rehearsalAcknowledgementRecord);
+
+    expect(recordAcknowledgement).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        acknowledgedAt: "2026-06-21T15:00:00.000Z",
+        assetId: "asset_chart_1",
+        assignmentId: "assignment_1",
+        notes: "Reviewed chart and ready for rehearsal.",
+        personId: "person_1",
+        readinessSignal: "ready",
+        serviceId: "service_1",
+        serviceItemId: "item_1"
+      },
+      requestId: "request_rehearsal_ack"
+    });
+  });
+
+  it("delegates rehearsalAcknowledgements to the Planning rehearsal acknowledgement service and preserves acknowledgement shape", async () => {
+    const listAcknowledgements = vi.fn<
+      PlanningRehearsalAcknowledgementService["listAcknowledgements"]
+    >(() => Promise.resolve([rehearsalAcknowledgementRecord]));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAcknowledgementService:
+        createPlanningRehearsalAcknowledgementService({
+          listAcknowledgements
+        })
+    });
+
+    await expect(
+      resolvers.Query.rehearsalAcknowledgements(
+        undefined,
+        {
+          input: {
+            assignmentId: "assignment_1",
+            personId: "person_1",
+            serviceId: "service_1",
+            serviceItemId: "item_1"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_rehearsal_ack_list"
+        }
+      )
+    ).resolves.toEqual([rehearsalAcknowledgementRecord]);
+
+    expect(listAcknowledgements).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        assignmentId: "assignment_1",
+        personId: "person_1",
+        serviceId: "service_1",
+        serviceItemId: "item_1"
+      },
+      requestId: "request_rehearsal_ack_list"
+    });
+  });
+
+  it("returns empty rehearsal acknowledgement query results", async () => {
+    const listAcknowledgements = vi.fn<
+      PlanningRehearsalAcknowledgementService["listAcknowledgements"]
+    >(() => Promise.resolve([]));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAcknowledgementService:
+        createPlanningRehearsalAcknowledgementService({
+          listAcknowledgements
+        })
+    });
+
+    await expect(
+      resolvers.Query.rehearsalAcknowledgements(
+        undefined,
+        {
+          input: {
+            serviceId: "service_without_acknowledgements"
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toEqual([]);
+  });
+
+  it("rejects invalid rehearsal acknowledgement input before delegating", async () => {
+    const recordAcknowledgement = vi.fn<
+      PlanningRehearsalAcknowledgementService["recordAcknowledgement"]
+    >(() => Promise.resolve(rehearsalAcknowledgementRecord));
+    const listAcknowledgements = vi.fn<
+      PlanningRehearsalAcknowledgementService["listAcknowledgements"]
+    >(() => Promise.resolve([rehearsalAcknowledgementRecord]));
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAcknowledgementService:
+        createPlanningRehearsalAcknowledgementService({
+          listAcknowledgements,
+          recordAcknowledgement
+        })
+    });
+
+    await expect(
+      resolvers.Mutation.recordRehearsalAcknowledgement(
+        undefined,
+        {
+          input: {
+            acknowledgedAt: "2026-06-21T15:00:00.000Z",
+            assetId: "asset_chart_1",
+            assignmentId: "assignment_1",
+            fileBytes: "raw-media-does-not-belong-here",
+            personId: "person_1",
+            readinessSignal: "ready",
+            serviceId: "service_1",
+            serviceItemId: "item_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(recordAcknowledgement).not.toHaveBeenCalled();
+
+    await expect(
+      resolvers.Query.rehearsalAcknowledgements(
+        undefined,
+        {
+          input: {
+            serviceId: "",
+            serviceItemId: "item_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(listAcknowledgements).not.toHaveBeenCalled();
+  });
+
+  it("propagates Planning rehearsal acknowledgement service record and list errors", async () => {
+    const recordAcknowledgement = vi.fn<
+      PlanningRehearsalAcknowledgementService["recordAcknowledgement"]
+    >(() =>
+      Promise.reject(
+        new Error(
+          "Actor is not allowed to record Planning rehearsal acknowledgements."
+        )
+      )
+    );
+    const listAcknowledgements = vi.fn<
+      PlanningRehearsalAcknowledgementService["listAcknowledgements"]
+    >(() =>
+      Promise.reject(new Error("Planning rehearsal acknowledgement tenant mismatch."))
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService(),
+      planningRehearsalAcknowledgementService:
+        createPlanningRehearsalAcknowledgementService({
+          listAcknowledgements,
+          recordAcknowledgement
+        })
+    });
+
+    await expect(
+      resolvers.Mutation.recordRehearsalAcknowledgement(
+        undefined,
+        {
+          input: {
+            acknowledgedAt: "2026-06-21T15:00:00.000Z",
+            assetId: "asset_chart_1",
+            assignmentId: "assignment_1",
+            personId: "person_1",
+            readinessSignal: "ready",
+            serviceId: "service_1",
+            serviceItemId: "item_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow(
+      "Actor is not allowed to record Planning rehearsal acknowledgements."
+    );
+
+    await expect(
+      resolvers.Query.rehearsalAcknowledgements(
+        undefined,
+        {
+          input: {
+            serviceId: "service_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow("Planning rehearsal acknowledgement tenant mismatch.");
   });
 
   it("delegates ccliReportingJobStatus to the Planning CCLI usage service and preserves status shape", async () => {

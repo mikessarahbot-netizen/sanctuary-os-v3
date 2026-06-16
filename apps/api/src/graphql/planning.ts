@@ -46,6 +46,14 @@ import {
 import type { PlanningReadinessService } from "../services/planning/readiness.js";
 import { RefreshPlanningReadinessCommandSchema } from "../services/planning/readiness.js";
 import type {
+  PlanningRehearsalAcknowledgementRecord,
+  PlanningRehearsalAcknowledgementService
+} from "../services/planning/rehearsal-acknowledgements.js";
+import {
+  ListPlanningRehearsalAcknowledgementsQuerySchema,
+  RecordPlanningRehearsalAcknowledgementCommandSchema
+} from "../services/planning/rehearsal-acknowledgements.js";
+import type {
   PlanningRehearsalAssetVisibilityRecord,
   PlanningRehearsalAssetVisibilityService
 } from "../services/planning/rehearsal-assets.js";
@@ -214,6 +222,19 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     title: String!
     updatedAt: DateTime!
     visibleToRoleIds: [ID!]!
+  }
+
+  type PlanningRehearsalAcknowledgement {
+    acknowledgedAt: DateTime!
+    assetId: ID!
+    assignmentId: ID!
+    notes: String
+    personId: ID!
+    readinessSignal: String!
+    rehearsalAcknowledgementId: ID!
+    serviceId: ID!
+    serviceItemId: ID!
+    tenantId: ID!
   }
 
   type PlanningSetlistRecommendation {
@@ -403,6 +424,25 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     serviceItemId: ID
   }
 
+  input RecordRehearsalAcknowledgementInput {
+    acknowledgedAt: DateTime!
+    assetId: ID!
+    assignmentId: ID!
+    notes: String
+    personId: ID!
+    readinessSignal: String!
+    serviceId: ID!
+    serviceItemId: ID!
+  }
+
+  input RehearsalAcknowledgementsInput {
+    assetId: ID
+    assignmentId: ID
+    personId: ID
+    serviceId: ID!
+    serviceItemId: ID
+  }
+
   input PlanningServicesFilterInput {
     serviceTypeId: ID
     startsAtOrAfter: DateTime
@@ -428,6 +468,7 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     ccliUsageLogs(input: CcliUsageLogsInput!): [PlanningCcliUsageLog!]!
     ccliReportingJobStatus(input: CcliReportingJobStatusInput!): ApiJobStatusRecord
     rehearsalAssetVisibility(input: RehearsalAssetVisibilityInput!): [PlanningRehearsalAssetVisibility!]!
+    rehearsalAcknowledgements(input: RehearsalAcknowledgementsInput!): [PlanningRehearsalAcknowledgement!]!
   }
 
   extend type Mutation {
@@ -443,6 +484,7 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     refreshReadinessScore(input: RefreshReadinessScoreInput!): PlanningReadiness!
     recordCcliUsage(input: RecordCcliUsageInput!): PlanningCcliUsageLog!
     setRehearsalAssetVisibility(input: SetRehearsalAssetVisibilityInput!): PlanningRehearsalAssetVisibility!
+    recordRehearsalAcknowledgement(input: RecordRehearsalAcknowledgementInput!): PlanningRehearsalAcknowledgement!
     scheduleCcliReportingJob(input: ScheduleCcliReportingJobInput!): ApiJobStatusEnqueueResult!
   }
 
@@ -467,6 +509,7 @@ export interface PlanningGraphqlResolverDependencies {
   readonly planningCommandService: PlanningCommandService;
   readonly planningQueryService: PlanningQueryService;
   readonly planningReadinessService: PlanningReadinessService;
+  readonly planningRehearsalAcknowledgementService?: PlanningRehearsalAcknowledgementService;
   readonly planningRehearsalAssetVisibilityService?: PlanningRehearsalAssetVisibilityService;
 }
 
@@ -481,6 +524,9 @@ export interface PlanningQueryResolvers {
   readonly ccliReportingJobStatus: GraphqlQueryResolver<ApiJobStatusRecord | null>;
   readonly rehearsalAssetVisibility: GraphqlQueryResolver<
     readonly PlanningRehearsalAssetVisibilityRecord[]
+  >;
+  readonly rehearsalAcknowledgements: GraphqlQueryResolver<
+    readonly PlanningRehearsalAcknowledgementRecord[]
   >;
 }
 
@@ -499,6 +545,7 @@ export interface PlanningMutationResolvers {
   readonly refreshReadinessScore: GraphqlMutationResolver<PlanningReadinessResult>;
   readonly recordCcliUsage: GraphqlMutationResolver<PlanningCcliUsageLogRecord>;
   readonly setRehearsalAssetVisibility: GraphqlMutationResolver<PlanningRehearsalAssetVisibilityRecord>;
+  readonly recordRehearsalAcknowledgement: GraphqlMutationResolver<PlanningRehearsalAcknowledgementRecord>;
   readonly scheduleCcliReportingJob: GraphqlMutationResolver<{
     readonly jobId: string;
   }>;
@@ -707,6 +754,24 @@ export const createPlanningGraphqlResolvers = (
           requestId: graphqlContext.requestId
         })
       );
+    },
+
+    rehearsalAcknowledgements: async (
+      _parent,
+      args,
+      context
+    ): Promise<readonly PlanningRehearsalAcknowledgementRecord[]> => {
+      const graphqlContext = parseContext(context);
+
+      return getPlanningRehearsalAcknowledgementService(
+        dependencies
+      ).listAcknowledgements(
+        ListPlanningRehearsalAcknowledgementsQuerySchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
     }
   },
 
@@ -892,6 +957,24 @@ export const createPlanningGraphqlResolvers = (
       );
     },
 
+    recordRehearsalAcknowledgement: async (
+      _parent,
+      args,
+      context
+    ): Promise<PlanningRehearsalAcknowledgementRecord> => {
+      const graphqlContext = parseContext(context);
+
+      return getPlanningRehearsalAcknowledgementService(
+        dependencies
+      ).recordAcknowledgement(
+        RecordPlanningRehearsalAcknowledgementCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
     scheduleCcliReportingJob: async (
       _parent,
       args,
@@ -920,6 +1003,16 @@ const getPlanningCcliUsageService = (
   }
 
   return dependencies.planningCcliUsageService;
+};
+
+const getPlanningRehearsalAcknowledgementService = (
+  dependencies: PlanningGraphqlResolverDependencies
+): PlanningRehearsalAcknowledgementService => {
+  if (dependencies.planningRehearsalAcknowledgementService === undefined) {
+    throw new Error("Planning rehearsal acknowledgement service is not configured.");
+  }
+
+  return dependencies.planningRehearsalAcknowledgementService;
 };
 
 const getPlanningRehearsalAssetVisibilityService = (
