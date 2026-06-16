@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:08 EDT · feature/planning-db-plan
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, the Planning API contract release-check, ADR 0002, and the Planning production adapter contract.
+- Continued from the pushed `feature/planning-readiness-domain` commit by creating `feature/planning-db-plan` because the original branch was already checked out by another local worktree.
+- Added `05-plans/db-plan.md` as a documentation-only production Planning persistence path.
+- Covered PostgreSQL-first server persistence, future SQLite/local compatibility, repository coverage, migration boundaries, transaction behavior, tenant scoping, audit metadata, validation/error normalization, test strategy, rollout order, and the first approved DB implementation slice.
+- Kept ORM/query-builder selection, migrations, runtime adapter code, schema files, connection strings, secrets, UI, and GraphQL/resolver changes out of scope.
+- Installed dependencies from the existing lockfile because this worktree was missing `node_modules`.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Select the adapter and migration tooling for PostgreSQL Planning persistence and document the decision in `08-decisions/` before writing migrations or adapter code.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:04 EDT · feature/planning-readiness-domain
 
 Tasks completed:
