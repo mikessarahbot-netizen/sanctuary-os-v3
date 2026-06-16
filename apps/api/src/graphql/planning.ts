@@ -18,13 +18,15 @@ import {
 } from "../services/planning/commands.js";
 import type {
   PlanningQueryService,
-  PlanningServiceTemplateRecord
+  PlanningServiceTemplateRecord,
+  PlanningSongLibraryItemRecord
 } from "../services/planning/queries.js";
 import {
   GetPlanningServiceQuerySchema,
   GetPlanningServiceReadinessQuerySchema,
   ListPlanningServiceAssignmentsQuerySchema,
   ListPlanningServiceTemplatesQuerySchema,
+  ListPlanningSongLibraryQuerySchema,
   ListPlanningServicesQuerySchema
 } from "../services/planning/queries.js";
 import type { PlanningReadinessService } from "../services/planning/readiness.js";
@@ -62,6 +64,12 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     blocked
     needs_attention
     ready
+  }
+
+  enum PlanningSongEnergy {
+    low
+    medium
+    high
   }
 
   type PlanningService {
@@ -118,6 +126,24 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     serviceTypeId: ID!
     tenantId: ID!
     title: String!
+  }
+
+  type PlanningSongLibraryItem {
+    artist: String
+    availableKeys: [String!]!
+    ccliReportingAllowed: Boolean!
+    ccliSongNumber: String
+    defaultKey: String
+    energy: PlanningSongEnergy
+    hasArrangements: Boolean!
+    hasCharts: Boolean!
+    isBannedOrPaused: Boolean!
+    lastUsedAt: DateTime
+    songId: ID!
+    tenantId: ID!
+    tempoBpm: Int
+    title: String!
+    usageCount: Int!
   }
 
   input PlanningConfirmationIntentInput {
@@ -198,10 +224,19 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     status: PlanningServiceStatus
   }
 
+  input PlanningSongLibrarySearchInput {
+    includeBannedOrPaused: Boolean
+    key: String
+    limit: Int
+    query: String
+    serviceTypeId: ID
+  }
+
   extend type Query {
     services(filter: PlanningServicesFilterInput): [PlanningService!]!
     service(id: ID!): PlanningService
     serviceTemplates(serviceTypeId: ID!): [PlanningServiceTemplate!]!
+    songLibrary(searchInput: PlanningSongLibrarySearchInput!): [PlanningSongLibraryItem!]!
     serviceAssignments(serviceId: ID!): [PlanningAssignment!]!
     serviceReadiness(serviceId: ID!): PlanningReadiness
   }
@@ -241,6 +276,7 @@ export interface PlanningQueryResolvers {
   readonly services: GraphqlQueryResolver<readonly PlanningServiceRecord[]>;
   readonly service: GraphqlQueryResolver<PlanningServiceRecord | null>;
   readonly serviceTemplates: GraphqlQueryResolver<readonly PlanningServiceTemplateRecord[]>;
+  readonly songLibrary: GraphqlQueryResolver<readonly PlanningSongLibraryItemRecord[]>;
   readonly serviceAssignments: GraphqlQueryResolver<readonly PlanningAssignmentRecord[]>;
   readonly serviceReadiness: GraphqlQueryResolver<PlanningReadinessResult | null>;
 }
@@ -334,6 +370,29 @@ export const createPlanningGraphqlResolvers = (
           actor: graphqlContext.actor,
           input: {
             serviceTypeId: queryArgs.serviceTypeId
+          },
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    songLibrary: async (
+      _parent,
+      args,
+      context
+    ): Promise<readonly PlanningSongLibraryItemRecord[]> => {
+      const graphqlContext = parseContext(context);
+      const queryArgs = z
+        .object({
+          searchInput: z.unknown()
+        })
+        .parse(args);
+
+      return dependencies.planningQueryService.songLibrary(
+        ListPlanningSongLibraryQuerySchema.parse({
+          actor: graphqlContext.actor,
+          input: {
+            searchInput: queryArgs.searchInput
           },
           requestId: graphqlContext.requestId
         })

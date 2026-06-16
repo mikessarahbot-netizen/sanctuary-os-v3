@@ -6,7 +6,8 @@ import type {
   PlanningQueryService,
   PlanningServiceItemRecord,
   PlanningServiceRecord,
-  PlanningServiceTemplateRecord
+  PlanningServiceTemplateRecord,
+  PlanningSongLibraryItemRecord
 } from "../services/planning/index.js";
 import type { PlanningReadinessService } from "../services/planning/index.js";
 import {
@@ -39,6 +40,24 @@ const serviceTemplateRecord: PlanningServiceTemplateRecord = {
   serviceTypeId: "type_sunday",
   tenantId: "tenant_1",
   title: "Sunday Worship Template"
+};
+
+const songLibraryItemRecord: PlanningSongLibraryItemRecord = {
+  artist: "Sanctuary Collective",
+  availableKeys: ["G", "A"],
+  ccliReportingAllowed: true,
+  ccliSongNumber: "123456",
+  defaultKey: "G",
+  energy: "medium",
+  hasArrangements: true,
+  hasCharts: true,
+  isBannedOrPaused: false,
+  lastUsedAt: "2026-06-07T14:00:00.000Z",
+  songId: "song_1",
+  tenantId: "tenant_1",
+  tempoBpm: 76,
+  title: "Open The Gates",
+  usageCount: 6
 };
 
 const serviceItemRecord: PlanningServiceItemRecord = {
@@ -132,7 +151,9 @@ const createPlanningQueryService = (
   serviceTemplates: vi.fn<PlanningQueryService["serviceTemplates"]>(() =>
     Promise.resolve([serviceTemplateRecord])
   ),
-  songLibrary: vi.fn<PlanningQueryService["songLibrary"]>(() => Promise.resolve([])),
+  songLibrary: vi.fn<PlanningQueryService["songLibrary"]>(() =>
+    Promise.resolve([songLibraryItemRecord])
+  ),
   services: vi.fn<PlanningQueryService["services"]>(() => Promise.resolve([serviceRecord])),
   ...overrides
 });
@@ -146,6 +167,10 @@ describe("planningGraphqlTypeDefs", () => {
     expect(planningGraphqlTypeDefs).toContain("type PlanningServiceTemplate");
     expect(planningGraphqlTypeDefs).toContain(
       "serviceTemplates(serviceTypeId: ID!): [PlanningServiceTemplate!]!"
+    );
+    expect(planningGraphqlTypeDefs).toContain("type PlanningSongLibraryItem");
+    expect(planningGraphqlTypeDefs).toContain(
+      "songLibrary(searchInput: PlanningSongLibrarySearchInput!): [PlanningSongLibraryItem!]!"
     );
     expect(planningGraphqlTypeDefs).toContain(
       "serviceAssignments(serviceId: ID!): [PlanningAssignment!]!"
@@ -391,6 +416,73 @@ describe("createPlanningGraphqlResolvers", () => {
     ).resolves.toEqual([]);
   });
 
+  it("delegates songLibrary query to the Planning query service with actor and request scope", async () => {
+    const songLibrary = vi.fn<PlanningQueryService["songLibrary"]>(() =>
+      Promise.resolve([songLibraryItemRecord])
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService({ songLibrary }),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Query.songLibrary(
+        undefined,
+        {
+          searchInput: {
+            includeBannedOrPaused: true,
+            key: "G",
+            limit: 10,
+            query: "open",
+            serviceTypeId: "type_sunday"
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_songs"
+        }
+      )
+    ).resolves.toEqual([songLibraryItemRecord]);
+
+    expect(songLibrary).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        searchInput: {
+          includeBannedOrPaused: true,
+          key: "G",
+          limit: 10,
+          query: "open",
+          serviceTypeId: "type_sunday"
+        }
+      },
+      requestId: "request_songs"
+    });
+  });
+
+  it("returns empty song library query results", async () => {
+    const songLibrary = vi.fn<PlanningQueryService["songLibrary"]>(() =>
+      Promise.resolve([])
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService({ songLibrary }),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Query.songLibrary(
+        undefined,
+        {
+          searchInput: {
+            query: "missing"
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toEqual([]);
+  });
+
   it("delegates service assignment and readiness queries to the Planning query service", async () => {
     const serviceAssignments = vi.fn<PlanningQueryService["serviceAssignments"]>(() =>
       Promise.resolve([assignmentRecord])
@@ -481,9 +573,16 @@ describe("createPlanningGraphqlResolvers", () => {
     const serviceTemplates = vi.fn<PlanningQueryService["serviceTemplates"]>(() =>
       Promise.resolve([serviceTemplateRecord])
     );
+    const songLibrary = vi.fn<PlanningQueryService["songLibrary"]>(() =>
+      Promise.resolve([songLibraryItemRecord])
+    );
     const resolvers = createPlanningGraphqlResolvers({
       planningCommandService: createPlanningCommandService(),
-      planningQueryService: createPlanningQueryService({ serviceTemplates, services }),
+      planningQueryService: createPlanningQueryService({
+        serviceTemplates,
+        services,
+        songLibrary
+      }),
       planningReadinessService: createPlanningReadinessService()
     });
 
@@ -512,5 +611,17 @@ describe("createPlanningGraphqlResolvers", () => {
     ).rejects.toThrow();
 
     expect(serviceTemplates).not.toHaveBeenCalled();
+
+    await expect(
+      resolvers.Query.songLibrary(
+        undefined,
+        {
+          searchInput: {}
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(songLibrary).not.toHaveBeenCalled();
   });
 });

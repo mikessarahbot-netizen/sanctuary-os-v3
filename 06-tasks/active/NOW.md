@@ -17,11 +17,11 @@ Wire Planning GraphQL `songLibrary(searchInput)` resolver contracts to the Plann
 Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · CCLI/SongSelect implementation · AI setlist generation · GraphQL server runtime
 
 ## Progress
-- [ ] Add GraphQL songLibrary schema/resolver contract
-- [ ] Delegate resolver to Planning query service
-- [ ] Add songLibrary resolver contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
+- [x] Add GraphQL songLibrary schema/resolver contract
+- [x] Delegate resolver to Planning query service
+- [x] Add songLibrary resolver contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
