@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 14:04 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, ChurchContext schema notes, setlist prompt spec, API plan, and Planning plan.
+- Implemented shared `planning-setlist` ChurchContext projection contracts in `@sanctuary-os/church-context`.
+- Added strict Zod schemas for AI-safe service context, song candidates, church preferences, planning constraints, recent usage summaries, integrations, AI policy, target length, and projection metadata.
+- Enforced setlist-generation feature availability, human-review policy, available-song presence, target-length consistency, banned/paused-song declaration, and required-song exclusion guards.
+- Added API context request/envelope contracts plus an adapter-free helper that wraps validated `planning-setlist` payloads with request actor/service metadata and rejects tenant/service/schema/timestamp mismatches.
+- Added focused shared package and API context tests for valid projections, PII-shaped field rejection, banned/paused song guards, and request metadata validation.
+- Ran and passed focused context checks, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Integrate the Planning setlist ChurchContext projection into the generateSetlist service boundary.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:58 EDT · feature/planning-readiness-domain
 
 Tasks completed:
