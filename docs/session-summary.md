@@ -14,7 +14,7 @@ Tasks completed:
 - Completed the task checklist in `06-tasks/active/NOW.md`.
 
 Next task:
-- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md` and `05-plans/api-plan.md`.
+- Implement adapter-free Planning `duplicateServiceFromTemplate(input)` command contracts in the DB/API service layers.
 
 Open questions:
 - None.
