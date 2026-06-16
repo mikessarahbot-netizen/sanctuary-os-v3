@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 19:41 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, the Planning DB persistence release-check, and current `apps/api` / `packages/db` persistence code.
+- Added an API Planning persistence composition boundary that selects in-memory persistence for development/test by default and SQL-backed repository adapters for production by default.
+- Kept configuration strict and secret-free: production SQL mode requires injected executor/clock/ID dependencies, while connection strings, live PostgreSQL execution, migrations execution, and deployment config remain out of scope.
+- Added an in-memory Planning readiness repository adapter so API composition can provide readiness save/lookup behavior without a live database.
+- Covered environment/mode defaults, explicit overrides, SQL dependency requirements, strict config rejection of secret-bearing fields, in-memory operation recording, readiness seed lookup, and SQL adapter construction with live-DB-free tests.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- composition.test.ts`, `pnpm typecheck`, `pnpm lint`, and `pnpm test`.
+- Committed and pushed `c25fa67 feat(api): add planning persistence composition`.
+
+Next task:
+- Add the concrete PostgreSQL client binding and runtime configuration boundary for Planning persistence without checking in secrets.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:53 EDT · feature/planning-readiness-domain
 
 Tasks completed:

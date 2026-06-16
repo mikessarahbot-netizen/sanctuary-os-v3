@@ -1,34 +1,35 @@
 # NOW
 
 ## Task
-Wire API composition to select Planning persistence adapters by environment.
+Add the concrete PostgreSQL client binding and runtime configuration boundary for Planning persistence without checking in secrets.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/planning-module-plan.md`, `05-plans/db-plan.md`, `07-reviews/architecture/planning-db-persistence-release-check.md`, and current `apps/api`/`packages/db` composition and repository code
-- Inspect current API service dependency construction and test/in-memory Planning repositories
-- Add a small API composition boundary that can select in-memory/test Planning repositories or production SQL-backed Planning persistence adapters by environment/config
-- Keep GraphQL resolvers thin and unchanged unless they need to accept the selected service dependencies
-- Keep live PostgreSQL execution, connection strings, secrets, migrations execution, and deployment configuration out of scope
-- Add tests for environment/config selection, safe defaults, no secrets in config, and preservation of existing in-memory/test behavior
+- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/planning-module-plan.md`, `05-plans/db-plan.md`, `07-reviews/architecture/planning-db-persistence-release-check.md`, and current API composition / DB SQL adapter code
+- Inspect `PlanningSqlExecutor`, SQL adapter transaction expectations, and the new API Planning persistence composition boundary
+- Add a small PostgreSQL client/executor binding boundary suitable for API production injection
+- Add runtime configuration parsing for non-secret mode selection and environment variable names only; do not check in secret values or connection strings
+- Preserve the existing in-memory/test behavior and the existing SQL composition dependency injection path
+- Add tests for config validation, secret-free boundaries, executor statement forwarding, transaction forwarding, and safe failure behavior without requiring a live PostgreSQL database
 - Run lint, typecheck, and tests
 - Commit and push the slice
 - Run session handoff
 
 ## Out of scope
-Live PostgreSQL connection/client implementation · connection strings or secrets · migration runner execution · production deployment config · GraphQL contract changes · UI · queue workers · vendor SDKs · Auth0 integration changes · ORM/query-builder adoption · new Planning domain behavior
+Checked-in connection strings or secrets · live PostgreSQL requirement in default tests · migration runner execution · production deployment config · GraphQL contract changes · UI · workers · vendor SDKs · Auth0 integration changes · ORM/query-builder adoption · new Planning domain behavior
 
 ## Progress
-- [x] Re-sync with required docs, release-check, API composition code, and repository adapters
-- [x] Identify current API dependency construction and safe environment/config switch point
-- [x] Add Planning persistence adapter selection boundary
-- [x] Add composition tests without live database requirements
-- [x] Run lint, typecheck, and tests
+- [ ] Re-sync with required docs, release-check, API composition code, and DB SQL adapter code
+- [ ] Identify PostgreSQL client/executor boundary and runtime config inputs
+- [ ] Add concrete PostgreSQL executor/client binding without checked-in secrets
+- [ ] Add runtime configuration parsing for production Planning persistence injection
+- [ ] Add live-DB-free tests for config and executor behavior
+- [ ] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
-The API package has a tested composition boundary for selecting in-memory/test Planning repositories or SQL-backed Planning persistence adapters by environment/config without secrets or live database requirements; gates pass; the slice is committed, pushed, and documented in session handoff.
+The API can construct production Planning SQL persistence dependencies through a tested PostgreSQL client/executor boundary and strict runtime configuration without storing secrets in the repo or requiring a live database for default validation; gates pass; the slice is committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Add the concrete PostgreSQL client binding and runtime configuration boundary for Planning persistence without checking in secrets.
+Run a release-check for Planning production persistence wiring and decide whether to add opt-in live PostgreSQL integration coverage or proceed to the next product module.
