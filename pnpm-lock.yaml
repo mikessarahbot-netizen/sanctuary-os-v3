@@ -29,6 +29,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@sanctuary-os/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       zod:
         specifier: ^3.25.67
         version: 3.25.76

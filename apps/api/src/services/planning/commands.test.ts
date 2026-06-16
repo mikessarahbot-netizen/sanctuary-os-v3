@@ -140,11 +140,77 @@ describe("createPlanningCommandService", () => {
 
     expect(createService).toHaveBeenCalledWith(
       expect.objectContaining({
-        actorId: "actor_1",
-        requestId: "request_1",
-        tenantId: "tenant_1"
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_1",
+            tenantId: "tenant_1"
+          },
+          intent: "create"
+        }
       })
     );
+  });
+
+  it("maps confirmed service publish commands to destructive-confirmed persistence intent", async () => {
+    const updateService = vi.fn<PlanningCommandRepository["updateService"]>(() =>
+      Promise.resolve({
+        ...serviceRecord,
+        status: "published"
+      })
+    );
+    const service = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository({ updateService })
+    });
+
+    await expect(
+      service.updateService({
+        actor: {
+          actorId: "actor_1",
+          roles: ["worship_leader"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          confirmationIntent: {
+            confirmed: true,
+            reason: "Ready to publish for volunteers."
+          },
+          serviceId: "service_1",
+          status: "published"
+        },
+        requestId: "request_1"
+      })
+    ).resolves.toMatchObject({
+      serviceId: "service_1",
+      status: "published"
+    });
+
+    const firstCall = updateService.mock.calls[0];
+    expect(firstCall).toBeDefined();
+
+    const [operation] = firstCall as [
+      Parameters<PlanningCommandRepository["updateService"]>[0]
+    ];
+
+    expect(operation).toEqual({
+      input: {
+        confirmationIntent: {
+          confirmed: true,
+          reason: "Ready to publish for volunteers."
+        },
+        serviceId: "service_1",
+        status: "published"
+      },
+      options: {
+        context: {
+          actorId: "actor_1",
+          requestId: "request_1",
+          tenantId: "tenant_1"
+        },
+        intent: "destructive-confirmed"
+      }
+    });
   });
 
   it("rejects actors without Planning command roles before persistence", async () => {

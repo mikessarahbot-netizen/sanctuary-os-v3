@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:23 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free Planning service command persistence operation contracts in `packages/db`, including tenant-scoped write options, mutation intent, command input schemas, record schemas, and repository interface types.
+- Exposed `@sanctuary-os/db` source contracts to the workspace and linked the API package to the DB package.
+- Updated the Planning command service repository boundary to call DB-shaped persistence operations with `{ input, options: { context, intent } }`.
+- Mapped create/add/assign commands to `create`, normal edits/reorders/assignment status updates to `update`, and confirmed publish/cancel service updates to `destructive-confirmed`.
+- Added tests for tenant scope, mutation intent, destructive confirmation mapping, and adapter-free repository contract shape.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Implement Planning repository in-memory test adapter for service command integration tests.
+
+Open questions:
+- None.
+
 ## 2026-06-16 11:50 EDT · feature/foundation-monorepo-scaffold
 
 Tasks completed:

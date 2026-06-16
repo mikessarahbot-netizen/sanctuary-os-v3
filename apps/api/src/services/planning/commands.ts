@@ -2,6 +2,11 @@ import { z } from "zod";
 import type { AuthenticatedActor } from "../../auth/index.js";
 import { ApiRoleSchema, AuthenticatedActorSchema } from "../../auth/index.js";
 import type { EventPublisher } from "../../events/index.js";
+import type {
+  PlanningPersistenceOperation,
+  PlanningServiceCommandPersistenceRepository,
+  RepositoryMutationIntent
+} from "@sanctuary-os/db";
 import {
   ApiEventEnvelopeSchema,
   AssignmentStatusChangedEventPayloadSchema,
@@ -187,27 +192,13 @@ export type UpdatePlanningAssignmentStatusCommand = z.infer<
 >;
 
 export interface PlanningCommandRepository {
-  readonly createService: (
-    command: TenantScopedCommand<CreatePlanningServiceCommand["input"]>
-  ) => Promise<PlanningServiceRecord>;
-  readonly updateService: (
-    command: TenantScopedCommand<UpdatePlanningServiceCommand["input"]>
-  ) => Promise<PlanningServiceRecord>;
-  readonly addServiceItem: (
-    command: TenantScopedCommand<AddPlanningServiceItemCommand["input"]>
-  ) => Promise<PlanningServiceItemRecord>;
-  readonly updateServiceItem: (
-    command: TenantScopedCommand<UpdatePlanningServiceItemCommand["input"]>
-  ) => Promise<PlanningServiceItemRecord>;
-  readonly reorderServiceItems: (
-    command: TenantScopedCommand<ReorderPlanningServiceItemsCommand["input"]>
-  ) => Promise<readonly PlanningServiceItemRecord[]>;
-  readonly assignVolunteer: (
-    command: TenantScopedCommand<AssignPlanningVolunteerCommand["input"]>
-  ) => Promise<PlanningAssignmentRecord>;
-  readonly updateAssignmentStatus: (
-    command: TenantScopedCommand<UpdatePlanningAssignmentStatusCommand["input"]>
-  ) => Promise<PlanningAssignmentRecord>;
+  readonly createService: PlanningServiceCommandPersistenceRepository["createService"];
+  readonly updateService: PlanningServiceCommandPersistenceRepository["updateService"];
+  readonly addServiceItem: PlanningServiceCommandPersistenceRepository["addServiceItem"];
+  readonly updateServiceItem: PlanningServiceCommandPersistenceRepository["updateServiceItem"];
+  readonly reorderServiceItems: PlanningServiceCommandPersistenceRepository["reorderServiceItems"];
+  readonly assignVolunteer: PlanningServiceCommandPersistenceRepository["assignVolunteer"];
+  readonly updateAssignmentStatus: PlanningServiceCommandPersistenceRepository["updateAssignmentStatus"];
 }
 
 export interface PlanningCommandServiceDependencies {
@@ -239,13 +230,6 @@ export interface PlanningCommandService {
   ) => Promise<PlanningAssignmentRecord>;
 }
 
-interface TenantScopedCommand<TInput> {
-  readonly actorId: string;
-  readonly input: TInput;
-  readonly requestId: string;
-  readonly tenantId: string;
-}
-
 export const createPlanningCommandService = (
   dependencies: PlanningCommandServiceDependencies
 ): PlanningCommandService => ({
@@ -256,7 +240,9 @@ export const createPlanningCommandService = (
     assertPlanningCommandRole(command.actor);
 
     return assertTenantScopedService(
-      await dependencies.planningRepository.createService(toTenantScopedCommand(command)),
+      await dependencies.planningRepository.createService(
+        toPlanningPersistenceOperation(command, "create")
+      ),
       command.actor.tenantId
     );
   },
@@ -268,7 +254,9 @@ export const createPlanningCommandService = (
     assertPlanningCommandRole(command.actor);
 
     const service = assertTenantScopedService(
-      await dependencies.planningRepository.updateService(toTenantScopedCommand(command)),
+      await dependencies.planningRepository.updateService(
+        toPlanningPersistenceOperation(command, planningServiceMutationIntent(command))
+      ),
       command.actor.tenantId
     );
 
@@ -290,7 +278,9 @@ export const createPlanningCommandService = (
     assertPlanningCommandRole(command.actor);
 
     return assertTenantScopedServiceItem(
-      await dependencies.planningRepository.addServiceItem(toTenantScopedCommand(command)),
+      await dependencies.planningRepository.addServiceItem(
+        toPlanningPersistenceOperation(command, "create")
+      ),
       command.input.serviceId,
       command.actor.tenantId
     );
@@ -303,7 +293,9 @@ export const createPlanningCommandService = (
     assertPlanningCommandRole(command.actor);
 
     const serviceItem = assertTenantScopedServiceItem(
-      await dependencies.planningRepository.updateServiceItem(toTenantScopedCommand(command)),
+      await dependencies.planningRepository.updateServiceItem(
+        toPlanningPersistenceOperation(command, "update")
+      ),
       command.input.serviceId,
       command.actor.tenantId
     );
@@ -324,7 +316,9 @@ export const createPlanningCommandService = (
     return z
       .array(PlanningServiceItemRecordSchema)
       .parse(
-        await dependencies.planningRepository.reorderServiceItems(toTenantScopedCommand(command))
+        await dependencies.planningRepository.reorderServiceItems(
+          toPlanningPersistenceOperation(command, "update")
+        )
       )
       .map((serviceItem) =>
         assertTenantScopedServiceItem(
@@ -342,7 +336,9 @@ export const createPlanningCommandService = (
     assertPlanningCommandRole(command.actor);
 
     return assertTenantScopedAssignment(
-      await dependencies.planningRepository.assignVolunteer(toTenantScopedCommand(command)),
+      await dependencies.planningRepository.assignVolunteer(
+        toPlanningPersistenceOperation(command, "create")
+      ),
       command.input.serviceId,
       command.actor.tenantId
     );
@@ -355,7 +351,9 @@ export const createPlanningCommandService = (
     assertPlanningCommandRole(command.actor);
 
     const assignment = assertTenantScopedAssignment(
-      await dependencies.planningRepository.updateAssignmentStatus(toTenantScopedCommand(command)),
+      await dependencies.planningRepository.updateAssignmentStatus(
+        toPlanningPersistenceOperation(command, "update")
+      ),
       command.input.serviceId,
       command.actor.tenantId
     );
@@ -384,18 +382,31 @@ export const createPlanningCommandService = (
   }
 });
 
-const toTenantScopedCommand = <TInput>(
+const toPlanningPersistenceOperation = <TInput>(
   command: Readonly<{
     actor: AuthenticatedActor;
     input: TInput;
     requestId: string;
-  }>
-): TenantScopedCommand<TInput> => ({
-  actorId: command.actor.actorId,
+  }>,
+  intent: RepositoryMutationIntent
+): PlanningPersistenceOperation<TInput> => ({
   input: command.input,
-  requestId: command.requestId,
-  tenantId: command.actor.tenantId
+  options: {
+    context: {
+      actorId: command.actor.actorId,
+      requestId: command.requestId,
+      tenantId: command.actor.tenantId
+    },
+    intent
+  }
 });
+
+const planningServiceMutationIntent = (
+  command: UpdatePlanningServiceCommand
+): RepositoryMutationIntent =>
+  command.input.status === "published" || command.input.status === "canceled"
+    ? "destructive-confirmed"
+    : "update";
 
 const assertPlanningCommandRole = (actor: AuthenticatedActor): void => {
   const hasPlanningRole = actor.roles.some((role) =>

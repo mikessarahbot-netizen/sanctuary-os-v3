@@ -17,12 +17,12 @@ Implement Planning persistence repository contracts for service commands.
 Database migrations · concrete persistence adapters · GraphQL changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data
 
 ## Progress
-- [ ] Add Planning persistence repository contracts
-- [ ] Map repository methods to DB operation contract shapes
-- [ ] Add tenant-scope and mutation-intent tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add Planning persistence repository contracts
+- [x] Map repository methods to DB operation contract shapes
+- [x] Add tenant-scope and mutation-intent tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning persistence repository contracts are defined without concrete adapters, validated by tests, committed, pushed, and documented in session handoff.
