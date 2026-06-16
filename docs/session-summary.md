@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:24 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free DB Planning CCLI usage log contracts for tenant-scoped song usage events, including record/list inputs, persistence operation schemas, record schemas, reporting status/type enums, and a dedicated repository interface.
+- Added API Planning CCLI usage service contracts for recording and listing usage logs without CCLI/SongSelect vendor calls or credential handling.
+- Enforced Planning CCLI roles, tenant scope, service scope, reporting-status scope, request context propagation, and create/read operation shapes.
+- Added focused DB/API tests for input validation, strict rejection of credential-shaped extra input, role rejection, tenant/service/status guards, and adapter-free repository boundaries.
+- Ran and passed focused DB/API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `dcbe346 feat(planning): add ccli usage log contracts`.
+
+Next task:
+- Implement adapter-free Planning rehearsal asset visibility contracts in the DB/API service layers.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:20 EDT · feature/planning-readiness-domain
 
 Tasks completed:
