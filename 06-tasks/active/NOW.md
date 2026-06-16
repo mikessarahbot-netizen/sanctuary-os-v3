@@ -1,31 +1,31 @@
 # NOW
 
 ## Task
-Implement Planning query service contracts for service and assignment reads.
+Wire Planning GraphQL query resolver contracts to the Planning query service contracts.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Add adapter-free Planning query service contracts for `services(filter)`, `service(id)`, `serviceAssignments(serviceId)`, and `serviceReadiness(serviceId)`
-- Define Zod-validated query command/input schemas, repository boundary interfaces, tenant-scope guards, and role checks
-- Keep resolvers thin and delegate-ready without adding production persistence, migrations, ORM, SQL, or UI
-- Add focused tests for tenant scope, role checks, query input validation, and repository contract shape
+- Add Planning GraphQL query resolver contracts for `services(filter)`, `service(id)`, `serviceAssignments(serviceId)`, and `serviceReadiness(serviceId)`
+- Keep resolvers thin: parse GraphQL-style args/context, attach `AuthenticatedActor` and `requestId`, and delegate to `createPlanningQueryService`
+- Preserve existing mutation resolver contracts and Planning command/readiness behavior
+- Add focused tests for query schema names, resolver delegation, request context propagation, nullable service/readiness results, and invalid query input rejection
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-Database migrations · concrete production persistence adapter · GraphQL wiring changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation
+Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation · GraphQL server runtime
 
 ## Progress
-- [x] Add Planning query service schemas and repository interfaces
-- [x] Add tenant-scope and role guard behavior
-- [x] Add query service contract tests
-- [x] Run lint, typecheck, and tests
-- [x] Commit and push slice
-- [x] Session handoff
+- [ ] Add Planning GraphQL query schema/resolver contracts
+- [ ] Delegate query resolvers to Planning query service contracts
+- [ ] Add query resolver contract tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push slice
+- [ ] Session handoff
 
 ## Done when
-Planning query service contracts exist for planned service and assignment reads, remain adapter-free, are validated by tests, committed, pushed, and documented in session handoff.
+Planning GraphQL query resolver contracts delegate to the Planning query service contracts, remain adapter-free and server-runtime-free, are validated by tests, committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Wire Planning GraphQL query resolver contracts to the Planning query service contracts.
+Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md` and `05-plans/api-plan.md`.
