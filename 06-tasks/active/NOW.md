@@ -19,9 +19,9 @@ Implement an adapter-free in-memory Planning query/readiness repository test ada
 Production database adapter · migrations · concrete storage · UI components · media storage · chart rendering · notifications · mobile rehearsal UX · GraphQL resolver changes · CCLI/SongSelect vendor calls
 
 ## Progress
-- [ ] Add in-memory Planning query/readiness repository test adapter
-- [ ] Add focused query service integration tests
-- [ ] Run lint, typecheck, and tests
+- [x] Add in-memory Planning query/readiness repository test adapter
+- [x] Add focused query service integration tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
