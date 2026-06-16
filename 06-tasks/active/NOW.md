@@ -1,33 +1,33 @@
 # NOW
 
 ## Task
-Wire Planning GraphQL CCLI usage log record/list contracts to the service boundary.
+Wire Planning GraphQL rehearsal asset visibility set/list contracts to the service boundary.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
 - Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, and `05-plans/planning-module-plan.md`
-- Add thin GraphQL SDL contracts for recording Planning CCLI usage logs and listing usage logs by service/reporting status
-- Add resolver contracts that Zod-parse GraphQL-style `{ input }` args/context, authorize through the existing Planning CCLI usage service, and delegate to `recordUsage` / `listUsageLogs`
-- Preserve tenant scope, actor/request metadata, service ID, service item ID, song ID, usage type, used-at timestamp, reporting status, notes, and CCLI song number
-- Add focused GraphQL tests for resolver delegation, request context propagation, returned usage-log shape, empty list behavior, invalid input rejection, and service error propagation
-- Keep CCLI/SongSelect vendor calls, credentials, reporting submission, reporting file generation, worker execution, queue infrastructure, UI, and notifications out of scope
+- Add thin GraphQL SDL contracts for setting Planning rehearsal asset visibility and listing asset visibility by service
+- Add resolver contracts that Zod-parse GraphQL-style `{ input }` args/context, authorize through the existing Planning rehearsal asset visibility service, and delegate to set/list service methods
+- Preserve tenant scope, actor/request metadata, service ID, service item ID, asset ID, asset type, visibility flag, and updated timestamp
+- Add focused GraphQL tests for resolver delegation, request context propagation, returned visibility shape, empty list behavior, invalid input rejection, and service error propagation
+- Keep media storage, chart rendering, raw media payloads, playback engine integration, UI, and notifications out of scope
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-CCLI/SongSelect credentials · vendor reporting submission · file exports · production queue/broker · worker execution · UI · notifications
+Media storage · chart rendering · raw media payloads · playback engine integration · UI · notifications
 
 ## Progress
-- [x] Re-sync with required docs and current implementation
-- [x] Add GraphQL CCLI usage log record/list contracts
-- [x] Add focused GraphQL CCLI usage log tests
-- [x] Run lint, typecheck, and tests
-- [x] Commit and push slice
-- [x] Session handoff
+- [ ] Re-sync with required docs and current implementation
+- [ ] Add GraphQL rehearsal asset visibility set/list contracts
+- [ ] Add focused GraphQL rehearsal asset visibility tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push slice
+- [ ] Session handoff
 
 ## Done when
-Planning GraphQL exposes adapter-free CCLI usage log record/list contracts that delegate to the existing service boundary; gates pass; the slice is committed, pushed, and documented in session handoff.
+Planning GraphQL exposes adapter-free rehearsal asset visibility set/list contracts that delegate to the existing service boundary; gates pass; the slice is committed, pushed, and documented in session handoff.
 
 ## Next task after this
 Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.

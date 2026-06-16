@@ -12,9 +12,10 @@ Tasks completed:
 - Added focused GraphQL tests for resolver delegation, request context propagation, returned usage-log shape, empty list behavior, invalid input rejection, and service error propagation.
 - Ran and passed focused API GraphQL tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
 - Completed the task checklist in `06-tasks/active/NOW.md`.
+- Committed and pushed `24e4acc feat(planning): add ccli usage graphql`.
 
 Next task:
-- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+- Wire Planning GraphQL rehearsal asset visibility set/list contracts to the service boundary.
 
 Open questions:
 - None.
