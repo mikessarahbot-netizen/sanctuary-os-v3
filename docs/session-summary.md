@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:50 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Wired the Planning GraphQL `serviceTemplates(serviceTypeId)` query contract to the existing Planning query service.
+- Added the `PlanningServiceTemplate` GraphQL SDL type and query field while preserving existing Planning query/mutation resolver contracts.
+- Kept the resolver thin by parsing GraphQL args/context, forwarding `AuthenticatedActor` and `requestId`, and delegating to `PlanningQueryService.serviceTemplates`.
+- Added focused GraphQL tests for schema naming, resolver delegation, request context propagation, empty template results, and invalid input rejection.
+- Ran and passed focused API GraphQL tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md` and `05-plans/api-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:46 EDT · feature/planning-readiness-domain
 
 Tasks completed:

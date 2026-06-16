@@ -17,12 +17,12 @@ Wire Planning GraphQL `serviceTemplates(serviceTypeId)` resolver contracts to th
 Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation · template duplication mutation implementation · GraphQL server runtime
 
 ## Progress
-- [ ] Add GraphQL serviceTemplates schema/resolver contract
-- [ ] Delegate resolver to Planning query service
-- [ ] Add serviceTemplates resolver contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add GraphQL serviceTemplates schema/resolver contract
+- [x] Delegate resolver to Planning query service
+- [x] Add serviceTemplates resolver contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning GraphQL `serviceTemplates(serviceTypeId)` resolver contracts delegate to the Planning query service, remain adapter-free and server-runtime-free, are validated by tests, committed, pushed, and documented in session handoff.

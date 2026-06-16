@@ -16,11 +16,15 @@ import {
   UpdatePlanningServiceCommandSchema,
   UpdatePlanningServiceItemCommandSchema
 } from "../services/planning/commands.js";
-import type { PlanningQueryService } from "../services/planning/queries.js";
+import type {
+  PlanningQueryService,
+  PlanningServiceTemplateRecord
+} from "../services/planning/queries.js";
 import {
   GetPlanningServiceQuerySchema,
   GetPlanningServiceReadinessQuerySchema,
   ListPlanningServiceAssignmentsQuerySchema,
+  ListPlanningServiceTemplatesQuerySchema,
   ListPlanningServicesQuerySchema
 } from "../services/planning/queries.js";
 import type { PlanningReadinessService } from "../services/planning/readiness.js";
@@ -108,6 +112,14 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     tenantId: ID!
   }
 
+  type PlanningServiceTemplate {
+    description: String
+    serviceTemplateId: ID!
+    serviceTypeId: ID!
+    tenantId: ID!
+    title: String!
+  }
+
   input PlanningConfirmationIntentInput {
     confirmed: Boolean!
     reason: String!
@@ -189,6 +201,7 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
   extend type Query {
     services(filter: PlanningServicesFilterInput): [PlanningService!]!
     service(id: ID!): PlanningService
+    serviceTemplates(serviceTypeId: ID!): [PlanningServiceTemplate!]!
     serviceAssignments(serviceId: ID!): [PlanningAssignment!]!
     serviceReadiness(serviceId: ID!): PlanningReadiness
   }
@@ -227,6 +240,7 @@ export interface PlanningGraphqlResolverDependencies {
 export interface PlanningQueryResolvers {
   readonly services: GraphqlQueryResolver<readonly PlanningServiceRecord[]>;
   readonly service: GraphqlQueryResolver<PlanningServiceRecord | null>;
+  readonly serviceTemplates: GraphqlQueryResolver<readonly PlanningServiceTemplateRecord[]>;
   readonly serviceAssignments: GraphqlQueryResolver<readonly PlanningAssignmentRecord[]>;
   readonly serviceReadiness: GraphqlQueryResolver<PlanningReadinessResult | null>;
 }
@@ -297,6 +311,29 @@ export const createPlanningGraphqlResolvers = (
           actor: graphqlContext.actor,
           input: {
             serviceId: queryArgs.id
+          },
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    serviceTemplates: async (
+      _parent,
+      args,
+      context
+    ): Promise<readonly PlanningServiceTemplateRecord[]> => {
+      const graphqlContext = parseContext(context);
+      const queryArgs = z
+        .object({
+          serviceTypeId: NonEmptyStringSchema
+        })
+        .parse(args);
+
+      return dependencies.planningQueryService.serviceTemplates(
+        ListPlanningServiceTemplatesQuerySchema.parse({
+          actor: graphqlContext.actor,
+          input: {
+            serviceTypeId: queryArgs.serviceTypeId
           },
           requestId: graphqlContext.requestId
         })

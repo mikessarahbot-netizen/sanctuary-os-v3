@@ -142,6 +142,10 @@ describe("planningGraphqlTypeDefs", () => {
       "services(filter: PlanningServicesFilterInput): [PlanningService!]!"
     );
     expect(planningGraphqlTypeDefs).toContain("service(id: ID!): PlanningService");
+    expect(planningGraphqlTypeDefs).toContain("type PlanningServiceTemplate");
+    expect(planningGraphqlTypeDefs).toContain(
+      "serviceTemplates(serviceTypeId: ID!): [PlanningServiceTemplate!]!"
+    );
     expect(planningGraphqlTypeDefs).toContain(
       "serviceAssignments(serviceId: ID!): [PlanningAssignment!]!"
     );
@@ -333,6 +337,59 @@ describe("createPlanningGraphqlResolvers", () => {
     });
   });
 
+  it("delegates serviceTemplates query to the Planning query service with actor and request scope", async () => {
+    const serviceTemplates = vi.fn<PlanningQueryService["serviceTemplates"]>(() =>
+      Promise.resolve([serviceTemplateRecord])
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService({ serviceTemplates }),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Query.serviceTemplates(
+        undefined,
+        {
+          serviceTypeId: "type_sunday"
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_templates"
+        }
+      )
+    ).resolves.toEqual([serviceTemplateRecord]);
+
+    expect(serviceTemplates).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        serviceTypeId: "type_sunday"
+      },
+      requestId: "request_templates"
+    });
+  });
+
+  it("returns empty service template query results", async () => {
+    const serviceTemplates = vi.fn<PlanningQueryService["serviceTemplates"]>(() =>
+      Promise.resolve([])
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService({ serviceTemplates }),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Query.serviceTemplates(
+        undefined,
+        {
+          serviceTypeId: "type_sunday"
+        },
+        graphqlContext
+      )
+    ).resolves.toEqual([]);
+  });
+
   it("delegates service assignment and readiness queries to the Planning query service", async () => {
     const serviceAssignments = vi.fn<PlanningQueryService["serviceAssignments"]>(() =>
       Promise.resolve([assignmentRecord])
@@ -420,9 +477,12 @@ describe("createPlanningGraphqlResolvers", () => {
     const services = vi.fn<PlanningQueryService["services"]>(() =>
       Promise.resolve([serviceRecord])
     );
+    const serviceTemplates = vi.fn<PlanningQueryService["serviceTemplates"]>(() =>
+      Promise.resolve([serviceTemplateRecord])
+    );
     const resolvers = createPlanningGraphqlResolvers({
       planningCommandService: createPlanningCommandService(),
-      planningQueryService: createPlanningQueryService({ services }),
+      planningQueryService: createPlanningQueryService({ serviceTemplates, services }),
       planningReadinessService: createPlanningReadinessService()
     });
 
@@ -439,5 +499,17 @@ describe("createPlanningGraphqlResolvers", () => {
     ).rejects.toThrow();
 
     expect(services).not.toHaveBeenCalled();
+
+    await expect(
+      resolvers.Query.serviceTemplates(
+        undefined,
+        {
+          serviceTypeId: ""
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(serviceTemplates).not.toHaveBeenCalled();
   });
 });
