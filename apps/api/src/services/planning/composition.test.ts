@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 import type {
   PlanningSqlExecutor,
   PlanningSqlQueryResult,
-  PlanningSqlStatement
+  PlanningSqlStatement,
+  PostgreSqlPlanningQueryConfig,
+  PostgreSqlPlanningTransactionClient
 } from "@sanctuary-os/db";
 import {
   PlanningPersistenceSelectionConfigSchema,
+  PlanningPersistenceRuntimeConfigSchema,
+  createPlanningPersistenceSelectionFromRuntimeConfig,
   createPlanningPersistenceSelection,
+  createPlanningSqlPersistenceDependenciesFromPostgreSqlRuntime,
+  parsePlanningPersistenceRuntimeConfig,
   resolvePlanningPersistenceMode
 } from "./composition.js";
 
@@ -56,6 +62,29 @@ const createSqlDependencies = (executor: PlanningSqlExecutor) => ({
   }
 });
 
+interface RecordingPostgreSqlClient extends PostgreSqlPlanningTransactionClient {
+  readonly queries: readonly PostgreSqlPlanningQueryConfig[];
+}
+
+const createRecordingPostgreSqlClient = (
+  results: readonly unknown[] = []
+): RecordingPostgreSqlClient => {
+  const queries: PostgreSqlPlanningQueryConfig[] = [];
+  const queuedResults = [...results];
+
+  return {
+    get queries(): readonly PostgreSqlPlanningQueryConfig[] {
+      return queries;
+    },
+    query: (config): Promise<unknown> => {
+      queries.push(config);
+
+      return Promise.resolve(queuedResults.shift() ?? { rows: [] });
+    },
+    release: (): void => undefined
+  };
+};
+
 describe("Planning persistence composition", () => {
   it("defaults development and test environments to in-memory persistence", () => {
     expect(resolvePlanningPersistenceMode()).toBe("in-memory");
@@ -90,6 +119,69 @@ describe("Planning persistence composition", () => {
         environment: "production"
       })
     ).toThrow();
+  });
+
+  it("parses runtime config with database URL environment variable names only", () => {
+    expect(parsePlanningPersistenceRuntimeConfig({})).toEqual({
+      database: {
+        connectionName: "planning-primary",
+        runtime: "postgresql",
+        urlEnvVar: "SANCTUARY_OS_DATABASE_URL"
+      },
+      environment: "development"
+    });
+
+    expect(
+      PlanningPersistenceRuntimeConfigSchema.parse({
+        database: {
+          connectionName: "planning-primary",
+          runtime: "postgresql",
+          urlEnvVar: "DATABASE_URL"
+        },
+        environment: "production",
+        mode: "sql"
+      })
+    ).toEqual({
+      database: {
+        connectionName: "planning-primary",
+        runtime: "postgresql",
+        urlEnvVar: "DATABASE_URL"
+      },
+      environment: "production",
+      mode: "sql"
+    });
+
+    expect(() =>
+      PlanningPersistenceRuntimeConfigSchema.parse({
+        database: {
+          connectionName: "planning-primary",
+          runtime: "postgresql",
+          url: "postgres://user:password@example.invalid/db",
+          urlEnvVar: "DATABASE_URL"
+        },
+        environment: "production"
+      })
+    ).toThrow();
+    expect(() =>
+      PlanningPersistenceRuntimeConfigSchema.parse({
+        database: {
+          connectionName: "planning-primary",
+          runtime: "postgresql",
+          urlEnvVar: "postgres://user:password@example.invalid/db"
+        },
+        environment: "production"
+      })
+    ).toThrow();
+    expect(() =>
+      PlanningPersistenceRuntimeConfigSchema.parse({
+        database: {
+          connectionName: "planning-primary",
+          runtime: "sqlite",
+          urlEnvVar: "DATABASE_URL"
+        },
+        environment: "production"
+      })
+    ).toThrow("Planning SQL persistence requires PostgreSQL runtime.");
   });
 
   it("builds in-memory repositories and preserves operation recording behavior", async () => {
@@ -249,5 +341,133 @@ describe("Planning persistence composition", () => {
     });
 
     expect(selection.mode).toBe("in-memory");
+  });
+
+  it("creates SQL dependencies from PostgreSQL runtime bindings without reading secrets", async () => {
+    const queryClient = createRecordingPostgreSqlClient([
+      {
+        rows: [
+          {
+            service_id: "service_runtime_1",
+            service_type_id: "sunday",
+            starts_at: null,
+            status: "scheduled",
+            tenant_id: "tenant_1",
+            title: "Runtime Service"
+          }
+        ]
+      }
+    ]);
+    const transactionClient = createRecordingPostgreSqlClient();
+    const sql = createPlanningSqlPersistenceDependenciesFromPostgreSqlRuntime(
+      {
+        database: {
+          connectionName: "planning-primary",
+          runtime: "postgresql",
+          urlEnvVar: "DATABASE_URL"
+        },
+        environment: "production"
+      },
+      {
+        ...createSqlDependencies(createRecordingSqlExecutor([])),
+        queryClient,
+        transactionId: () => "runtime_tx_1",
+        transactionPool: {
+          connect: () => Promise.resolve(transactionClient)
+        }
+      }
+    );
+
+    await expect(
+      sql.executor.query({
+        name: "planning.services.get",
+        parameters: ["tenant_1", "service_runtime_1"],
+        sql: "SELECT * FROM planning_services WHERE tenant_id = $1 AND service_id = $2"
+      })
+    ).resolves.toEqual({
+      rows: [
+        {
+          service_id: "service_runtime_1",
+          service_type_id: "sunday",
+          starts_at: null,
+          status: "scheduled",
+          tenant_id: "tenant_1",
+          title: "Runtime Service"
+        }
+      ]
+    });
+    expect(queryClient.queries).toEqual([
+      {
+        name: "planning.services.get",
+        text: "SELECT * FROM planning_services WHERE tenant_id = $1 AND service_id = $2",
+        values: ["tenant_1", "service_runtime_1"]
+      }
+    ]);
+  });
+
+  it("builds production SQL selection from runtime config and PostgreSQL bindings", async () => {
+    const queryClient = createRecordingPostgreSqlClient([
+      {
+        rows: [
+          {
+            service_id: "service_runtime_2",
+            service_type_id: "sunday",
+            starts_at: null,
+            status: "draft",
+            tenant_id: "tenant_1",
+            title: "Runtime SQL Service"
+          }
+        ]
+      }
+    ]);
+    const selection = createPlanningPersistenceSelectionFromRuntimeConfig(
+      {
+        database: {
+          connectionName: "planning-primary",
+          runtime: "postgresql",
+          urlEnvVar: "DATABASE_URL"
+        },
+        environment: "production"
+      },
+      {
+        postgreSql: {
+          ...createSqlDependencies(createRecordingSqlExecutor([])),
+          queryClient,
+          transactionPool: {
+            connect: () => Promise.resolve(createRecordingPostgreSqlClient())
+          }
+        }
+      }
+    );
+
+    expect(selection.mode).toBe("sql");
+    await expect(
+      selection.queryRepository.getService({
+        input: {
+          serviceId: "service_runtime_2"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_runtime_get",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).resolves.toMatchObject({
+      serviceId: "service_runtime_2",
+      tenantId: "tenant_1",
+      title: "Runtime SQL Service"
+    });
+  });
+
+  it("fails safely when runtime SQL mode lacks PostgreSQL bindings", () => {
+    expect(() =>
+      createPlanningPersistenceSelectionFromRuntimeConfig({
+        environment: "production"
+      })
+    ).toThrow(
+      "Planning PostgreSQL runtime dependencies are required for SQL persistence."
+    );
   });
 });

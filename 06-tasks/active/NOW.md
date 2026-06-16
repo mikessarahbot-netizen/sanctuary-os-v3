@@ -19,14 +19,14 @@ Add the concrete PostgreSQL client binding and runtime configuration boundary fo
 Checked-in connection strings or secrets · live PostgreSQL requirement in default tests · migration runner execution · production deployment config · GraphQL contract changes · UI · workers · vendor SDKs · Auth0 integration changes · ORM/query-builder adoption · new Planning domain behavior
 
 ## Progress
-- [ ] Re-sync with required docs, release-check, API composition code, and DB SQL adapter code
-- [ ] Identify PostgreSQL client/executor boundary and runtime config inputs
-- [ ] Add concrete PostgreSQL executor/client binding without checked-in secrets
-- [ ] Add runtime configuration parsing for production Planning persistence injection
-- [ ] Add live-DB-free tests for config and executor behavior
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs, release-check, API composition code, and DB SQL adapter code
+- [x] Identify PostgreSQL client/executor boundary and runtime config inputs
+- [x] Add concrete PostgreSQL executor/client binding without checked-in secrets
+- [x] Add runtime configuration parsing for production Planning persistence injection
+- [x] Add live-DB-free tests for config and executor behavior
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 The API can construct production Planning SQL persistence dependencies through a tested PostgreSQL client/executor boundary and strict runtime configuration without storing secrets in the repo or requiring a live database for default validation; gates pass; the slice is committed, pushed, and documented in session handoff.

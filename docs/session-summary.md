@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 19:48 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, the Planning DB persistence release-check, and current API composition / DB SQL adapter code.
+- Added a concrete PostgreSQL-compatible Planning SQL executor boundary in `packages/db` that forwards named SQL statements and parameters, validates query result envelopes, uses transaction-scoped clients, rolls back on failed transaction operations, releases clients, and normalizes database failures without leaking raw connection details.
+- Tightened DB connection metadata validation so config stores URL environment variable names only and rejects secret-looking connection URL fields.
+- Added API Planning runtime config parsing for environment/mode plus PostgreSQL database URL env-var metadata, with production SQL mode requiring PostgreSQL runtime bindings while preserving in-memory defaults and the existing injected SQL dependency path.
+- Covered runtime config validation, secret-free boundaries, PostgreSQL statement forwarding, transaction forwarding, rollback/release behavior, missing transaction pool failure, and missing production runtime dependency failure with live-DB-free tests.
+- Installed workspace dependencies for validation because the worktree initially lacked `node_modules`.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `feat(api): add planning postgresql runtime binding`.
+
+Next task:
+- Run a release-check for Planning production persistence wiring and decide whether to add opt-in live PostgreSQL integration coverage or proceed to the next product module.
+
+Open questions:
+- None.
+
 ## 2026-06-16 19:41 EDT · feature/planning-readiness-domain
 
 Tasks completed:

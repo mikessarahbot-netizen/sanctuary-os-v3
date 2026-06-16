@@ -1,17 +1,21 @@
 import { z } from "zod";
 import {
+  DatabaseConnectionConfigSchema,
   createPlanningCcliUsageSqlRepository,
   createPlanningReadinessSqlRepository,
   createPlanningRehearsalTrackingSqlRepository,
   createPlanningServiceCommandSqlRepository,
   createPlanningServiceQuerySqlRepository,
+  createPostgreSqlPlanningExecutor,
   type PlanningCcliUsageLogPersistenceRepository,
   type PlanningReadinessPersistenceRepository,
   type PlanningRehearsalAcknowledgementPersistenceRepository,
   type PlanningRehearsalAssetVisibilityPersistenceRepository,
   type PlanningServiceCommandPersistenceRepository,
   type PlanningServiceQueryPersistenceRepository,
-  type PlanningSqlExecutor
+  type PlanningSqlExecutor,
+  type PostgreSqlPlanningQueryClient,
+  type PostgreSqlPlanningTransactionPool
 } from "@sanctuary-os/db";
 import {
   createInMemoryPlanningCcliUsageRepositoryAdapter,
@@ -53,6 +57,30 @@ export const PlanningPersistenceSelectionConfigSchema = z
   })
   .strict();
 
+export const PlanningPersistenceRuntimeConfigSchema = z
+  .object({
+    database: DatabaseConnectionConfigSchema.default({
+      connectionName: "planning-primary",
+      runtime: "postgresql",
+      urlEnvVar: "SANCTUARY_OS_DATABASE_URL"
+    }),
+    environment: PlanningPersistenceEnvironmentSchema.default("development"),
+    mode: PlanningPersistenceModeSchema.optional()
+  })
+  .strict()
+  .superRefine((config, context): void => {
+    const mode =
+      config.mode ?? (config.environment === "production" ? "sql" : "in-memory");
+
+    if (mode === "sql" && config.database.runtime !== "postgresql") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Planning SQL persistence requires PostgreSQL runtime.",
+        path: ["database", "runtime"]
+      });
+    }
+  });
+
 export type PlanningPersistenceEnvironment = z.infer<
   typeof PlanningPersistenceEnvironmentSchema
 >;
@@ -62,6 +90,12 @@ export type PlanningPersistenceSelectionConfig = z.infer<
 >;
 export type PlanningPersistenceSelectionConfigInput = z.input<
   typeof PlanningPersistenceSelectionConfigSchema
+>;
+export type PlanningPersistenceRuntimeConfig = z.infer<
+  typeof PlanningPersistenceRuntimeConfigSchema
+>;
+export type PlanningPersistenceRuntimeConfigInput = z.input<
+  typeof PlanningPersistenceRuntimeConfigSchema
 >;
 
 export interface PlanningReadinessPersistenceRepositoryWithLookup
@@ -109,6 +143,14 @@ export interface PlanningSqlPersistenceDependencies {
   readonly ids: PlanningSqlPersistenceIds;
 }
 
+export interface PlanningPostgreSqlPersistenceRuntimeDependencies {
+  readonly clock: () => string;
+  readonly ids: PlanningSqlPersistenceIds;
+  readonly queryClient: PostgreSqlPlanningQueryClient;
+  readonly transactionId?: () => string;
+  readonly transactionPool: PostgreSqlPlanningTransactionPool;
+}
+
 export type PlanningPersistenceSelection =
   | (PlanningPersistenceRepositories & {
       readonly inMemoryAdapters: PlanningInMemoryPersistenceAdapters;
@@ -122,6 +164,64 @@ export interface PlanningPersistenceSelectionDependencies {
   readonly inMemorySeeds?: PlanningInMemoryPersistenceSeeds;
   readonly sql?: PlanningSqlPersistenceDependencies;
 }
+
+export const parsePlanningPersistenceRuntimeConfig = (
+  rawConfig: PlanningPersistenceRuntimeConfigInput = {}
+): PlanningPersistenceRuntimeConfig =>
+  PlanningPersistenceRuntimeConfigSchema.parse(rawConfig);
+
+export const createPlanningSqlPersistenceDependenciesFromPostgreSqlRuntime = (
+  rawConfig: PlanningPersistenceRuntimeConfigInput,
+  dependencies: PlanningPostgreSqlPersistenceRuntimeDependencies
+): PlanningSqlPersistenceDependencies => {
+  const config = parsePlanningPersistenceRuntimeConfig(rawConfig);
+
+  if (config.database.runtime !== "postgresql") {
+    throw new Error("Planning SQL persistence requires PostgreSQL runtime.");
+  }
+
+  return {
+    clock: dependencies.clock,
+    executor: createPostgreSqlPlanningExecutor({
+      queryClient: dependencies.queryClient,
+      transactionPool: dependencies.transactionPool,
+      ...(dependencies.transactionId !== undefined
+        ? { transactionId: dependencies.transactionId }
+        : {})
+    }),
+    ids: dependencies.ids
+  };
+};
+
+export const createPlanningPersistenceSelectionFromRuntimeConfig = (
+  rawConfig: PlanningPersistenceRuntimeConfigInput = {},
+  dependencies:
+    | {
+        readonly inMemorySeeds?: PlanningInMemoryPersistenceSeeds;
+        readonly postgreSql?: PlanningPostgreSqlPersistenceRuntimeDependencies;
+      }
+    | undefined = {}
+): PlanningPersistenceSelection => {
+  const config = parsePlanningPersistenceRuntimeConfig(rawConfig);
+  const selectionConfig: PlanningPersistenceSelectionConfig = {
+    environment: config.environment,
+    ...(config.mode !== undefined ? { mode: config.mode } : {})
+  };
+  const sql =
+    resolvePlanningPersistenceMode(selectionConfig) === "sql"
+      ? createPlanningSqlPersistenceDependenciesFromPostgreSqlRuntime(
+          config,
+          requirePostgreSqlRuntimeDependencies(dependencies.postgreSql)
+        )
+      : undefined;
+
+  return createPlanningPersistenceSelection(selectionConfig, {
+    ...(dependencies.inMemorySeeds !== undefined
+      ? { inMemorySeeds: dependencies.inMemorySeeds }
+      : {}),
+    ...(sql !== undefined ? { sql } : {})
+  });
+};
 
 export const resolvePlanningPersistenceMode = (
   rawConfig: PlanningPersistenceSelectionConfigInput = {}
@@ -144,6 +244,18 @@ export const createPlanningPersistenceSelection = (
   return mode === "sql"
     ? createSqlPlanningPersistenceSelection(dependencies.sql)
     : createInMemoryPlanningPersistenceSelection(dependencies.inMemorySeeds);
+};
+
+const requirePostgreSqlRuntimeDependencies = (
+  dependencies: PlanningPostgreSqlPersistenceRuntimeDependencies | undefined
+): PlanningPostgreSqlPersistenceRuntimeDependencies => {
+  if (dependencies === undefined) {
+    throw new Error(
+      "Planning PostgreSQL runtime dependencies are required for SQL persistence."
+    );
+  }
+
+  return dependencies;
 };
 
 const createInMemoryPlanningPersistenceSelection = (
