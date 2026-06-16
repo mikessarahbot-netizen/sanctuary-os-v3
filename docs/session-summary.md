@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:42 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, existing `packages/db` SQL adapter code, and the Planning rehearsal tracking service contracts.
+- Added the SQL-first Planning rehearsal tracking persistence adapter in `packages/db` for rehearsal asset visibility set/list and rehearsal acknowledgement record/list.
+- Preserved tenant predicates, service/service-item/assignment ownership checks, actor/request audit metadata, mutation intent, transaction-handle propagation, adapter row validation, and no media/contact payload storage at the SQL adapter boundary.
+- Covered asset visibility set/list, acknowledgement record/list, supplied transaction behavior, audit metadata, no media/contact SQL columns, malformed-row rejection, and live-DB-free adapter behavior with tests.
+- Kept the slice free of live database execution, connection strings, secrets, GraphQL/resolver changes, API service wiring, UI, workers, vendor SDKs, Auth0, command adapter changes, query adapter changes, CCLI adapter changes, readiness adapter work, and ORM/query-builder adoption.
+- Ran and passed `pnpm --filter @sanctuary-os/db test -- planning-rehearsal-tracking-sql-repository.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `f0929b6 feat(db): add planning rehearsal tracking sql adapter`.
+
+Next task:
+- Implement the SQL-first Planning readiness persistence adapter.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:35 EDT · feature/planning-readiness-domain
 
 Tasks completed:
