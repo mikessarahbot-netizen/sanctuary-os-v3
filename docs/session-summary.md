@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:53 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, ADR 0004, and current `packages/db` SQL adapter code.
+- Audited the implemented Planning SQL persistence layer against `05-plans/db-plan.md`, ADR 0003, ADR 0004, and active repository contracts.
+- Verified command, query, CCLI usage, rehearsal tracking, readiness, migration, tenant scope, audit metadata, transaction propagation, row validation, no secret/PII/media payload storage, adapter isolation, and live-DB-free test coverage.
+- Wrote findings to `07-reviews/architecture/planning-db-persistence-release-check.md`.
+- Recorded a pass-with-follow-up result: no blocking defects found; production API composition, concrete PostgreSQL client binding, runtime config, and live DB integration coverage remain future slices.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `62c1258 docs(db): add planning persistence release check`.
+
+Next task:
+- Wire API composition to select in-memory/test or production Planning persistence adapters by environment.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:49 EDT · feature/planning-readiness-domain
 
 Tasks completed:
