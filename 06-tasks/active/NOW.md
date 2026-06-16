@@ -22,7 +22,7 @@ Database migrations · concrete production persistence adapter · UI components 
 - [x] Add songLibrary resolver contract tests
 - [x] Run lint, typecheck, and tests
 - [x] Commit and push slice
-- [ ] Session handoff
+- [x] Session handoff
 
 ## Done when
 Planning GraphQL `songLibrary(searchInput)` resolver contracts delegate to the Planning query service, remain adapter-free and server-runtime-free, are validated by tests, committed, pushed, and documented in session handoff.

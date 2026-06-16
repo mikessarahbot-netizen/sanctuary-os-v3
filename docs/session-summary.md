@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:59 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Verified the Planning GraphQL `songLibrary(searchInput)` resolver contract was already implemented in `28afb15 feat(planning): wire song library query resolver` and pushed to `origin/feature/planning-readiness-domain`.
+- Confirmed the GraphQL SDL includes `PlanningSongLibraryItem`, `PlanningSongLibrarySearchInput`, and the `songLibrary(searchInput)` query field.
+- Confirmed the resolver parses GraphQL args/context, forwards `AuthenticatedActor` and `requestId`, and delegates to `PlanningQueryService.songLibrary`.
+- Confirmed focused GraphQL tests cover schema naming, resolver delegation, request context propagation, empty song results, invalid query input rejection, and paused-song visibility argument forwarding.
+- Ran and passed the API test command, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md` and `05-plans/api-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:56 EDT · feature/planning-readiness-domain
 
 Tasks completed:
