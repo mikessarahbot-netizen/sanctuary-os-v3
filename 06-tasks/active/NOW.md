@@ -19,10 +19,10 @@ Implement the SQL-first Planning query repository adapter for services, service 
 Live PostgreSQL execution · connection strings or secrets · GraphQL/resolver changes · API service wiring · UI · queue workers · command repository changes · CCLI write adapter · rehearsal adapter · readiness write adapter · ORM/query-builder adoption
 
 ## Progress
-- [ ] Re-sync with required docs, DB plan, ADR, and existing SQL adapter code
-- [ ] Add SQL-first Planning query repository adapter
-- [ ] Add adapter-level tests without live database requirements
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, DB plan, ADR, and existing SQL adapter code
+- [x] Add SQL-first Planning query repository adapter
+- [x] Add adapter-level tests without live database requirements
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
