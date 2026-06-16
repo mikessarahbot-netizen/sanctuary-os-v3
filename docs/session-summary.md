@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:43 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Continued the Planning readiness input contract slice from the pushed `feature/planning-readiness-domain` branch.
+- Extended adapter-free Planning readiness domain contracts with strict rehearsal acknowledgement readiness inputs and explicit CCLI readiness status inputs.
+- Kept readiness calculation deterministic and tenant-scoped, preserving existing legacy CCLI booleans when no explicit CCLI status input is supplied.
+- Added readiness scoring, risks, and recommendations for blocked or needs-practice rehearsal acknowledgement signals alongside existing rehearsal asset visibility and CCLI current-status checks.
+- Added focused domain/service tests for acknowledgement readiness scoring, default compatibility, explicit CCLI status scoring, and invalid acknowledgement/CCLI service-item or assignment references.
+- Ran and passed focused readiness tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:37 EDT · feature/planning-readiness-domain
 
 Tasks completed:

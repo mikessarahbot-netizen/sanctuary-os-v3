@@ -18,12 +18,12 @@ Implement Planning readiness input contracts for rehearsal acknowledgements and 
 Database migrations · concrete production persistence adapter · UI components · media storage · chart rendering · notifications · mobile rehearsal UX · GraphQL resolver wiring · GraphQL server runtime · CCLI/SongSelect vendor calls
 
 ## Progress
-- [ ] Add readiness input fields for rehearsal acknowledgement signals
-- [ ] Update deterministic readiness scoring and recommendations
-- [ ] Add focused domain/API tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add readiness input fields for rehearsal acknowledgement signals
+- [x] Update deterministic readiness scoring and recommendations
+- [x] Add focused domain/API tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning readiness contracts account for rehearsal acknowledgement readiness signals and CCLI current-status inputs, remain adapter-free and tenant-scoped, are covered by focused tests, pass repository gates, are committed, pushed, and documented in session handoff.

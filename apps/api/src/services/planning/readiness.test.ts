@@ -5,7 +5,17 @@ import { createPlanningReadinessService } from "./readiness.js";
 
 const readinessInput: PlanningReadinessInput = {
   assignments: [{ assignmentId: "assignment_1", roleId: "role_1", status: "confirmed" }],
+  ccliStatuses: [{ serviceItemId: "item_1", status: "current" }],
   knownBlockers: [],
+  rehearsalAcknowledgements: [
+    {
+      assignmentId: "assignment_1",
+      assetId: "asset_chart_1",
+      personId: "person_1",
+      readinessSignal: "ready",
+      serviceItemId: "item_1"
+    }
+  ],
   requiredRoles: [{ displayName: "Leader", roleId: "role_1" }],
   serviceId: "service_1",
   serviceItems: [
@@ -15,6 +25,7 @@ const readinessInput: PlanningReadinessInput = {
       hasChart: true,
       hasCurrentCcliLog: true,
       hasVisibleRehearsalAsset: true,
+      requiresRehearsalAcknowledgement: true,
       requiresCcliLog: true,
       serviceItemId: "item_1",
       title: "Song"
