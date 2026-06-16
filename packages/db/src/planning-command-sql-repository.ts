@@ -30,7 +30,13 @@ import type { TransactionHandle } from "./transactions.js";
 export type PlanningServiceCommandSqlRepositorySlice =
   PlanningServiceCommandPersistenceRepository;
 
-export type PlanningSqlValue = string | number | boolean | null | readonly string[];
+export type PlanningSqlValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly PlanningSqlValue[]
+  | { readonly [key: string]: PlanningSqlValue };
 export type PlanningSqlRow = Readonly<Record<string, unknown>>;
 
 export interface PlanningSqlStatement {

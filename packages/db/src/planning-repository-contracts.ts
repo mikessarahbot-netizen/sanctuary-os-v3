@@ -145,6 +145,75 @@ export const PlanningReadinessPersistenceRecordSchema = z.object({
   tenantId: NonEmptyStringSchema
 });
 
+export const PlanningReadinessRequiredRolePersistenceSchema = z
+  .object({
+    displayName: NonEmptyStringSchema,
+    roleId: NonEmptyStringSchema
+  })
+  .strict();
+
+export const PlanningReadinessAssignmentSignalPersistenceSchema = z
+  .object({
+    assignmentId: NonEmptyStringSchema,
+    roleId: NonEmptyStringSchema,
+    status: PlanningAssignmentPersistenceStatusSchema
+  })
+  .strict();
+
+export const PlanningReadinessCcliStatusPersistenceSchema = z.enum([
+  "not-required",
+  "current",
+  "pending",
+  "missing",
+  "skipped"
+]);
+
+export const PlanningReadinessCcliStatusSignalPersistenceSchema = z
+  .object({
+    serviceItemId: NonEmptyStringSchema,
+    status: PlanningReadinessCcliStatusPersistenceSchema
+  })
+  .strict();
+
+export const PlanningReadinessRehearsalAcknowledgementSignalPersistenceSchema = z
+  .object({
+    assignmentId: NonEmptyStringSchema,
+    assetId: OptionalNonEmptyStringSchema,
+    personId: NonEmptyStringSchema,
+    readinessSignal: PlanningRehearsalReadinessSignalPersistenceSchema,
+    serviceItemId: NonEmptyStringSchema
+  })
+  .strict();
+
+export const PlanningReadinessServiceItemSignalPersistenceSchema = z
+  .object({
+    durationMinutes: z.number().int().positive().optional(),
+    hasAttachedSong: z.boolean(),
+    hasChart: z.boolean(),
+    hasCurrentCcliLog: z.boolean(),
+    hasVisibleRehearsalAsset: z.boolean(),
+    requiresCcliLog: z.boolean(),
+    requiresRehearsalAcknowledgement: z.boolean(),
+    serviceItemId: NonEmptyStringSchema,
+    title: NonEmptyStringSchema
+  })
+  .strict();
+
+export const PlanningReadinessInputPersistenceRecordSchema = z
+  .object({
+    assignments: z.array(PlanningReadinessAssignmentSignalPersistenceSchema),
+    ccliStatuses: z.array(PlanningReadinessCcliStatusSignalPersistenceSchema),
+    knownBlockers: z.array(NonEmptyStringSchema),
+    rehearsalAcknowledgements: z.array(
+      PlanningReadinessRehearsalAcknowledgementSignalPersistenceSchema
+    ),
+    requiredRoles: z.array(PlanningReadinessRequiredRolePersistenceSchema),
+    serviceId: NonEmptyStringSchema,
+    serviceItems: z.array(PlanningReadinessServiceItemSignalPersistenceSchema),
+    tenantId: NonEmptyStringSchema
+  })
+  .strict();
+
 export const PlanningCcliUsageLogPersistenceRecordSchema = z
   .object({
     ccliSongNumber: OptionalNonEmptyStringSchema,
@@ -517,6 +586,27 @@ export type PlanningReadinessPersistenceCheck = z.infer<
 export type PlanningReadinessPersistenceRecord = z.infer<
   typeof PlanningReadinessPersistenceRecordSchema
 >;
+export type PlanningReadinessRequiredRolePersistence = z.infer<
+  typeof PlanningReadinessRequiredRolePersistenceSchema
+>;
+export type PlanningReadinessAssignmentSignalPersistence = z.infer<
+  typeof PlanningReadinessAssignmentSignalPersistenceSchema
+>;
+export type PlanningReadinessCcliStatusPersistence = z.infer<
+  typeof PlanningReadinessCcliStatusPersistenceSchema
+>;
+export type PlanningReadinessCcliStatusSignalPersistence = z.infer<
+  typeof PlanningReadinessCcliStatusSignalPersistenceSchema
+>;
+export type PlanningReadinessRehearsalAcknowledgementSignalPersistence = z.infer<
+  typeof PlanningReadinessRehearsalAcknowledgementSignalPersistenceSchema
+>;
+export type PlanningReadinessServiceItemSignalPersistence = z.infer<
+  typeof PlanningReadinessServiceItemSignalPersistenceSchema
+>;
+export type PlanningReadinessInputPersistenceRecord = z.infer<
+  typeof PlanningReadinessInputPersistenceRecordSchema
+>;
 export type PlanningCcliUsageLogPersistenceRecord = z.infer<
   typeof PlanningCcliUsageLogPersistenceRecordSchema
 >;
@@ -669,6 +759,24 @@ export interface PlanningRehearsalAcknowledgementPersistenceRepository {
   readonly listRehearsalAcknowledgements: (
     operation: ListPlanningRehearsalAcknowledgementsPersistenceOperation
   ) => Promise<readonly PlanningRehearsalAcknowledgementPersistenceRecord[]>;
+}
+
+export interface PlanningReadinessPersistenceRepository {
+  readonly loadReadinessInput: (query: {
+    readonly requestId: string;
+    readonly serviceId: string;
+    readonly tenantId: string;
+    readonly transaction?: RepositoryReadOptions["transaction"];
+  }) => Promise<PlanningReadinessInputPersistenceRecord>;
+  readonly saveReadinessResult: (command: {
+    readonly actorId: string;
+    readonly intent?: RepositoryWriteOptions["intent"];
+    readonly requestId: string;
+    readonly result: PlanningReadinessPersistenceRecord;
+    readonly serviceId: string;
+    readonly tenantId: string;
+    readonly transaction?: RepositoryWriteOptions["transaction"];
+  }) => Promise<void>;
 }
 
 export interface PlanningServiceCommandPersistenceRepository {

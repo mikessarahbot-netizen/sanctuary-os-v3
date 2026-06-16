@@ -20,13 +20,13 @@ Implement the SQL-first Planning readiness persistence adapter.
 Live PostgreSQL execution · connection strings or secrets · GraphQL/resolver changes · API service wiring unrelated to a required repository contract · UI · queue workers · chart rendering · media storage · notification delivery · command repository changes · query repository changes unrelated to readiness persistence · CCLI adapter changes · rehearsal tracking adapter changes · ORM/query-builder adoption
 
 ## Progress
-- [ ] Re-sync with required docs, DB plan, ADR, readiness contracts, and existing SQL adapter code
-- [ ] Identify whether the existing query repository readiness lookup is sufficient or a narrow readiness write contract is required
-- [ ] Add SQL-first Planning readiness persistence support
-- [ ] Add adapter-level tests without live database requirements
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs, DB plan, ADR, readiness contracts, and existing SQL adapter code
+- [x] Identify whether the existing query repository readiness lookup is sufficient or a narrow readiness write contract is required
+- [x] Add SQL-first Planning readiness persistence support
+- [x] Add adapter-level tests without live database requirements
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 The DB package has SQL-first Planning readiness persistence support aligned with the existing readiness contract, with tenant/audit/ownership/transaction/no-PII behavior covered by adapter-level tests; gates pass; the slice is committed, pushed, and documented in session handoff.

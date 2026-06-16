@@ -2,6 +2,26 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:49 EDT · feature/planning-readiness-sql-adapter
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, existing `packages/db` SQL adapter code, Planning readiness domain/service/query contracts, and the `planning_readiness_results` migration shape.
+- Created a fresh branch from the pushed handoff HEAD because `feature/planning-readiness-domain` was already checked out by another worktree.
+- Confirmed the existing query repository already covers readiness result lookup, then added a narrow DB-owned readiness persistence contract for readiness input loading and readiness result saving.
+- Added the SQL-first Planning readiness adapter in `packages/db`, including tenant-scoped readiness input assembly from services, items, assignments, song library metadata, CCLI usage logs, rehearsal visibility, and rehearsal acknowledgements.
+- Added readiness result upsert support with service ownership checks, actor/request audit metadata, mutation intent, transaction-handle propagation, row validation, and no PII/contact/media/secret payload storage at the SQL boundary.
+- Expanded SQL parameter typing to allow JSON-style payload parameters used by readiness checks, risks, strengths, and actions.
+- Covered readiness input load, readiness result save, supplied transaction behavior, default update intent, audit metadata, mismatched scope rejection, malformed-row rejection, no live database requirements, and no contact/media/secret SQL columns with adapter-level tests.
+- Kept the slice free of live PostgreSQL execution, connection strings, secrets, GraphQL/resolver changes, API service wiring, UI, workers, vendor SDKs, Auth0, command adapter behavior changes, query adapter behavior changes, CCLI adapter changes, rehearsal tracking adapter changes, and ORM/query-builder adoption.
+- Ran and passed `pnpm --filter @sanctuary-os/db test -- planning-readiness-sql-repository.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `feat(db): add planning readiness sql adapter`.
+
+Next task:
+- Run a Planning DB persistence release-check against `05-plans/db-plan.md`, `08-decisions/0003-use-sql-first-postgres-for-planning-persistence.md`, and implemented SQL adapters, then write findings to `07-reviews/architecture/`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:42 EDT · feature/planning-readiness-domain
 
 Tasks completed:
