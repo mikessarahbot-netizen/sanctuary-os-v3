@@ -26,8 +26,8 @@ Business logic · database migrations · production GraphQL resolvers · UI comp
 - [x] Scaffold `packages/db`
 - [x] Commit DB scaffold locally (`chore(db): scaffold persistence contracts`)
 - [ ] Push DB scaffold (`origin` remote not configured)
-- [ ] Run scaffold release check
-- [ ] Write architecture review findings
+- [x] Run scaffold release check
+- [x] Write architecture review findings
 
 ## Done when
 All three scaffold targets have typed placeholders, README guidance, lint/typecheck/test pass, commits exist for each module scaffold, branch is pushed, and release-check findings are recorded.
