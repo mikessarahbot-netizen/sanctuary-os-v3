@@ -557,6 +557,7 @@ export const createPlanningCommandService = (
           serviceId: assignment.serviceId,
           status: assignment.status
         }),
+        requestId: command.requestId,
         schemaVersion: "planning-assignment-status.v1",
         tenantId: assignment.tenantId
       })
@@ -885,6 +886,7 @@ const publishServicePublishedEvent = async (
         serviceId: service.serviceId,
         status: service.status
       }),
+      requestId: command.requestId,
       schemaVersion: "planning-service-published.v1",
       tenantId: service.tenantId
     })

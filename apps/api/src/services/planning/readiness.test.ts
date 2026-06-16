@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ApiEventEnvelope } from "../../events/index.js";
+import { createInMemoryEventPublisher, type ApiEventEnvelope } from "../../events/index.js";
 import type { PlanningReadinessInput, PlanningReadinessResult } from "../../domain/index.js";
 import { createPlanningReadinessService } from "./readiness.js";
 
@@ -89,6 +89,43 @@ describe("createPlanningReadinessService", () => {
         tenantId: "tenant_1"
       })
     );
+  });
+
+  it("records readiness.updated through the validated event publisher", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const service = createPlanningReadinessService({
+      eventPublisher,
+      readinessRepository: {
+        loadReadinessInput: () => Promise.resolve(readinessInput),
+        saveReadinessResult: () => Promise.resolve()
+      }
+    });
+
+    await service.refreshReadinessScore({
+      actor: {
+        actorId: "actor_1",
+        roles: ["worship_leader"],
+        tenantId: "tenant_1"
+      },
+      requestId: "request_readiness",
+      serviceId: "service_1"
+    });
+
+    expect(eventPublisher.readPublishedEvents()).toMatchObject([
+      {
+        aggregateId: "service_1",
+        actorId: "actor_1",
+        eventType: "readiness.updated",
+        payload: {
+          band: "ready",
+          readinessScore: 100,
+          serviceId: "service_1"
+        },
+        requestId: "request_readiness",
+        schemaVersion: "planning-readiness.v1",
+        tenantId: "tenant_1"
+      }
+    ]);
   });
 
   it("rejects actors without a planning role", async () => {

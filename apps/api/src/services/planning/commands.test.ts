@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedActor } from "../../auth/index.js";
 import type { PlanningSetlistChurchContextProjectionEnvelope } from "../../context/index.js";
-import type { ApiEventEnvelope } from "../../events/index.js";
+import { createInMemoryEventPublisher, type ApiEventEnvelope } from "../../events/index.js";
 import {
   createPlanningCommandService,
   DuplicatePlanningServiceFromTemplateCommandSchema,
@@ -1025,6 +1025,85 @@ describe("createPlanningCommandService", () => {
         tenantId: "tenant_1"
       })
     );
+  });
+
+  it("records Planning command events through the validated event publisher in order", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const service = createPlanningCommandService({
+      eventPublisher,
+      planningRepository: createRepository({
+        updateService: () =>
+          Promise.resolve({
+            ...serviceRecord,
+            status: "published"
+          })
+      })
+    });
+
+    await service.updateAssignmentStatus({
+      actor: {
+        actorId: "actor_1",
+        roles: ["planner"],
+        tenantId: "tenant_1"
+      },
+      input: {
+        assignmentId: "assignment_1",
+        serviceId: "service_1",
+        status: "confirmed"
+      },
+      requestId: "request_confirm"
+    });
+    await service.updateService({
+      actor: {
+        actorId: "actor_1",
+        roles: ["worship_leader"],
+        tenantId: "tenant_1"
+      },
+      input: {
+        confirmationIntent: {
+          confirmed: true,
+          reason: "Ready for volunteers to view."
+        },
+        serviceId: "service_1",
+        status: "published"
+      },
+      requestId: "request_publish"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        aggregateId: event.aggregateId,
+        eventType: event.eventType,
+        payload: event.payload,
+        requestId: event.requestId,
+        schemaVersion: event.schemaVersion,
+        tenantId: event.tenantId
+      }))
+    ).toEqual([
+      {
+        aggregateId: "service_1",
+        eventType: "assignment.statusChanged",
+        payload: {
+          assignmentId: "assignment_1",
+          serviceId: "service_1",
+          status: "confirmed"
+        },
+        requestId: "request_confirm",
+        schemaVersion: "planning-assignment-status.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "service_1",
+        eventType: "service.published",
+        payload: {
+          serviceId: "service_1",
+          status: "published"
+        },
+        requestId: "request_publish",
+        schemaVersion: "planning-service-published.v1",
+        tenantId: "tenant_1"
+      }
+    ]);
   });
 
   it("persists a command sequence through the in-memory Planning repository adapter", async () => {

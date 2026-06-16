@@ -19,10 +19,10 @@ Implement an adapter-free validated Planning event publisher for realtime event 
 Concrete WebSocket transport · production event broker · durable event store · retry queues · UI subscribers · mobile/desktop clients · notifications · vendor integrations
 
 ## Progress
-- [ ] Re-sync with required docs and current implementation
-- [ ] Add validated adapter-free Planning event publisher
-- [ ] Add focused command/readiness event publisher tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current implementation
+- [x] Add validated adapter-free Planning event publisher
+- [x] Add focused command/readiness event publisher tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 

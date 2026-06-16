@@ -109,6 +109,7 @@ export const createPlanningReadinessService = (
         eventType: "readiness.updated",
         occurredAt: new Date().toISOString(),
         payload,
+        requestId: command.requestId,
         schemaVersion: "planning-readiness.v1",
         tenantId: command.actor.tenantId
       })
