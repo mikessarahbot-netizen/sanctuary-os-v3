@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  ApiJobStatusRecordSchema,
   ApiJobRequestSchema,
   createInMemoryJobDispatcher,
-  validateApiJobRequest
+  validateApiJobRequest,
+  validateApiJobStatusRecord
 } from "./index.js";
 
 describe("API job request schemas", () => {
@@ -154,5 +156,149 @@ describe("createInMemoryJobDispatcher", () => {
     jobDispatcher.clear();
 
     expect(jobDispatcher.readQueuedJobs()).toEqual([]);
+    expect(jobDispatcher.readJobStatuses()).toEqual([]);
+  });
+
+  it("exposes queued job status records for polling", async () => {
+    const jobDispatcher = createInMemoryJobDispatcher();
+
+    await jobDispatcher.enqueue({
+      jobType: "ccli-reporting",
+      payload: {
+        reportingStatus: "pending",
+        serviceId: "service_1"
+      },
+      requestedByActorId: "actor_1",
+      requestId: "request_ccli_reporting",
+      tenantId: "tenant_1"
+    });
+
+    const status = await jobDispatcher.getJobStatus({
+      jobId: "job_1",
+      requestedByActorId: "actor_1",
+      requestId: "request_status",
+      tenantId: "tenant_1"
+    });
+
+    expect(status).toMatchObject({
+      jobId: "job_1",
+      jobType: "ccli-reporting",
+      payload: {
+        reportingStatus: "pending",
+        serviceId: "service_1"
+      },
+      requestedByActorId: "actor_1",
+      requestId: "request_ccli_reporting",
+      sequence: 1,
+      status: "queued",
+      tenantId: "tenant_1"
+    });
+    expect(status).not.toBeNull();
+
+    if (status === null) {
+      throw new Error("Expected queued job status.");
+    }
+
+    expect(validateApiJobStatusRecord(status)).toEqual(status);
+  });
+
+  it("returns null for missing or cross-tenant job status lookups", async () => {
+    const jobDispatcher = createInMemoryJobDispatcher();
+
+    await jobDispatcher.enqueue({
+      jobType: "ccli-reporting",
+      payload: {
+        reportingStatus: "pending",
+        serviceId: "service_1"
+      },
+      requestedByActorId: "actor_1",
+      requestId: "request_ccli_reporting",
+      tenantId: "tenant_1"
+    });
+
+    await expect(
+      jobDispatcher.getJobStatus({
+        jobId: "job_missing",
+        requestedByActorId: "actor_1",
+        requestId: "request_status",
+        tenantId: "tenant_1"
+      })
+    ).resolves.toBeNull();
+    await expect(
+      jobDispatcher.getJobStatus({
+        jobId: "job_1",
+        requestedByActorId: "actor_2",
+        requestId: "request_status",
+        tenantId: "tenant_2"
+      })
+    ).resolves.toBeNull();
+  });
+
+  it("rejects malformed status records and lookups", async () => {
+    const jobDispatcher = createInMemoryJobDispatcher();
+
+    expect(() =>
+      ApiJobStatusRecordSchema.parse({
+        enqueuedAt: "2026-06-16T18:30:00.000Z",
+        jobId: "job_1",
+        jobType: "ccli-reporting",
+        payload: {
+          reportingStatus: "pending",
+          serviceId: "service_1"
+        },
+        requestedByActorId: "actor_1",
+        requestId: "request_ccli_reporting",
+        sequence: 1,
+        status: "failed",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-16T18:30:00.000Z"
+      })
+    ).toThrow("Failed API jobs require a safe error message.");
+
+    expect(() =>
+      ApiJobStatusRecordSchema.parse({
+        enqueuedAt: "2026-06-16T18:30:00.000Z",
+        jobId: "job_1",
+        jobType: "ccli-reporting",
+        payload: {
+          reportingStatus: "reported",
+          serviceId: "service_1"
+        },
+        requestedByActorId: "actor_1",
+        requestId: "request_ccli_reporting",
+        sequence: 1,
+        status: "queued",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-16T18:30:00.000Z"
+      })
+    ).toThrow();
+
+    expect(() =>
+      ApiJobStatusRecordSchema.parse({
+        enqueuedAt: "2026-06-16T18:30:00.000Z",
+        jobId: "job_1",
+        jobType: "ccli-reporting",
+        payload: {
+          reportingStatus: "pending",
+          serviceId: "service_1"
+        },
+        requestedByActorId: "actor_1",
+        requestId: "request_ccli_reporting",
+        safeErrorMessage: "Only failed jobs can expose this.",
+        sequence: 1,
+        status: "queued",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-16T18:30:00.000Z"
+      })
+    ).toThrow("Only failed API jobs can include a safe error message.");
+
+    await expect(
+      jobDispatcher.getJobStatus({
+        jobId: "",
+        requestedByActorId: "actor_1",
+        requestId: "request_status",
+        tenantId: "tenant_1"
+      })
+    ).rejects.toThrow();
   });
 });

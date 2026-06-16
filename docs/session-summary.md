@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 14:27 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free API job status contracts with strict Zod schemas for job status records, status lookups, CCLI reporting payload validation, enqueue order, status timestamps, tenant scope, actor/request metadata, and bounded safe error messages.
+- Extended the in-memory API job dispatcher to record queued status records when jobs are enqueued, clear status records between tests, and return tenant-scoped status lookups without exposing cross-tenant or missing jobs.
+- Added Planning CCLI reporting job status lookup service contracts with Planning role checks, request-safe lookup metadata, `ccli-reporting` type enforcement, validated status records, and null behavior for missing/cross-tenant jobs.
+- Added focused API tests for queued status records, tenant-scoped lookup, malformed status rejection, missing job behavior, service authorization, and unconfigured reader behavior.
+- Ran and passed focused API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:22 EDT · feature/planning-readiness-domain
 
 Tasks completed:

@@ -7,8 +7,15 @@ import type {
   PlanningReadPersistenceOperation,
   RepositoryMutationIntent
 } from "@sanctuary-os/db";
-import type { JobDispatcher } from "../../jobs/index.js";
-import { ApiJobEnqueueResultSchema } from "../../jobs/index.js";
+import type {
+  ApiJobStatusRecord,
+  JobDispatcher,
+  JobStatusReader
+} from "../../jobs/index.js";
+import {
+  ApiJobEnqueueResultSchema,
+  ApiJobStatusRecordSchema
+} from "../../jobs/index.js";
 
 const NonEmptyStringSchema = z.string().min(1);
 const OptionalNonEmptyStringSchema = NonEmptyStringSchema.optional();
@@ -84,6 +91,15 @@ export const SchedulePlanningCcliReportingJobCommandSchema =
       .strict()
   });
 
+export const GetPlanningCcliReportingJobStatusQuerySchema =
+  PlanningCcliUsageBaseSchema.extend({
+    input: z
+      .object({
+        jobId: NonEmptyStringSchema
+      })
+      .strict()
+  });
+
 export type PlanningCcliUsageRole = z.infer<typeof PlanningCcliUsageRoleSchema>;
 export type PlanningCcliUsageType = z.infer<typeof PlanningCcliUsageTypeSchema>;
 export type PlanningCcliUsageReportingStatus = z.infer<
@@ -101,6 +117,9 @@ export type ListPlanningCcliUsageLogsQuery = z.infer<
 export type SchedulePlanningCcliReportingJobCommand = z.infer<
   typeof SchedulePlanningCcliReportingJobCommandSchema
 >;
+export type GetPlanningCcliReportingJobStatusQuery = z.infer<
+  typeof GetPlanningCcliReportingJobStatusQuerySchema
+>;
 
 export interface PlanningCcliUsageRepository {
   readonly recordCcliUsage: PlanningCcliUsageLogPersistenceRepository["recordCcliUsage"];
@@ -109,6 +128,7 @@ export interface PlanningCcliUsageRepository {
 
 export interface PlanningCcliUsageServiceDependencies {
   readonly jobDispatcher?: JobDispatcher;
+  readonly jobStatusReader?: JobStatusReader;
   readonly planningRepository: PlanningCcliUsageRepository;
 }
 
@@ -122,6 +142,9 @@ export interface PlanningCcliUsageService {
   readonly scheduleReportingJob: (
     command: SchedulePlanningCcliReportingJobCommand
   ) => Promise<{ readonly jobId: string }>;
+  readonly getReportingJobStatus: (
+    query: GetPlanningCcliReportingJobStatusQuery
+  ) => Promise<ApiJobStatusRecord | null>;
 }
 
 export const createPlanningCcliUsageService = (
@@ -192,6 +215,36 @@ export const createPlanningCcliUsageService = (
         requestId: command.requestId,
         tenantId: command.actor.tenantId
       })
+    );
+  },
+
+  getReportingJobStatus: async (
+    rawQuery: GetPlanningCcliReportingJobStatusQuery
+  ): Promise<ApiJobStatusRecord | null> => {
+    const query = GetPlanningCcliReportingJobStatusQuerySchema.parse(rawQuery);
+    assertPlanningCcliUsageRole(query.actor);
+
+    const jobStatusReader = dependencies.jobStatusReader;
+
+    if (jobStatusReader === undefined) {
+      throw new Error("Planning CCLI reporting job status reader is not configured.");
+    }
+
+    const jobStatus = await jobStatusReader.getJobStatus({
+      jobId: query.input.jobId,
+      requestedByActorId: query.actor.actorId,
+      requestId: query.requestId,
+      tenantId: query.actor.tenantId
+    });
+
+    if (jobStatus === null) {
+      return null;
+    }
+
+    return assertTenantScopedCcliReportingJobStatus(
+      jobStatus,
+      query.actor.tenantId,
+      query.input.jobId
     );
   }
 });
@@ -266,4 +319,26 @@ const assertTenantScopedCcliUsageLog = (
   }
 
   return usageLog;
+};
+
+const assertTenantScopedCcliReportingJobStatus = (
+  rawJobStatus: ApiJobStatusRecord,
+  expectedTenantId: string,
+  expectedJobId: string
+): ApiJobStatusRecord => {
+  const jobStatus = ApiJobStatusRecordSchema.parse(rawJobStatus);
+
+  if (jobStatus.tenantId !== expectedTenantId) {
+    throw new Error("Planning CCLI reporting job status tenant mismatch.");
+  }
+
+  if (jobStatus.jobId !== expectedJobId) {
+    throw new Error("Planning CCLI reporting job status id mismatch.");
+  }
+
+  if (jobStatus.jobType !== "ccli-reporting") {
+    throw new Error("Planning CCLI reporting job status type mismatch.");
+  }
+
+  return jobStatus;
 };

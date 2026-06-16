@@ -19,12 +19,12 @@ Implement adapter-free API job status contracts for Planning CCLI reporting poll
 Production queue/broker · worker execution · retry policies · GraphQL polling resolver · CCLI/SongSelect credentials · vendor reporting submission · file exports · UI · notifications
 
 ## Progress
-- [ ] Re-sync with required docs and current implementation
-- [ ] Add validated adapter-free job status contracts
-- [ ] Add focused CCLI reporting job status tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs and current implementation
+- [x] Add validated adapter-free job status contracts
+- [x] Add focused CCLI reporting job status tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 API async job handoffs, especially Planning `ccli-reporting`, expose tenant-scoped adapter-free job status records suitable for future polling; gates pass; the slice is committed, pushed, and documented in session handoff.

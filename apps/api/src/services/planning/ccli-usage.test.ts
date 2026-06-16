@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { createInMemoryJobDispatcher } from "../../jobs/index.js";
+import {
+  createInMemoryJobDispatcher,
+  type ApiJobStatusRecord,
+  type JobStatusReader
+} from "../../jobs/index.js";
 import {
   createPlanningCcliUsageService,
+  GetPlanningCcliReportingJobStatusQuerySchema,
   ListPlanningCcliUsageLogsQuerySchema,
   RecordPlanningCcliUsageCommandSchema,
   SchedulePlanningCcliReportingJobCommandSchema,
@@ -82,6 +87,20 @@ describe("Planning CCLI usage schemas", () => {
         requestId: "request_ccli_report"
       }).input.reportingStatus
     ).toBe("pending");
+
+    expect(
+      GetPlanningCcliReportingJobStatusQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          jobId: "job_1"
+        },
+        requestId: "request_ccli_status"
+      }).input.jobId
+    ).toBe("job_1");
 
     expect(() =>
       RecordPlanningCcliUsageCommandSchema.parse({
@@ -261,6 +280,181 @@ describe("createPlanningCcliUsageService", () => {
         sequence: 1
       }
     ]);
+  });
+
+  it("looks up queued CCLI reporting job status through a tenant-scoped reader", async () => {
+    const jobDispatcher = createInMemoryJobDispatcher();
+    const service = createPlanningCcliUsageService({
+      jobDispatcher,
+      jobStatusReader: jobDispatcher,
+      planningRepository: createRepository()
+    });
+
+    await service.scheduleReportingJob({
+      actor: {
+        actorId: "actor_1",
+        roles: ["worship_leader"],
+        tenantId: "tenant_1"
+      },
+      input: {
+        reportingStatus: "pending",
+        serviceId: "service_1"
+      },
+      requestId: "request_ccli_report"
+    });
+
+    await expect(
+      service.getReportingJobStatus({
+        actor: {
+          actorId: "actor_1",
+          roles: ["worship_leader"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          jobId: "job_1"
+        },
+        requestId: "request_ccli_status"
+      })
+    ).resolves.toMatchObject({
+      jobId: "job_1",
+      jobType: "ccli-reporting",
+      payload: {
+        reportingStatus: "pending",
+        serviceId: "service_1"
+      },
+      requestedByActorId: "actor_1",
+      requestId: "request_ccli_report",
+      sequence: 1,
+      status: "queued",
+      tenantId: "tenant_1"
+    });
+  });
+
+  it("returns null for missing or cross-tenant CCLI reporting job statuses", async () => {
+    const jobDispatcher = createInMemoryJobDispatcher();
+    const service = createPlanningCcliUsageService({
+      jobDispatcher,
+      jobStatusReader: jobDispatcher,
+      planningRepository: createRepository()
+    });
+
+    await service.scheduleReportingJob({
+      actor: {
+        actorId: "actor_1",
+        roles: ["planner"],
+        tenantId: "tenant_1"
+      },
+      input: {
+        reportingStatus: "pending",
+        serviceId: "service_1"
+      },
+      requestId: "request_ccli_report"
+    });
+
+    await expect(
+      service.getReportingJobStatus({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          jobId: "job_missing"
+        },
+        requestId: "request_ccli_status"
+      })
+    ).resolves.toBeNull();
+
+    await expect(
+      service.getReportingJobStatus({
+        actor: {
+          actorId: "actor_2",
+          roles: ["planner"],
+          tenantId: "tenant_2"
+        },
+        input: {
+          jobId: "job_1"
+        },
+        requestId: "request_ccli_status"
+      })
+    ).resolves.toBeNull();
+  });
+
+  it("rejects unauthorized, unconfigured, or malformed CCLI reporting job status lookups", async () => {
+    const jobDispatcher = createInMemoryJobDispatcher();
+    const service = createPlanningCcliUsageService({
+      jobStatusReader: jobDispatcher,
+      planningRepository: createRepository()
+    });
+
+    await expect(
+      service.getReportingJobStatus({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          jobId: "job_1"
+        },
+        requestId: "request_ccli_status"
+      })
+    ).rejects.toThrow("Actor is not allowed to manage Planning CCLI usage logs.");
+
+    const unconfiguredService = createPlanningCcliUsageService({
+      planningRepository: createRepository()
+    });
+
+    await expect(
+      unconfiguredService.getReportingJobStatus({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          jobId: "job_1"
+        },
+        requestId: "request_ccli_status"
+      })
+    ).rejects.toThrow("Planning CCLI reporting job status reader is not configured.");
+
+    const malformedStatusReader: JobStatusReader = {
+      getJobStatus: () =>
+        Promise.resolve({
+          enqueuedAt: "2026-06-16T18:30:00.000Z",
+          jobId: "job_1",
+          jobType: "ccli-reporting",
+          payload: {
+            reportingStatus: "reported",
+            serviceId: "service_1"
+          },
+          requestedByActorId: "actor_1",
+          requestId: "request_ccli_report",
+          sequence: 1,
+          status: "queued",
+          tenantId: "tenant_1",
+          updatedAt: "2026-06-16T18:30:00.000Z"
+        } as ApiJobStatusRecord)
+    };
+    const malformedService = createPlanningCcliUsageService({
+      jobStatusReader: malformedStatusReader,
+      planningRepository: createRepository()
+    });
+
+    await expect(
+      malformedService.getReportingJobStatus({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          jobId: "job_1"
+        },
+        requestId: "request_ccli_status"
+      })
+    ).rejects.toThrow();
   });
 
   it("rejects CCLI reporting job scheduling without roles or dispatcher", async () => {
