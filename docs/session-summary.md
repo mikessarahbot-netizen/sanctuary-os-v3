@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:16 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, and the Planning production adapter contract.
+- Added generic SQL migration artifact contracts in `packages/db`, including checksum calculation, metadata validation for tenant/audit tables, and a static migration registry helper.
+- Added the initial Planning SQL migration artifact covering services, service items, assignments, templates, song library items, readiness, CCLI usage, rehearsal asset visibility, rehearsal acknowledgements, and audit log tables.
+- Covered tenant IDs, audit metadata, confirmation intent, core indexes, rollback SQL, and checksum expectations with adapter-free tests.
+- Kept the slice free of live database connections, secrets, runtime adapter code, dependency installation, API wiring, GraphQL, and UI changes.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `2c76e5d feat(db): add planning migration contracts`.
+
+Next task:
+- Implement the first SQL-first Planning command repository adapter slice for service create, service update, and template duplication.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:10 EDT · feature/planning-readiness-domain
 
 Tasks completed:
