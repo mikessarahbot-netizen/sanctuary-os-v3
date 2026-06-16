@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:50 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added a test-only in-memory Planning query/readiness repository adapter under `apps/api/src/services/planning/testing/`.
+- The adapter Zod-validates DB read operation shapes, stores seeded tenant-scoped services, assignments, service templates, song library records, and readiness records, and records actor/request/tenant read context for assertions.
+- Added focused API integration tests that exercise `createPlanningQueryService` through the in-memory adapter for service, assignment, readiness, template, and song-library reads.
+- Covered nullable service/readiness misses, cross-tenant non-leakage, paused-song visibility, filter behavior, and malformed DB operation rejection.
+- Ran and passed focused API checks, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `17f1001 test(planning): add in-memory query repository adapter`.
+
+Next task:
+- Implement an adapter-free in-memory Planning rehearsal tracking repository test adapter.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:43 EDT · feature/planning-readiness-domain
 
 Tasks completed:
