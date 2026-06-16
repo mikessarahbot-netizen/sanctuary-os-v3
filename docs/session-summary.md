@@ -12,9 +12,10 @@ Tasks completed:
 - Added Planning CCLI usage service `scheduleReportingJob` handoff through the validated dispatcher, preserving tenant/actor/request metadata and keeping concrete queue infrastructure and vendor calls out of scope.
 - Added focused API tests for dispatcher validation, malformed request rejection, ordering, clearing, and Planning CCLI reporting handoff authorization.
 - Ran and passed focused API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `7b98ff3 feat(jobs): add ccli reporting dispatcher`.
 
 Next task:
-- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+- Implement adapter-free API job status contracts for Planning CCLI reporting polling.
 
 Open questions:
 - None.
