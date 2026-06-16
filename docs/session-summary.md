@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:30 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free DB Planning rehearsal asset visibility contracts for tenant-scoped rehearsal assets, including asset type enum, visibility record schema, set/list input schemas, operation schemas, and repository interface.
+- Added API Planning rehearsal asset visibility service contracts for setting/listing asset visibility without media storage, chart rendering, raw media payload handling, UI, or GraphQL wiring.
+- Enforced Planning visibility roles, tenant scope, service scope, service-item scope, request context propagation, and update/read persistence operation shapes.
+- Added focused DB/API tests for input validation, strict raw media rejection, role rejection, tenant/service/service-item guards, operation shape, and adapter-free repository boundaries.
+- Ran and passed focused DB/API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Confirmed `2a0439d feat(planning): add rehearsal asset visibility contracts` is pushed to `origin/feature/planning-readiness-domain`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:24 EDT · feature/planning-readiness-domain
 
 Tasks completed:
