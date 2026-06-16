@@ -27,3 +27,7 @@ export interface GraphqlSurface {
   readonly queries: readonly PlannedGraphqlQuery[];
   readonly mutations: readonly PlannedGraphqlMutation[];
 }
+
+export * from "./planning.js";
+
+export * from "./planning.js";

@@ -18,6 +18,22 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 12:17 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, active task state, session summary, Planning plan, API plan, and current API source files.
+- Implemented Planning GraphQL schema/type contract placeholders in `apps/api/src/graphql/planning.ts`.
+- Added thin Planning mutation resolver contracts that parse GraphQL-style `{ input }` args, attach `AuthenticatedActor` and `requestId` from context, and delegate to Planning command/readiness services.
+- Kept GraphQL work adapter-free: no persistence, UI, vendor integrations, or AI setlist implementation.
+- Added tests proving planned mutation names are represented, resolver delegation preserves actor/request context, readiness refresh delegates to the readiness service, and invalid publish input is rejected before service delegation.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Implement Planning persistence repository contracts for service commands.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:06 EDT · feature/planning-readiness-domain
 
 Tasks completed:

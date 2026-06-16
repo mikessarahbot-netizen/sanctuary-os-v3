@@ -1,32 +1,31 @@
 # NOW
 
 ## Task
-Implement Planning GraphQL schema/resolver contracts that delegate to the service layer.
+Implement Planning persistence repository contracts for service commands.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Add GraphQL schema/type contract placeholders for Planning mutations from `05-plans/planning-module-plan.md`
-- Add resolver contracts that parse GraphQL input and delegate to Planning service-layer commands
-- Keep resolvers thin; no persistence, UI, or vendor integrations
-- Preserve service-layer tenant scope, role gates, and confirmation-intent requirements
-- Add tests that resolver contracts call the service layer with validated command shapes
+- Add repository contract types for Planning service command persistence boundaries
+- Map command-service repository methods to tenant-scoped DB package operation contracts
+- Keep implementation adapter-free: no database connection, migrations, ORM, or SQL
+- Add tests for tenant scope, mutation intent, and repository contract shape
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-Database persistence · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation
+Database migrations · concrete persistence adapters · GraphQL changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data
 
 ## Progress
-- [ ] Add Planning GraphQL schema/type contracts
-- [ ] Add thin resolver contract functions
-- [ ] Add input validation/delegation tests
+- [ ] Add Planning persistence repository contracts
+- [ ] Map repository methods to DB operation contract shapes
+- [ ] Add tenant-scope and mutation-intent tests
 - [ ] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
-Planning GraphQL schema/resolver contracts delegate to the service layer, are validated by tests, committed, pushed, and documented in session handoff.
+Planning persistence repository contracts are defined without concrete adapters, validated by tests, committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Implement Planning persistence repository contracts for service commands.
+Implement Planning repository in-memory test adapter for service command integration tests.
