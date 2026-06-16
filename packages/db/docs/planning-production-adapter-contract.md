@@ -12,6 +12,7 @@ The production adapter must implement every method on
 `packages/db/src/planning-repository-contracts.ts`:
 
 - `createService`
+- `duplicateServiceFromTemplate`
 - `updateService`
 - `addServiceItem`
 - `updateServiceItem`
@@ -36,6 +37,11 @@ and audit metadata. It must not infer tenant scope from IDs or global state.
 
 `createService` must create a tenant-scoped service record and return the full
 `PlanningServicePersistenceRecord`.
+
+`duplicateServiceFromTemplate` must read the tenant-scoped template identified by
+`input.serviceTemplateId`, create a draft tenant-scoped service from it, and
+return the full `PlanningServicePersistenceRecord`. Template item duplication is
+covered by later service-item adapter slices.
 
 `updateService` must update only the tenant-scoped service identified by
 `input.serviceId`. It must persist confirmation intent metadata when present,
