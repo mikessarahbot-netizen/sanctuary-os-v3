@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:07 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, Planning API contract release-check, ADR 0002, and the Planning production adapter contract.
+- Added `05-plans/db-plan.md` with the first Planning production persistence path.
+- Covered PostgreSQL server persistence, SQLite/local future compatibility, migration boundaries, transaction behavior, tenant scoping, audit metadata, error model, test strategy, and rollout order.
+- Kept the slice planning-only with no adapter code, migrations, schema files, tooling installation, connection strings, secrets, UI, GraphQL, or service changes.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `74ad17c docs(db): add planning persistence plan`.
+
+Next task:
+- Write an ADR choosing the database adapter and migration tooling path for Planning production persistence.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:04 EDT · feature/planning-readiness-domain
 
 Tasks completed:
