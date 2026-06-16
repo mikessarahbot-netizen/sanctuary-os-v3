@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:04 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free DB Planning duplicate-from-template command contracts for `duplicateServiceFromTemplate(input)`, including Zod persistence input/operation schemas and the command repository method.
+- Added API Planning command service `duplicateServiceFromTemplate` contracts with Zod-validated input, Planning command role checks, actor/request tenant forwarding, create mutation intent, tenant-scope guards, and returned duplicated-service field mismatch guards.
+- Extended the test-only in-memory Planning command repository adapter to support duplicate-from-template operations and operation recording.
+- Added focused DB/API tests for input validation, operation shape, role rejection, tenant scope, mutation intent, repository contract shape, returned-service mismatch guards, and in-memory adapter flow.
+- Ran and passed focused DB/API tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Wire Planning GraphQL `duplicateServiceFromTemplate(input)` resolver contracts to the Planning command service.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:59 EDT · feature/planning-readiness-domain
 
 Tasks completed:
