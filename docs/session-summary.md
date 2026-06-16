@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:04 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, and the Planning API contract release-check.
+- Refreshed `05-plans/planning-module-plan.md` so the GraphQL sections document the approved CCLI reporting job, CCLI usage log, rehearsal asset visibility, and rehearsal acknowledgement extension operations.
+- Preserved the distinction between the original first-slice Planning GraphQL surface and later approved v1 extension operations.
+- Kept the slice documentation-only with no resolver, service, runtime, UI, vendor, database, or worker changes.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `c5e8da1 docs(planning): document graphql extension operations`.
+
+Next task:
+- Create a database adapter implementation plan for Planning production persistence.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:01 EDT · feature/planning-readiness-domain
 
 Tasks completed:

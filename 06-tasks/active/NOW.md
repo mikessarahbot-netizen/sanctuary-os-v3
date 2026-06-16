@@ -1,30 +1,30 @@
 # NOW
 
 ## Task
-Refresh the Planning module plan with approved GraphQL extension operations.
+Create a database adapter implementation plan for Planning production persistence.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/planning-module-plan.md`, and `07-reviews/architecture/planning-api-contract-release-check.md`
-- Update `05-plans/planning-module-plan.md` so its GraphQL query/mutation sections include the approved CCLI reporting job, CCLI usage log, rehearsal asset visibility, and rehearsal acknowledgement operations already implemented in Planning GraphQL
-- Preserve the distinction between original first-slice operations and approved v1 extension operations
-- Keep this as documentation alignment only
+- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/planning-module-plan.md`, `07-reviews/architecture/planning-api-contract-release-check.md`, `08-decisions/0002-defer-database-adapter-choice.md`, and `packages/db/docs/planning-production-adapter-contract.md`
+- Add a focused `05-plans/db-plan.md` that defines the first production persistence implementation path for Planning
+- Cover PostgreSQL server persistence, SQLite/local future compatibility, migration boundaries, transaction behavior, tenant scoping, audit metadata, test strategy, and rollout order
+- Keep this as a planning/documentation slice only; do not choose a concrete ORM or write adapter code unless the plan explicitly justifies it for a later task
 - Run lint, typecheck, and tests
-- Commit and push the plan refresh
+- Commit and push the plan
 - Run session handoff
 
 ## Out of scope
-New runtime features · new public GraphQL operations · resolver changes · service changes · UI · vendor adapters · database migrations · queue workers
+Runtime database adapter implementation · migrations · schema files · ORM/query-builder installation · connection strings · secrets · UI · GraphQL/resolver changes
 
 ## Progress
-- [x] Re-sync with required docs, release-check, and current implementation
-- [x] Update Planning plan GraphQL sections with approved extension operations
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push plan refresh
+- [ ] Re-sync with required docs, ADR, release-check, and adapter contract
+- [ ] Add `05-plans/db-plan.md`
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push plan
 - [ ] Session handoff
 
 ## Done when
-The Planning plan reflects the approved CCLI and rehearsal tracking GraphQL extension operations, gates pass, and the slice is committed, pushed, and documented in session handoff.
+The DB plan gives an explicit, evidence-backed production Planning persistence path that future implementation slices can follow; gates pass; the slice is committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Select the next approved project slice based on the refreshed plan and existing release-check findings.
+Select the first approved DB implementation slice from `05-plans/db-plan.md`.
