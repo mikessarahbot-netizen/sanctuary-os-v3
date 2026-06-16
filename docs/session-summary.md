@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:54 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added a test-only in-memory Planning rehearsal tracking repository adapter under `apps/api/src/services/planning/testing/`.
+- The adapter Zod-validates rehearsal asset visibility and rehearsal acknowledgement DB operation shapes, stores seeded tenant-scoped records, records actor/request/tenant context, and records mutation intent for write assertions.
+- Added focused API integration tests that exercise `createPlanningRehearsalAssetVisibilityService` and `createPlanningRehearsalAcknowledgementService` through the adapter.
+- Covered visibility writes/reads, acknowledgement writes/reads, empty cross-tenant reads, operation recording, and malformed DB operation rejection.
+- Ran and passed focused API checks, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `6b08db0 test(planning): add in-memory rehearsal tracking adapter`.
+
+Next task:
+- Implement an adapter-free in-memory Planning CCLI usage repository test adapter.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:50 EDT · feature/planning-readiness-domain
 
 Tasks completed:
