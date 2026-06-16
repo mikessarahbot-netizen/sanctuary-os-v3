@@ -13,3 +13,10 @@ GraphQL orchestration layer for Sanctuary OS.
 - `jobs/` defines async job contracts.
 
 Business logic, database access, and vendor SDK calls are intentionally not implemented in this scaffold.
+
+## Planning persistence boundary
+
+Planning command services depend on the DB package
+`PlanningServiceCommandPersistenceRepository` contract. The eventual production
+adapter notes live in
+[`packages/db/docs/planning-production-adapter-contract.md`](../../packages/db/docs/planning-production-adapter-contract.md).

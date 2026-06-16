@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:34 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added `packages/db/docs/planning-production-adapter-contract.md` documenting the future production database adapter boundary for `PlanningServiceCommandPersistenceRepository`.
+- Documented required Planning command persistence operations, tenant-scope invariants, mutation-intent and audit expectations, transaction behavior, validation expectations, and adapter exclusions.
+- Linked the production adapter contract notes from `packages/db/README.md` and `apps/api/README.md`.
+- Verified the notes reference current DB contract names and README links resolve with `rg` checks.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Implement Planning query service contracts for service and assignment reads.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:29 EDT · feature/planning-readiness-domain
 
 Tasks completed:

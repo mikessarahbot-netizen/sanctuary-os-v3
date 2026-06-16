@@ -1,31 +1,31 @@
 # NOW
 
 ## Task
-Implement Planning service repository adapter contract notes for the eventual production database adapter.
+Implement Planning query service contracts for service and assignment reads.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Document the production Planning repository adapter boundary against `PlanningServiceCommandPersistenceRepository`
-- Identify required persistence operations, tenant-scope invariants, mutation-intent/audit expectations, and transaction behavior
-- Keep implementation adapter-free: no database connection, migrations, ORM, SQL, or concrete production adapter
-- Add focused checks if the notes are referenced from package exports or README files
+- Add adapter-free Planning query service contracts for `services(filter)`, `service(id)`, `serviceAssignments(serviceId)`, and `serviceReadiness(serviceId)`
+- Define Zod-validated query command/input schemas, repository boundary interfaces, tenant-scope guards, and role checks
+- Keep resolvers thin and delegate-ready without adding production persistence, migrations, ORM, SQL, or UI
+- Add focused tests for tenant scope, role checks, query input validation, and repository contract shape
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-Database migrations · concrete production persistence adapter · GraphQL changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data
+Database migrations · concrete production persistence adapter · GraphQL wiring changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation
 
 ## Progress
-- [ ] Add Planning production adapter contract notes
-- [ ] Link notes from the relevant DB/API documentation surface
-- [ ] Verify notes match current DB repository contract and Planning command service behavior
+- [ ] Add Planning query service schemas and repository interfaces
+- [ ] Add tenant-scope and role guard behavior
+- [ ] Add query service contract tests
 - [ ] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
-The eventual production Planning repository adapter contract is documented against the current DB package repository interface, validation passes, changes are committed and pushed, and the next session handoff is documented.
+Planning query service contracts exist for planned service and assignment reads, remain adapter-free, are validated by tests, committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md` and `05-plans/api-plan.md`.
+Wire Planning GraphQL query resolver contracts to the Planning query service contracts.

@@ -10,3 +10,9 @@ Persistence boundary contracts for Sanctuary OS.
 - Does not include migrations, generated clients, connection strings, or schema implementation.
 
 All persisted reads and writes must be tenant-scoped before this package gains concrete adapters.
+
+## Planning contracts
+
+- [Planning production adapter contract](docs/planning-production-adapter-contract.md)
+  documents the eventual production database adapter boundary for
+  `PlanningServiceCommandPersistenceRepository`.
