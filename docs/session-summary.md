@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:01 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Audited current Planning API/domain/service/GraphQL contracts against `05-plans/api-plan.md`, `05-plans/planning-module-plan.md`, and `02-standards/engineering-rules.md`.
+- Verified tenant scoping, thin resolver delegation, Zod trust-boundary validation, service-owned role checks, explicit publish/cancel confirmation handling, validated event/job handoff, and Planning v1 domain coverage.
+- Wrote findings to `07-reviews/architecture/planning-api-contract-release-check.md`.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the release-check checklist in `06-tasks/active/NOW.md`.
+- Committed and pushed `984cc48 docs(planning): add api contract release check`.
+
+Next task:
+- Refresh `05-plans/planning-module-plan.md` to document the approved Planning GraphQL CCLI and rehearsal tracking extension operations from the release-check.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:57 EDT · feature/planning-readiness-domain
 
 Tasks completed:
