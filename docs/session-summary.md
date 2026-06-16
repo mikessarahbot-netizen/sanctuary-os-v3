@@ -13,7 +13,7 @@ Tasks completed:
 - Ran and passed focused API GraphQL tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
 
 Next task:
-- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md` and `05-plans/api-plan.md`.
+- Implement adapter-free Planning `songLibrary(searchInput)` query contracts in the DB/API service layers.
 
 Open questions:
 - None.

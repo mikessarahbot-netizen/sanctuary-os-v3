@@ -1,31 +1,32 @@
 # NOW
 
 ## Task
-Wire Planning GraphQL `serviceTemplates(serviceTypeId)` resolver contracts to the Planning query service.
+Implement Planning song library query contracts.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Add the Planning GraphQL `serviceTemplates(serviceTypeId)` query schema/resolver contract
-- Keep the resolver thin: parse GraphQL-style args/context, attach `AuthenticatedActor` and `requestId`, and delegate to `PlanningQueryService.serviceTemplates`
-- Preserve existing Planning GraphQL query/mutation resolver contracts and service behavior
-- Add focused tests for schema name, resolver delegation, request context propagation, empty template results, and invalid query input rejection
+- Add adapter-free contract support for the planned Planning `songLibrary(searchInput)` query
+- Define Zod-validated song library search input, result record, DB operation, repository, and Planning query service boundaries
+- Keep the implementation tenant-scoped and role-gated through `AuthenticatedActor` and `requestId`
+- Preserve existing Planning query/mutation resolver contracts and service behavior
+- Add focused DB/API tests for search input validation, tenant scope, role checks, empty results, and repository contract shape
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation · template duplication mutation implementation · GraphQL server runtime
+Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · CCLI/SongSelect implementation · AI setlist generation · GraphQL schema/resolver wiring · GraphQL server runtime
 
 ## Progress
-- [x] Add GraphQL serviceTemplates schema/resolver contract
-- [x] Delegate resolver to Planning query service
-- [x] Add serviceTemplates resolver contract tests
-- [x] Run lint, typecheck, and tests
-- [x] Commit and push slice
-- [x] Session handoff
+- [ ] Add DB song library query operation/repository contracts
+- [ ] Add Planning query service songLibrary contracts
+- [ ] Add focused DB/API contract tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push slice
+- [ ] Session handoff
 
 ## Done when
-Planning GraphQL `serviceTemplates(serviceTypeId)` resolver contracts delegate to the Planning query service, remain adapter-free and server-runtime-free, are validated by tests, committed, pushed, and documented in session handoff.
+Planning `songLibrary(searchInput)` query contracts are Zod-validated, tenant-scoped, role-gated, adapter-free, covered by focused DB/API tests, committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md` and `05-plans/api-plan.md`.
+Wire Planning GraphQL `songLibrary(searchInput)` resolver contracts to the Planning query service.
