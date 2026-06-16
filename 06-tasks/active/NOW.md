@@ -1,32 +1,32 @@
 # NOW
 
 ## Task
-Implement Planning generate-setlist command contracts.
+Wire Planning GraphQL `generateSetlist(input)` resolver contracts to the Planning command service.
 
 ## In scope
 - Continue from pushed branch `feature/planning-readiness-domain`
-- Add adapter-free contract support for the planned Planning `generateSetlist(input)` mutation
-- Define Zod-validated generate-setlist input/output, command service boundary, and AI prompt request/result contract types needed by the service layer
-- Enforce Planning command roles, tenant scope, and human-review semantics for AI-generated setlist suggestions before any persisted write
-- Preserve existing Planning GraphQL query/mutation resolver contracts and command/query service behavior
-- Add focused API tests for input validation, role checks, tenant/request propagation, AI-result validation, reviewable result shape, and no automatic service mutation
+- Wire the existing Planning GraphQL `generateSetlist(input)` mutation resolver contract to `PlanningCommandService.generateSetlist`
+- Keep the resolver thin: parse GraphQL-style `{ input }` args/context, attach `AuthenticatedActor` and `requestId`, and delegate to the command service
+- Update GraphQL SDL return contracts as needed so generated setlist suggestions are reviewable and do not masquerade as persisted `PlanningService` records
+- Preserve existing Planning query/mutation resolver behavior
+- Add focused API GraphQL tests for resolver delegation, request context propagation, reviewable generated-result shape, and invalid input rejection before service delegation
 - Run lint, typecheck, and tests
 - Commit and push the completed slice
 - Run session handoff
 
 ## Out of scope
-Database migrations · concrete production persistence adapter · UI components · vendor SDK integrations · direct Claude/OpenAI calls · automatic writes to service items · CCLI/SongSelect implementation · GraphQL resolver wiring · GraphQL server runtime
+Database migrations · concrete production persistence adapter · UI components · vendor SDK integrations · direct Claude/OpenAI calls · automatic writes to service items · CCLI/SongSelect implementation · GraphQL server runtime
 
 ## Progress
-- [x] Add generate-setlist command/prompt contract schemas
-- [x] Add Planning command service generateSetlist boundary
-- [x] Add focused API contract tests
-- [x] Run lint, typecheck, and tests
-- [x] Commit and push slice
-- [x] Session handoff
+- [ ] Add generated setlist GraphQL result SDL contract
+- [ ] Wire `generateSetlist(input)` resolver to the command service
+- [ ] Add focused API GraphQL resolver tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push slice
+- [ ] Session handoff
 
 ## Done when
-Planning `generateSetlist(input)` command contracts are Zod-validated, tenant-scoped, role-gated, reviewable-before-write, adapter-free, covered by focused API tests, committed, pushed, and documented in session handoff.
+Planning GraphQL `generateSetlist(input)` resolver delegates to the command service with tenant/request context, returns a reviewable generated-setlist result contract, rejects invalid input before delegation, preserves existing resolver behavior, passes lint/typecheck/tests, is committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Wire Planning GraphQL `generateSetlist(input)` resolver contracts to the Planning command service.
+Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
