@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:21 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, and the Planning production adapter contract.
+- Added the first SQL-first Planning command repository adapter slice in `packages/db` for `createService`, `updateService`, and `duplicateServiceFromTemplate`.
+- Added a small executor interface that keeps SQL statements, parameters, row validation, audit inserts, and transaction handles visible without requiring a live PostgreSQL connection.
+- Covered tenant predicates, supplied transaction propagation, adapter-created transactions, mutation audit metadata, destructive publish/cancel confirmation requirements, template duplication SQL, and returned-row Zod validation with adapter-level tests.
+- Kept the slice free of live database connections, secrets, dependency installation, GraphQL/resolver changes, API service wiring, UI, workers, vendor SDKs, and ORM/query-builder adoption.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `c5e84bd feat(db): add planning service sql adapter slice`.
+
+Next task:
+- Implement SQL-first Planning command repository adapter coverage for service items, reorder, volunteer assignments, and assignment status updates.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:16 EDT · feature/planning-readiness-domain
 
 Tasks completed:
