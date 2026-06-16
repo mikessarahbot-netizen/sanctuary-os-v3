@@ -18,10 +18,10 @@ Run a Planning DB persistence release-check.
 New production database wiring · live PostgreSQL execution · connection strings or secrets · GraphQL/resolver changes · API service wiring · UI · queue workers · vendor SDKs · Auth0 · ORM/query-builder adoption · new feature behavior beyond defects directly found by this release-check
 
 ## Progress
-- [ ] Re-sync with required docs, ADRs, contracts, adapters, and migration code
-- [ ] Audit implemented SQL persistence against DB plan and ADRs
-- [ ] Run lint, typecheck, and tests
-- [ ] Write architecture review findings
+- [x] Re-sync with required docs, ADRs, contracts, adapters, and migration code
+- [x] Audit implemented SQL persistence against DB plan and ADRs
+- [x] Run lint, typecheck, and tests
+- [x] Write architecture review findings
 - [ ] Commit and push slice
 - [ ] Session handoff
 
