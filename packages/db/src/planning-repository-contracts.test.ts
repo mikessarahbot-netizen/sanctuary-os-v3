@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   CreatePlanningServicePersistenceOperationSchema,
+  ListPlanningSongLibraryPersistenceOperationSchema,
   ListPlanningServicesPersistenceOperationSchema,
   ListPlanningServiceTemplatesPersistenceOperationSchema,
   RepositoryWriteOptionsSchema,
   UpdatePlanningServicePersistenceOperationSchema,
   type PlanningReadinessPersistenceRecord,
   type PlanningServicePersistenceRecord,
-  type PlanningServiceTemplatePersistenceRecord
+  type PlanningServiceTemplatePersistenceRecord,
+  type PlanningSongLibraryItemPersistenceRecord
 } from "./index.js";
 import type {
   PlanningServiceCommandPersistenceRepository,
@@ -28,6 +30,24 @@ const serviceTemplateRecord: PlanningServiceTemplatePersistenceRecord = {
   serviceTypeId: "sunday",
   tenantId: "tenant_1",
   title: "Sunday Worship Template"
+};
+
+const songLibraryItemRecord: PlanningSongLibraryItemPersistenceRecord = {
+  artist: "Sanctuary Collective",
+  availableKeys: ["G", "A"],
+  ccliReportingAllowed: true,
+  ccliSongNumber: "123456",
+  defaultKey: "G",
+  energy: "medium",
+  hasArrangements: true,
+  hasCharts: true,
+  isBannedOrPaused: false,
+  lastUsedAt: "2026-06-07T14:00:00.000Z",
+  songId: "song_1",
+  tenantId: "tenant_1",
+  tempoBpm: 76,
+  title: "Open The Gates",
+  usageCount: 6
 };
 
 const readinessRecord: PlanningReadinessPersistenceRecord = {
@@ -136,6 +156,44 @@ describe("Planning repository contracts", () => {
         }
       }).input.serviceTypeId
     ).toBe("sunday");
+
+    expect(
+      ListPlanningSongLibraryPersistenceOperationSchema.parse({
+        input: {
+          searchInput: {
+            includeBannedOrPaused: false,
+            key: "G",
+            limit: 10,
+            query: "open",
+            serviceTypeId: "sunday"
+          }
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_3",
+            tenantId: "tenant_1"
+          }
+        }
+      }).input.searchInput.limit
+    ).toBe(10);
+
+    expect(() =>
+      ListPlanningSongLibraryPersistenceOperationSchema.parse({
+        input: {
+          searchInput: {
+            limit: 100
+          }
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_4",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).toThrow();
   });
 
   it("defines an adapter-free Planning persistence repository interface", async () => {
@@ -254,6 +312,14 @@ describe("Planning repository contracts", () => {
             tenantId: operation.options.context.tenantId
           }
         ]),
+      listSongLibrary: (operation) =>
+        Promise.resolve([
+          {
+            ...songLibraryItemRecord,
+            title: operation.input.searchInput.query ?? songLibraryItemRecord.title,
+            tenantId: operation.options.context.tenantId
+          }
+        ]),
       listServices: (operation) =>
         Promise.resolve([
           {
@@ -315,5 +381,23 @@ describe("Planning repository contracts", () => {
         }
       })
     ).resolves.toEqual([serviceTemplateRecord]);
+
+    await expect(
+      repository.listSongLibrary({
+        input: {
+          searchInput: {
+            includeBannedOrPaused: false,
+            query: "Open The Gates"
+          }
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_4",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).resolves.toEqual([songLibraryItemRecord]);
   });
 });

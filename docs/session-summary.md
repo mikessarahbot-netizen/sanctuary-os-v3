@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:56 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, ChurchContext song library context, and setlist prompt rules.
+- Added adapter-free DB Planning song library query contracts for the planned `songLibrary(searchInput)` query, including Zod persistence record/search input/operation schemas and a tenant-scoped repository method.
+- Added API Planning query service `songLibrary` contracts with Zod-validated search input/output, Planning read-role checks, actor/request tenant forwarding, tenant-scope guards, and paused-song visibility enforcement.
+- Added focused DB/API tests for search input validation, repository operation shape, role rejection, tenant scope, empty results, and paused-song visibility.
+- Preserved existing Planning query/mutation resolver contracts and kept GraphQL schema/resolver wiring out of scope.
+- Ran and passed focused Planning DB/API/GraphQL tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Wire Planning GraphQL `songLibrary(searchInput)` resolver contracts to the Planning query service.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:50 EDT · feature/planning-readiness-domain
 
 Tasks completed:

@@ -18,12 +18,12 @@ Implement Planning song library query contracts.
 Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · CCLI/SongSelect implementation · AI setlist generation · GraphQL schema/resolver wiring · GraphQL server runtime
 
 ## Progress
-- [ ] Add DB song library query operation/repository contracts
-- [ ] Add Planning query service songLibrary contracts
-- [ ] Add focused DB/API contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add DB song library query operation/repository contracts
+- [x] Add Planning query service songLibrary contracts
+- [x] Add focused DB/API contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning `songLibrary(searchInput)` query contracts are Zod-validated, tenant-scoped, role-gated, adapter-free, covered by focused DB/API tests, committed, pushed, and documented in session handoff.

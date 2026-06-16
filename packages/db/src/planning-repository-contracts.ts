@@ -38,6 +38,8 @@ export const PlanningReadinessPersistenceBandSchema = z.enum([
   "ready"
 ]);
 
+export const PlanningSongEnergyPersistenceSchema = z.enum(["low", "medium", "high"]);
+
 export const PlanningPersistenceConfirmationIntentSchema = z.object({
   confirmed: z.literal(true),
   reason: NonEmptyStringSchema
@@ -58,6 +60,24 @@ export const PlanningServiceTemplatePersistenceRecordSchema = z.object({
   serviceTypeId: NonEmptyStringSchema,
   tenantId: NonEmptyStringSchema,
   title: NonEmptyStringSchema
+});
+
+export const PlanningSongLibraryItemPersistenceRecordSchema = z.object({
+  artist: OptionalNonEmptyStringSchema,
+  availableKeys: z.array(NonEmptyStringSchema),
+  ccliReportingAllowed: z.boolean(),
+  ccliSongNumber: OptionalNonEmptyStringSchema,
+  defaultKey: OptionalNonEmptyStringSchema,
+  energy: PlanningSongEnergyPersistenceSchema.optional(),
+  hasArrangements: z.boolean(),
+  hasCharts: z.boolean(),
+  isBannedOrPaused: z.boolean(),
+  lastUsedAt: z.string().datetime().optional(),
+  songId: NonEmptyStringSchema,
+  tenantId: NonEmptyStringSchema,
+  tempoBpm: z.number().int().positive().optional(),
+  title: NonEmptyStringSchema,
+  usageCount: z.number().int().nonnegative()
 });
 
 export const PlanningServiceItemPersistenceRecordSchema = z.object({
@@ -116,6 +136,32 @@ export const GetPlanningServicePersistenceInputSchema = z.object({
 
 export const ListPlanningServiceTemplatesPersistenceInputSchema = z.object({
   serviceTypeId: NonEmptyStringSchema
+});
+
+export const PlanningSongLibrarySearchPersistenceInputSchema = z
+  .object({
+    includeBannedOrPaused: z.boolean().optional(),
+    key: OptionalNonEmptyStringSchema,
+    limit: z.number().int().min(1).max(50).optional(),
+    query: OptionalNonEmptyStringSchema,
+    serviceTypeId: OptionalNonEmptyStringSchema
+  })
+  .superRefine((input, context) => {
+    if (
+      input.query === undefined &&
+      input.serviceTypeId === undefined &&
+      input.key === undefined
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Song library search requires query, serviceTypeId, or key.",
+        path: ["query"]
+      });
+    }
+  });
+
+export const ListPlanningSongLibraryPersistenceInputSchema = z.object({
+  searchInput: PlanningSongLibrarySearchPersistenceInputSchema
 });
 
 export const ListPlanningServiceAssignmentsPersistenceInputSchema = z.object({
@@ -227,6 +273,11 @@ export const ListPlanningServiceTemplatesPersistenceOperationSchema = z.object({
   options: RepositoryReadOptionsSchema
 });
 
+export const ListPlanningSongLibraryPersistenceOperationSchema = z.object({
+  input: ListPlanningSongLibraryPersistenceInputSchema,
+  options: RepositoryReadOptionsSchema
+});
+
 export const ListPlanningServiceAssignmentsPersistenceOperationSchema = z.object({
   input: ListPlanningServiceAssignmentsPersistenceInputSchema,
   options: RepositoryReadOptionsSchema
@@ -249,6 +300,9 @@ export type PlanningAssignmentPersistenceStatus = z.infer<
 export type PlanningReadinessPersistenceBand = z.infer<
   typeof PlanningReadinessPersistenceBandSchema
 >;
+export type PlanningSongEnergyPersistence = z.infer<
+  typeof PlanningSongEnergyPersistenceSchema
+>;
 export type PlanningPersistenceConfirmationIntent = z.infer<
   typeof PlanningPersistenceConfirmationIntentSchema
 >;
@@ -257,6 +311,9 @@ export type PlanningServicePersistenceRecord = z.infer<
 >;
 export type PlanningServiceTemplatePersistenceRecord = z.infer<
   typeof PlanningServiceTemplatePersistenceRecordSchema
+>;
+export type PlanningSongLibraryItemPersistenceRecord = z.infer<
+  typeof PlanningSongLibraryItemPersistenceRecordSchema
 >;
 export type PlanningServiceItemPersistenceRecord = z.infer<
   typeof PlanningServiceItemPersistenceRecordSchema
@@ -281,6 +338,12 @@ export type GetPlanningServicePersistenceInput = z.infer<
 >;
 export type ListPlanningServiceTemplatesPersistenceInput = z.infer<
   typeof ListPlanningServiceTemplatesPersistenceInputSchema
+>;
+export type PlanningSongLibrarySearchPersistenceInput = z.infer<
+  typeof PlanningSongLibrarySearchPersistenceInputSchema
+>;
+export type ListPlanningSongLibraryPersistenceInput = z.infer<
+  typeof ListPlanningSongLibraryPersistenceInputSchema
 >;
 export type ListPlanningServiceAssignmentsPersistenceInput = z.infer<
   typeof ListPlanningServiceAssignmentsPersistenceInputSchema
@@ -340,6 +403,8 @@ export type GetPlanningServicePersistenceOperation =
   PlanningReadPersistenceOperation<GetPlanningServicePersistenceInput>;
 export type ListPlanningServiceTemplatesPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningServiceTemplatesPersistenceInput>;
+export type ListPlanningSongLibraryPersistenceOperation =
+  PlanningReadPersistenceOperation<ListPlanningSongLibraryPersistenceInput>;
 export type ListPlanningServiceAssignmentsPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningServiceAssignmentsPersistenceInput>;
 export type GetPlanningServiceReadinessPersistenceOperation =
@@ -379,6 +444,9 @@ export interface PlanningServiceQueryPersistenceRepository {
   readonly listServiceTemplates: (
     operation: ListPlanningServiceTemplatesPersistenceOperation
   ) => Promise<readonly PlanningServiceTemplatePersistenceRecord[]>;
+  readonly listSongLibrary: (
+    operation: ListPlanningSongLibraryPersistenceOperation
+  ) => Promise<readonly PlanningSongLibraryItemPersistenceRecord[]>;
   readonly listServiceAssignments: (
     operation: ListPlanningServiceAssignmentsPersistenceOperation
   ) => Promise<readonly PlanningAssignmentPersistenceRecord[]>;

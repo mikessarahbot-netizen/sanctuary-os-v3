@@ -4,7 +4,9 @@ import {
   createPlanningQueryService,
   ListPlanningServicesQuerySchema,
   ListPlanningServiceTemplatesQuerySchema,
+  ListPlanningSongLibraryQuerySchema,
   type PlanningServiceTemplateRecord,
+  type PlanningSongLibraryItemRecord,
   type PlanningQueryRepository
 } from "./queries.js";
 import type { PlanningAssignmentRecord, PlanningServiceRecord } from "./commands.js";
@@ -53,6 +55,24 @@ const serviceTemplateRecord: PlanningServiceTemplateRecord = {
   title: "Sunday Worship Template"
 };
 
+const songLibraryItemRecord: PlanningSongLibraryItemRecord = {
+  artist: "Sanctuary Collective",
+  availableKeys: ["G", "A"],
+  ccliReportingAllowed: true,
+  ccliSongNumber: "123456",
+  defaultKey: "G",
+  energy: "medium",
+  hasArrangements: true,
+  hasCharts: true,
+  isBannedOrPaused: false,
+  lastUsedAt: "2026-06-07T14:00:00.000Z",
+  songId: "song_1",
+  tenantId: "tenant_1",
+  tempoBpm: 76,
+  title: "Open The Gates",
+  usageCount: 6
+};
+
 const createRepository = (
   overrides: Partial<PlanningQueryRepository> = {}
 ): PlanningQueryRepository => ({
@@ -61,6 +81,7 @@ const createRepository = (
   listServiceAssignments: () => Promise.resolve([assignmentRecord]),
   listServices: () => Promise.resolve([serviceRecord]),
   listServiceTemplates: () => Promise.resolve([serviceTemplateRecord]),
+  listSongLibrary: () => Promise.resolve([songLibraryItemRecord]),
   ...overrides
 });
 
@@ -145,6 +166,56 @@ describe("Planning query schemas", () => {
         requestId: "request_1"
       }).input.serviceTypeId
     ).toBe("type_sunday");
+  });
+
+  it("validates song library search input before repository access", () => {
+    expect(() =>
+      ListPlanningSongLibraryQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          searchInput: {
+            limit: 0,
+            query: "open"
+          }
+        },
+        requestId: "request_1"
+      })
+    ).toThrow();
+
+    expect(() =>
+      ListPlanningSongLibraryQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          searchInput: {}
+        },
+        requestId: "request_1"
+      })
+    ).toThrow("Song library search requires query, serviceTypeId, or key.");
+
+    expect(
+      ListPlanningSongLibraryQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          searchInput: {
+            key: "G",
+            query: "open"
+          }
+        },
+        requestId: "request_1"
+      }).input.searchInput.limit
+    ).toBeUndefined();
   });
 });
 
@@ -377,6 +448,163 @@ describe("createPlanningQueryService", () => {
         requestId: "request_templates"
       })
     ).rejects.toThrow("Planning service template query service type mismatch.");
+  });
+
+  it("tenant-scopes song library searches through the actor and repository boundary", async () => {
+    const listSongLibrary = vi.fn<PlanningQueryRepository["listSongLibrary"]>(() =>
+      Promise.resolve([songLibraryItemRecord])
+    );
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({ listSongLibrary })
+    });
+
+    await expect(
+      service.songLibrary({
+        actor: {
+          actorId: "actor_1",
+          roles: ["worship_leader"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          searchInput: {
+            includeBannedOrPaused: false,
+            key: "G",
+            limit: 10,
+            query: "open",
+            serviceTypeId: "type_sunday"
+          }
+        },
+        requestId: "request_songs"
+      })
+    ).resolves.toEqual([songLibraryItemRecord]);
+
+    expect(listSongLibrary).toHaveBeenCalledWith({
+      input: {
+        searchInput: {
+          includeBannedOrPaused: false,
+          key: "G",
+          limit: 10,
+          query: "open",
+          serviceTypeId: "type_sunday"
+        }
+      },
+      options: {
+        context: {
+          actorId: "actor_1",
+          requestId: "request_songs",
+          tenantId: "tenant_1"
+        }
+      }
+    });
+  });
+
+  it("rejects song library searches from actors without Planning query roles", async () => {
+    const listSongLibrary = vi.fn<PlanningQueryRepository["listSongLibrary"]>(() =>
+      Promise.resolve([songLibraryItemRecord])
+    );
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({ listSongLibrary })
+    });
+
+    await expect(
+      service.songLibrary({
+        actor: {
+          actorId: "actor_1",
+          roles: ["super_admin"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          searchInput: {
+            query: "open"
+          }
+        },
+        requestId: "request_songs"
+      })
+    ).rejects.toThrow("Actor is not allowed to read planning services.");
+
+    expect(listSongLibrary).not.toHaveBeenCalled();
+  });
+
+  it("returns empty song library search results without treating them as misses", async () => {
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({
+        listSongLibrary: () => Promise.resolve([])
+      })
+    });
+
+    await expect(
+      service.songLibrary({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          searchInput: {
+            serviceTypeId: "type_sunday"
+          }
+        },
+        requestId: "request_songs"
+      })
+    ).resolves.toEqual([]);
+  });
+
+  it("rejects song library records outside tenant or paused visibility scope", async () => {
+    const tenantMismatchService = createPlanningQueryService({
+      planningRepository: createRepository({
+        listSongLibrary: () =>
+          Promise.resolve([
+            {
+              ...songLibraryItemRecord,
+              tenantId: "tenant_2"
+            }
+          ])
+      })
+    });
+
+    await expect(
+      tenantMismatchService.songLibrary({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          searchInput: {
+            query: "open"
+          }
+        },
+        requestId: "request_songs"
+      })
+    ).rejects.toThrow("Planning song library query tenant mismatch.");
+
+    const pausedMismatchService = createPlanningQueryService({
+      planningRepository: createRepository({
+        listSongLibrary: () =>
+          Promise.resolve([
+            {
+              ...songLibraryItemRecord,
+              isBannedOrPaused: true
+            }
+          ])
+      })
+    });
+
+    await expect(
+      pausedMismatchService.songLibrary({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          searchInput: {
+            query: "open"
+          }
+        },
+        requestId: "request_songs"
+      })
+    ).rejects.toThrow("Planning song library query returned paused song.");
   });
 
   it("rejects assignment and readiness records outside the requested service", async () => {

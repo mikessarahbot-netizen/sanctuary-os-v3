@@ -50,6 +50,8 @@ const PlanningQueryBaseSchema = z.object({
   requestId: NonEmptyStringSchema
 });
 
+export const PlanningSongEnergySchema = z.enum(["low", "medium", "high"]);
+
 export const ListPlanningServicesQuerySchema = PlanningQueryBaseSchema.extend({
   input: z.object({
     filter: PlanningServicesFilterSchema.optional()
@@ -70,10 +72,55 @@ export const PlanningServiceTemplateRecordSchema = z.object({
   title: NonEmptyStringSchema
 });
 
+export const PlanningSongLibraryItemRecordSchema = z.object({
+  artist: OptionalNonEmptyStringSchema,
+  availableKeys: z.array(NonEmptyStringSchema),
+  ccliReportingAllowed: z.boolean(),
+  ccliSongNumber: OptionalNonEmptyStringSchema,
+  defaultKey: OptionalNonEmptyStringSchema,
+  energy: PlanningSongEnergySchema.optional(),
+  hasArrangements: z.boolean(),
+  hasCharts: z.boolean(),
+  isBannedOrPaused: z.boolean(),
+  lastUsedAt: z.string().datetime().optional(),
+  songId: NonEmptyStringSchema,
+  tenantId: NonEmptyStringSchema,
+  tempoBpm: z.number().int().positive().optional(),
+  title: NonEmptyStringSchema,
+  usageCount: z.number().int().nonnegative()
+});
+
+export const PlanningSongLibrarySearchInputSchema = z
+  .object({
+    includeBannedOrPaused: z.boolean().optional(),
+    key: OptionalNonEmptyStringSchema,
+    limit: z.number().int().min(1).max(50).optional(),
+    query: OptionalNonEmptyStringSchema,
+    serviceTypeId: OptionalNonEmptyStringSchema
+  })
+  .superRefine((input, context) => {
+    if (
+      input.query === undefined &&
+      input.serviceTypeId === undefined &&
+      input.key === undefined
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Song library search requires query, serviceTypeId, or key.",
+        path: ["query"]
+      });
+    }
+  });
+
 export const ListPlanningServiceAssignmentsQuerySchema = GetPlanningServiceQuerySchema;
 export const ListPlanningServiceTemplatesQuerySchema = PlanningQueryBaseSchema.extend({
   input: z.object({
     serviceTypeId: NonEmptyStringSchema
+  })
+});
+export const ListPlanningSongLibraryQuerySchema = PlanningQueryBaseSchema.extend({
+  input: z.object({
+    searchInput: PlanningSongLibrarySearchInputSchema
   })
 });
 export const GetPlanningServiceReadinessQuerySchema = GetPlanningServiceQuerySchema;
@@ -88,11 +135,17 @@ export type ListPlanningServiceAssignmentsQuery = z.infer<
 export type ListPlanningServiceTemplatesQuery = z.infer<
   typeof ListPlanningServiceTemplatesQuerySchema
 >;
+export type ListPlanningSongLibraryQuery = z.infer<
+  typeof ListPlanningSongLibraryQuerySchema
+>;
 export type GetPlanningServiceReadinessQuery = z.infer<
   typeof GetPlanningServiceReadinessQuerySchema
 >;
 export type PlanningServiceTemplateRecord = z.infer<
   typeof PlanningServiceTemplateRecordSchema
+>;
+export type PlanningSongLibraryItemRecord = z.infer<
+  typeof PlanningSongLibraryItemRecordSchema
 >;
 
 export interface PlanningQueryRepository {
@@ -100,6 +153,7 @@ export interface PlanningQueryRepository {
   readonly getService: PlanningServiceQueryPersistenceRepository["getService"];
   readonly listServiceAssignments: PlanningServiceQueryPersistenceRepository["listServiceAssignments"];
   readonly listServiceTemplates: PlanningServiceQueryPersistenceRepository["listServiceTemplates"];
+  readonly listSongLibrary: PlanningServiceQueryPersistenceRepository["listSongLibrary"];
   readonly getServiceReadiness: PlanningServiceQueryPersistenceRepository["getServiceReadiness"];
 }
 
@@ -118,6 +172,9 @@ export interface PlanningQueryService {
   readonly serviceTemplates: (
     query: ListPlanningServiceTemplatesQuery
   ) => Promise<readonly PlanningServiceTemplateRecord[]>;
+  readonly songLibrary: (
+    query: ListPlanningSongLibraryQuery
+  ) => Promise<readonly PlanningSongLibraryItemRecord[]>;
   readonly serviceReadiness: (
     query: GetPlanningServiceReadinessQuery
   ) => Promise<PlanningReadinessResult | null>;
@@ -193,6 +250,28 @@ export const createPlanningQueryService = (
           template,
           query.actor.tenantId,
           query.input.serviceTypeId
+        )
+      );
+  },
+
+  songLibrary: async (
+    rawQuery: ListPlanningSongLibraryQuery
+  ): Promise<readonly PlanningSongLibraryItemRecord[]> => {
+    const query = ListPlanningSongLibraryQuerySchema.parse(rawQuery);
+    assertPlanningQueryRole(query.actor);
+
+    return z
+      .array(PlanningSongLibraryItemRecordSchema)
+      .parse(
+        await dependencies.planningRepository.listSongLibrary(
+          toPlanningReadOperation(query)
+        )
+      )
+      .map((song) =>
+        assertTenantScopedSongLibraryItem(
+          song,
+          query.actor.tenantId,
+          query.input.searchInput.includeBannedOrPaused === true
         )
       );
   },
@@ -292,6 +371,24 @@ const assertTenantScopedTemplate = (
   }
 
   return template;
+};
+
+const assertTenantScopedSongLibraryItem = (
+  rawSong: PlanningSongLibraryItemRecord,
+  expectedTenantId: string,
+  includeBannedOrPaused: boolean
+): PlanningSongLibraryItemRecord => {
+  const song = PlanningSongLibraryItemRecordSchema.parse(rawSong);
+
+  if (song.tenantId !== expectedTenantId) {
+    throw new Error("Planning song library query tenant mismatch.");
+  }
+
+  if (!includeBannedOrPaused && song.isBannedOrPaused) {
+    throw new Error("Planning song library query returned paused song.");
+  }
+
+  return song;
 };
 
 const assertTenantScopedReadiness = (

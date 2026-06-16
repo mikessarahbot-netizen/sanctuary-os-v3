@@ -132,6 +132,7 @@ const createPlanningQueryService = (
   serviceTemplates: vi.fn<PlanningQueryService["serviceTemplates"]>(() =>
     Promise.resolve([serviceTemplateRecord])
   ),
+  songLibrary: vi.fn<PlanningQueryService["songLibrary"]>(() => Promise.resolve([])),
   services: vi.fn<PlanningQueryService["services"]>(() => Promise.resolve([serviceRecord])),
   ...overrides
 });
