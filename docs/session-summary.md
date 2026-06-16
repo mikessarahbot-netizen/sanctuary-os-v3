@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:01 EDT · feature/planning-api-contract-release-check
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Created `feature/planning-api-contract-release-check` from the pushed `feature/planning-readiness-domain` tip because this worktree was detached and the original branch was checked out elsewhere.
+- Audited current Planning API/domain/service/GraphQL contracts against `05-plans/api-plan.md` and `05-plans/planning-module-plan.md`.
+- Wrote `07-reviews/architecture/planning-api-contract-release-check.md` with evidence-backed release findings.
+- Identified a P1 GraphQL readiness-band serialization mismatch: SDL exposes `needs_attention`, while domain/DB/events/services return `needs-attention`.
+- Identified a P2 GraphQL contract coverage gap: SDL is string-checked and resolvers are unit-called, but executable schema/serialization is not covered.
+- Confirmed broad passing coverage for thin resolver delegation, Zod trust-boundary validation, service-owned role checks, tenant guards, explicit publish/cancel confirmation, AI review-only setlist generation, validated event handoff, validated CCLI job handoff, and Planning v1 domain coverage.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Fix the GraphQL readiness band contract and add executable Planning GraphQL contract coverage for `serviceReadiness` and `refreshReadinessScore`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 14:57 EDT · feature/planning-readiness-domain
 
 Tasks completed:
