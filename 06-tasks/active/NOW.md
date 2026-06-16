@@ -19,12 +19,12 @@ Implement the SQL-first Planning rehearsal tracking persistence adapter.
 Live PostgreSQL execution · connection strings or secrets · GraphQL/resolver changes · API service wiring · UI · queue workers · chart rendering · media storage · notification delivery · command repository changes · query repository changes · CCLI adapter changes · readiness adapter · ORM/query-builder adoption
 
 ## Progress
-- [ ] Re-sync with required docs, DB plan, ADR, and existing SQL adapter code
-- [ ] Add SQL-first Planning rehearsal tracking persistence adapter
-- [ ] Add adapter-level tests without live database requirements
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs, DB plan, ADR, and existing SQL adapter code
+- [x] Add SQL-first Planning rehearsal tracking persistence adapter
+- [x] Add adapter-level tests without live database requirements
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 The DB package has a SQL-first Planning rehearsal tracking persistence adapter for asset visibility and acknowledgements with tenant/audit/ownership/transaction/no-media/no-contact behavior covered by adapter-level tests; gates pass; the slice is committed, pushed, and documented in session handoff.
