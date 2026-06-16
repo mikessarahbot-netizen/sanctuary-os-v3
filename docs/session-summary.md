@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:31 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, and existing `packages/db` SQL adapter code.
+- Added the SQL-first Planning query repository adapter in `packages/db` for `listServices`, `getService`, `listServiceTemplates`, `listSongLibrary`, `listServiceAssignments`, and `getServiceReadiness`.
+- Added row validation for service, template, song library, assignment, and readiness rows, including JSON readiness fields and optional/null database columns.
+- Covered tenant predicates, filter parameterization, null-on-missing behavior, transaction propagation for reads, song-library search parameters, no-contact/no-secret query boundaries, and malformed-row rejection with live-DB-free adapter tests.
+- Kept the slice free of live database connections, secrets, dependency installation, GraphQL/resolver changes, API service wiring, UI, workers, vendor SDKs, Auth0, command adapter changes, CCLI write adapter work, rehearsal adapter work, readiness write adapter work, and ORM/query-builder adoption.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `45489f8 feat(db): add planning query sql adapter`.
+
+Next task:
+- Implement the SQL-first Planning CCLI usage persistence adapter.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:26 EDT · feature/planning-readiness-domain
 
 Tasks completed:
