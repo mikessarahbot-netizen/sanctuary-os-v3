@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   CreatePlanningServicePersistenceOperationSchema,
   ListPlanningServicesPersistenceOperationSchema,
+  ListPlanningServiceTemplatesPersistenceOperationSchema,
   RepositoryWriteOptionsSchema,
   UpdatePlanningServicePersistenceOperationSchema,
   type PlanningReadinessPersistenceRecord,
-  type PlanningServicePersistenceRecord
+  type PlanningServicePersistenceRecord,
+  type PlanningServiceTemplatePersistenceRecord
 } from "./index.js";
 import type {
   PlanningServiceCommandPersistenceRepository,
@@ -18,6 +20,14 @@ const serviceRecord: PlanningServicePersistenceRecord = {
   status: "draft",
   tenantId: "tenant_1",
   title: "Sunday Service"
+};
+
+const serviceTemplateRecord: PlanningServiceTemplatePersistenceRecord = {
+  description: "Default Sunday flow.",
+  serviceTemplateId: "template_sunday",
+  serviceTypeId: "sunday",
+  tenantId: "tenant_1",
+  title: "Sunday Worship Template"
 };
 
 const readinessRecord: PlanningReadinessPersistenceRecord = {
@@ -111,6 +121,21 @@ describe("Planning repository contracts", () => {
         }
       }).input.filter?.status
     ).toBe("scheduled");
+
+    expect(
+      ListPlanningServiceTemplatesPersistenceOperationSchema.parse({
+        input: {
+          serviceTypeId: "sunday"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_2",
+            tenantId: "tenant_1"
+          }
+        }
+      }).input.serviceTypeId
+    ).toBe("sunday");
   });
 
   it("defines an adapter-free Planning persistence repository interface", async () => {
@@ -221,6 +246,14 @@ describe("Planning repository contracts", () => {
             tenantId: operation.options.context.tenantId
           }
         ]),
+      listServiceTemplates: (operation) =>
+        Promise.resolve([
+          {
+            ...serviceTemplateRecord,
+            serviceTypeId: operation.input.serviceTypeId,
+            tenantId: operation.options.context.tenantId
+          }
+        ]),
       listServices: (operation) =>
         Promise.resolve([
           {
@@ -267,5 +300,20 @@ describe("Planning repository contracts", () => {
         }
       })
     ).resolves.toEqual(readinessRecord);
+
+    await expect(
+      repository.listServiceTemplates({
+        input: {
+          serviceTypeId: "sunday"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_3",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).resolves.toEqual([serviceTemplateRecord]);
   });
 });

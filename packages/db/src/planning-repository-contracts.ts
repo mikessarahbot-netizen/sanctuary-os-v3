@@ -52,6 +52,14 @@ export const PlanningServicePersistenceRecordSchema = z.object({
   title: NonEmptyStringSchema
 });
 
+export const PlanningServiceTemplatePersistenceRecordSchema = z.object({
+  description: OptionalNonEmptyStringSchema,
+  serviceTemplateId: NonEmptyStringSchema,
+  serviceTypeId: NonEmptyStringSchema,
+  tenantId: NonEmptyStringSchema,
+  title: NonEmptyStringSchema
+});
+
 export const PlanningServiceItemPersistenceRecordSchema = z.object({
   durationMinutes: z.number().int().positive().optional(),
   notes: OptionalNonEmptyStringSchema,
@@ -104,6 +112,10 @@ export const ListPlanningServicesPersistenceInputSchema = z.object({
 
 export const GetPlanningServicePersistenceInputSchema = z.object({
   serviceId: NonEmptyStringSchema
+});
+
+export const ListPlanningServiceTemplatesPersistenceInputSchema = z.object({
+  serviceTypeId: NonEmptyStringSchema
 });
 
 export const ListPlanningServiceAssignmentsPersistenceInputSchema = z.object({
@@ -210,6 +222,11 @@ export const GetPlanningServicePersistenceOperationSchema = z.object({
   options: RepositoryReadOptionsSchema
 });
 
+export const ListPlanningServiceTemplatesPersistenceOperationSchema = z.object({
+  input: ListPlanningServiceTemplatesPersistenceInputSchema,
+  options: RepositoryReadOptionsSchema
+});
+
 export const ListPlanningServiceAssignmentsPersistenceOperationSchema = z.object({
   input: ListPlanningServiceAssignmentsPersistenceInputSchema,
   options: RepositoryReadOptionsSchema
@@ -238,6 +255,9 @@ export type PlanningPersistenceConfirmationIntent = z.infer<
 export type PlanningServicePersistenceRecord = z.infer<
   typeof PlanningServicePersistenceRecordSchema
 >;
+export type PlanningServiceTemplatePersistenceRecord = z.infer<
+  typeof PlanningServiceTemplatePersistenceRecordSchema
+>;
 export type PlanningServiceItemPersistenceRecord = z.infer<
   typeof PlanningServiceItemPersistenceRecordSchema
 >;
@@ -258,6 +278,9 @@ export type ListPlanningServicesPersistenceInput = z.infer<
 >;
 export type GetPlanningServicePersistenceInput = z.infer<
   typeof GetPlanningServicePersistenceInputSchema
+>;
+export type ListPlanningServiceTemplatesPersistenceInput = z.infer<
+  typeof ListPlanningServiceTemplatesPersistenceInputSchema
 >;
 export type ListPlanningServiceAssignmentsPersistenceInput = z.infer<
   typeof ListPlanningServiceAssignmentsPersistenceInputSchema
@@ -315,6 +338,8 @@ export type ListPlanningServicesPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningServicesPersistenceInput>;
 export type GetPlanningServicePersistenceOperation =
   PlanningReadPersistenceOperation<GetPlanningServicePersistenceInput>;
+export type ListPlanningServiceTemplatesPersistenceOperation =
+  PlanningReadPersistenceOperation<ListPlanningServiceTemplatesPersistenceInput>;
 export type ListPlanningServiceAssignmentsPersistenceOperation =
   PlanningReadPersistenceOperation<ListPlanningServiceAssignmentsPersistenceInput>;
 export type GetPlanningServiceReadinessPersistenceOperation =
@@ -351,6 +376,9 @@ export interface PlanningServiceQueryPersistenceRepository {
   readonly getService: (
     operation: GetPlanningServicePersistenceOperation
   ) => Promise<PlanningServicePersistenceRecord | null>;
+  readonly listServiceTemplates: (
+    operation: ListPlanningServiceTemplatesPersistenceOperation
+  ) => Promise<readonly PlanningServiceTemplatePersistenceRecord[]>;
   readonly listServiceAssignments: (
     operation: ListPlanningServiceAssignmentsPersistenceOperation
   ) => Promise<readonly PlanningAssignmentPersistenceRecord[]>;

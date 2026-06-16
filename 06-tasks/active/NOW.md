@@ -17,12 +17,12 @@ Implement Planning service template query contracts.
 Database migrations · concrete production persistence adapter · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation · template duplication mutation implementation
 
 ## Progress
-- [ ] Add service template persistence/query contract schemas
-- [ ] Add Planning query service template boundary
-- [ ] Add service template query contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add service template persistence/query contract schemas
+- [x] Add Planning query service template boundary
+- [x] Add service template query contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning service template query contracts exist, remain adapter-free, are validated by tests, committed, pushed, and documented in session handoff.

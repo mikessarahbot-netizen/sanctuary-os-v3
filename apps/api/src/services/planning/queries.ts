@@ -62,7 +62,20 @@ export const GetPlanningServiceQuerySchema = PlanningQueryBaseSchema.extend({
   })
 });
 
+export const PlanningServiceTemplateRecordSchema = z.object({
+  description: OptionalNonEmptyStringSchema,
+  serviceTemplateId: NonEmptyStringSchema,
+  serviceTypeId: NonEmptyStringSchema,
+  tenantId: NonEmptyStringSchema,
+  title: NonEmptyStringSchema
+});
+
 export const ListPlanningServiceAssignmentsQuerySchema = GetPlanningServiceQuerySchema;
+export const ListPlanningServiceTemplatesQuerySchema = PlanningQueryBaseSchema.extend({
+  input: z.object({
+    serviceTypeId: NonEmptyStringSchema
+  })
+});
 export const GetPlanningServiceReadinessQuerySchema = GetPlanningServiceQuerySchema;
 
 export type PlanningServiceQueryRole = z.infer<typeof PlanningServiceQueryRoleSchema>;
@@ -72,14 +85,21 @@ export type GetPlanningServiceQuery = z.infer<typeof GetPlanningServiceQuerySche
 export type ListPlanningServiceAssignmentsQuery = z.infer<
   typeof ListPlanningServiceAssignmentsQuerySchema
 >;
+export type ListPlanningServiceTemplatesQuery = z.infer<
+  typeof ListPlanningServiceTemplatesQuerySchema
+>;
 export type GetPlanningServiceReadinessQuery = z.infer<
   typeof GetPlanningServiceReadinessQuerySchema
+>;
+export type PlanningServiceTemplateRecord = z.infer<
+  typeof PlanningServiceTemplateRecordSchema
 >;
 
 export interface PlanningQueryRepository {
   readonly listServices: PlanningServiceQueryPersistenceRepository["listServices"];
   readonly getService: PlanningServiceQueryPersistenceRepository["getService"];
   readonly listServiceAssignments: PlanningServiceQueryPersistenceRepository["listServiceAssignments"];
+  readonly listServiceTemplates: PlanningServiceQueryPersistenceRepository["listServiceTemplates"];
   readonly getServiceReadiness: PlanningServiceQueryPersistenceRepository["getServiceReadiness"];
 }
 
@@ -95,6 +115,9 @@ export interface PlanningQueryService {
   readonly serviceAssignments: (
     query: ListPlanningServiceAssignmentsQuery
   ) => Promise<readonly PlanningAssignmentRecord[]>;
+  readonly serviceTemplates: (
+    query: ListPlanningServiceTemplatesQuery
+  ) => Promise<readonly PlanningServiceTemplateRecord[]>;
   readonly serviceReadiness: (
     query: GetPlanningServiceReadinessQuery
   ) => Promise<PlanningReadinessResult | null>;
@@ -148,6 +171,28 @@ export const createPlanningQueryService = (
           assignment,
           query.actor.tenantId,
           query.input.serviceId
+        )
+      );
+  },
+
+  serviceTemplates: async (
+    rawQuery: ListPlanningServiceTemplatesQuery
+  ): Promise<readonly PlanningServiceTemplateRecord[]> => {
+    const query = ListPlanningServiceTemplatesQuerySchema.parse(rawQuery);
+    assertPlanningQueryRole(query.actor);
+
+    return z
+      .array(PlanningServiceTemplateRecordSchema)
+      .parse(
+        await dependencies.planningRepository.listServiceTemplates(
+          toPlanningReadOperation(query)
+        )
+      )
+      .map((template) =>
+        assertTenantScopedTemplate(
+          template,
+          query.actor.tenantId,
+          query.input.serviceTypeId
         )
       );
   },
@@ -229,6 +274,24 @@ const assertTenantScopedAssignment = (
   }
 
   return assignment;
+};
+
+const assertTenantScopedTemplate = (
+  rawTemplate: PlanningServiceTemplateRecord,
+  expectedTenantId: string,
+  expectedServiceTypeId: string
+): PlanningServiceTemplateRecord => {
+  const template = PlanningServiceTemplateRecordSchema.parse(rawTemplate);
+
+  if (template.tenantId !== expectedTenantId) {
+    throw new Error("Planning service template query tenant mismatch.");
+  }
+
+  if (template.serviceTypeId !== expectedServiceTypeId) {
+    throw new Error("Planning service template query service type mismatch.");
+  }
+
+  return template;
 };
 
 const assertTenantScopedReadiness = (

@@ -3,6 +3,8 @@ import type { PlanningReadinessResult } from "../../domain/index.js";
 import {
   createPlanningQueryService,
   ListPlanningServicesQuerySchema,
+  ListPlanningServiceTemplatesQuerySchema,
+  type PlanningServiceTemplateRecord,
   type PlanningQueryRepository
 } from "./queries.js";
 import type { PlanningAssignmentRecord, PlanningServiceRecord } from "./commands.js";
@@ -43,6 +45,14 @@ const readinessRecord: PlanningReadinessResult = {
   tenantId: "tenant_1"
 };
 
+const serviceTemplateRecord: PlanningServiceTemplateRecord = {
+  description: "Default Sunday flow.",
+  serviceTemplateId: "template_sunday",
+  serviceTypeId: "type_sunday",
+  tenantId: "tenant_1",
+  title: "Sunday Worship Template"
+};
+
 const createRepository = (
   overrides: Partial<PlanningQueryRepository> = {}
 ): PlanningQueryRepository => ({
@@ -50,6 +60,7 @@ const createRepository = (
   getServiceReadiness: () => Promise.resolve(readinessRecord),
   listServiceAssignments: () => Promise.resolve([assignmentRecord]),
   listServices: () => Promise.resolve([serviceRecord]),
+  listServiceTemplates: () => Promise.resolve([serviceTemplateRecord]),
   ...overrides
 });
 
@@ -104,6 +115,36 @@ describe("Planning query schemas", () => {
         requestId: "request_1"
       }).input.filter?.status
     ).toBe("scheduled");
+  });
+
+  it("validates service template query input before repository access", () => {
+    expect(() =>
+      ListPlanningServiceTemplatesQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTypeId: ""
+        },
+        requestId: "request_1"
+      })
+    ).toThrow();
+
+    expect(
+      ListPlanningServiceTemplatesQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTypeId: "type_sunday"
+        },
+        requestId: "request_1"
+      }).input.serviceTypeId
+    ).toBe("type_sunday");
   });
 });
 
@@ -199,6 +240,143 @@ describe("createPlanningQueryService", () => {
         requestId: "request_1"
       })
     ).rejects.toThrow("Planning service query tenant mismatch.");
+  });
+
+  it("tenant-scopes service template reads through the actor and repository boundary", async () => {
+    const listServiceTemplates = vi.fn<
+      PlanningQueryRepository["listServiceTemplates"]
+    >(() => Promise.resolve([serviceTemplateRecord]));
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({ listServiceTemplates })
+    });
+
+    await expect(
+      service.serviceTemplates({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTypeId: "type_sunday"
+        },
+        requestId: "request_templates"
+      })
+    ).resolves.toEqual([serviceTemplateRecord]);
+
+    expect(listServiceTemplates).toHaveBeenCalledWith({
+      input: {
+        serviceTypeId: "type_sunday"
+      },
+      options: {
+        context: {
+          actorId: "actor_1",
+          requestId: "request_templates",
+          tenantId: "tenant_1"
+        }
+      }
+    });
+  });
+
+  it("rejects service template reads from actors without Planning query roles", async () => {
+    const listServiceTemplates = vi.fn<
+      PlanningQueryRepository["listServiceTemplates"]
+    >(() => Promise.resolve([serviceTemplateRecord]));
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({ listServiceTemplates })
+    });
+
+    await expect(
+      service.serviceTemplates({
+        actor: {
+          actorId: "actor_1",
+          roles: ["super_admin"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTypeId: "type_sunday"
+        },
+        requestId: "request_templates"
+      })
+    ).rejects.toThrow("Actor is not allowed to read planning services.");
+
+    expect(listServiceTemplates).not.toHaveBeenCalled();
+  });
+
+  it("returns empty service template lists without treating them as misses", async () => {
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({
+        listServiceTemplates: () => Promise.resolve([])
+      })
+    });
+
+    await expect(
+      service.serviceTemplates({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTypeId: "type_sunday"
+        },
+        requestId: "request_templates"
+      })
+    ).resolves.toEqual([]);
+  });
+
+  it("rejects service template records outside tenant or requested service type", async () => {
+    const tenantMismatchService = createPlanningQueryService({
+      planningRepository: createRepository({
+        listServiceTemplates: () =>
+          Promise.resolve([
+            {
+              ...serviceTemplateRecord,
+              tenantId: "tenant_2"
+            }
+          ])
+      })
+    });
+
+    await expect(
+      tenantMismatchService.serviceTemplates({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTypeId: "type_sunday"
+        },
+        requestId: "request_templates"
+      })
+    ).rejects.toThrow("Planning service template query tenant mismatch.");
+
+    const serviceTypeMismatchService = createPlanningQueryService({
+      planningRepository: createRepository({
+        listServiceTemplates: () =>
+          Promise.resolve([
+            {
+              ...serviceTemplateRecord,
+              serviceTypeId: "type_midweek"
+            }
+          ])
+      })
+    });
+
+    await expect(
+      serviceTypeMismatchService.serviceTemplates({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceTypeId: "type_sunday"
+        },
+        requestId: "request_templates"
+      })
+    ).rejects.toThrow("Planning service template query service type mismatch.");
   });
 
   it("rejects assignment and readiness records outside the requested service", async () => {

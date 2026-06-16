@@ -5,7 +5,8 @@ import type {
   PlanningCommandService,
   PlanningQueryService,
   PlanningServiceItemRecord,
-  PlanningServiceRecord
+  PlanningServiceRecord,
+  PlanningServiceTemplateRecord
 } from "../services/planning/index.js";
 import type { PlanningReadinessService } from "../services/planning/index.js";
 import {
@@ -30,6 +31,14 @@ const serviceRecord: PlanningServiceRecord = {
   status: "scheduled",
   tenantId: "tenant_1",
   title: "Sunday Worship"
+};
+
+const serviceTemplateRecord: PlanningServiceTemplateRecord = {
+  description: "Default Sunday flow.",
+  serviceTemplateId: "template_sunday",
+  serviceTypeId: "type_sunday",
+  tenantId: "tenant_1",
+  title: "Sunday Worship Template"
 };
 
 const serviceItemRecord: PlanningServiceItemRecord = {
@@ -119,6 +128,9 @@ const createPlanningQueryService = (
   ),
   serviceReadiness: vi.fn<PlanningQueryService["serviceReadiness"]>(() =>
     Promise.resolve(readinessResult)
+  ),
+  serviceTemplates: vi.fn<PlanningQueryService["serviceTemplates"]>(() =>
+    Promise.resolve([serviceTemplateRecord])
   ),
   services: vi.fn<PlanningQueryService["services"]>(() => Promise.resolve([serviceRecord])),
   ...overrides

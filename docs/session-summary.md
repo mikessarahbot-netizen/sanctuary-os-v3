@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:46 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free DB Planning service template query contracts for the planned `serviceTemplates(serviceTypeId)` query, including Zod persistence record/input/operation schemas and a tenant-scoped repository method.
+- Added API Planning query service template contracts with Zod-validated input/output, Planning read-role checks, actor/request tenant forwarding, and tenant/service-type mismatch guards.
+- Added focused DB/API tests for operation shape, repository contract shape, input validation, role rejection, tenant scope, empty template results, and service-type mismatch.
+- Kept production persistence, migrations, GraphQL resolver wiring, UI, and template duplication out of scope.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Wire Planning GraphQL `serviceTemplates(serviceTypeId)` resolver contracts to the Planning query service.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:42 EDT · feature/planning-readiness-domain
 
 Tasks completed:
