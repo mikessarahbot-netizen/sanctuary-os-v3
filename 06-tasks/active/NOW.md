@@ -17,12 +17,12 @@ Implement Planning query service contracts for service and assignment reads.
 Database migrations · concrete production persistence adapter · GraphQL wiring changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data · AI setlist generation
 
 ## Progress
-- [ ] Add Planning query service schemas and repository interfaces
-- [ ] Add tenant-scope and role guard behavior
-- [ ] Add query service contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add Planning query service schemas and repository interfaces
+- [x] Add tenant-scope and role guard behavior
+- [x] Add query service contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning query service contracts exist for planned service and assignment reads, remain adapter-free, are validated by tests, committed, pushed, and documented in session handoff.

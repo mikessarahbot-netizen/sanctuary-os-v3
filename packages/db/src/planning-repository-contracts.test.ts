@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   CreatePlanningServicePersistenceOperationSchema,
+  ListPlanningServicesPersistenceOperationSchema,
   RepositoryWriteOptionsSchema,
   UpdatePlanningServicePersistenceOperationSchema,
+  type PlanningReadinessPersistenceRecord,
   type PlanningServicePersistenceRecord
 } from "./index.js";
-import type { PlanningServiceCommandPersistenceRepository } from "./index.js";
+import type {
+  PlanningServiceCommandPersistenceRepository,
+  PlanningServiceQueryPersistenceRepository
+} from "./index.js";
 
 const serviceRecord: PlanningServicePersistenceRecord = {
   serviceId: "service_1",
@@ -13,6 +18,24 @@ const serviceRecord: PlanningServicePersistenceRecord = {
   status: "draft",
   tenantId: "tenant_1",
   title: "Sunday Service"
+};
+
+const readinessRecord: PlanningReadinessPersistenceRecord = {
+  band: "needs-attention",
+  checks: [
+    {
+      code: "required-roles",
+      label: "Required roles assigned",
+      maxScore: 25,
+      score: 15
+    }
+  ],
+  readinessScore: 65,
+  recommendedActions: ["Finish: Required roles assigned."],
+  risks: ["Required roles assigned is incomplete."],
+  serviceId: "service_1",
+  strengths: [],
+  tenantId: "tenant_1"
 };
 
 describe("Planning repository contracts", () => {
@@ -68,6 +91,26 @@ describe("Planning repository contracts", () => {
         }
       }).options.intent
     ).toBe("destructive-confirmed");
+  });
+
+  it("validates tenant-scoped Planning read operation shapes", () => {
+    expect(
+      ListPlanningServicesPersistenceOperationSchema.parse({
+        input: {
+          filter: {
+            startsAtOrAfter: "2026-06-21T00:00:00.000Z",
+            status: "scheduled"
+          }
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_1",
+            tenantId: "tenant_1"
+          }
+        }
+      }).input.filter?.status
+    ).toBe("scheduled");
   });
 
   it("defines an adapter-free Planning persistence repository interface", async () => {
@@ -151,5 +194,78 @@ describe("Planning repository contracts", () => {
         }
       })
     ).resolves.toEqual(serviceRecord);
+  });
+
+  it("defines an adapter-free Planning query persistence repository interface", async () => {
+    const repository: PlanningServiceQueryPersistenceRepository = {
+      getService: (operation) =>
+        Promise.resolve({
+          ...serviceRecord,
+          serviceId: operation.input.serviceId,
+          tenantId: operation.options.context.tenantId
+        }),
+      getServiceReadiness: (operation) =>
+        Promise.resolve({
+          ...readinessRecord,
+          serviceId: operation.input.serviceId,
+          tenantId: operation.options.context.tenantId
+        }),
+      listServiceAssignments: (operation) =>
+        Promise.resolve([
+          {
+            assignmentId: "assignment_1",
+            personId: "person_1",
+            roleId: "role_vocal",
+            serviceId: operation.input.serviceId,
+            status: "pending",
+            tenantId: operation.options.context.tenantId
+          }
+        ]),
+      listServices: (operation) =>
+        Promise.resolve([
+          {
+            ...serviceRecord,
+            status: operation.input.filter?.status ?? serviceRecord.status,
+            tenantId: operation.options.context.tenantId
+          }
+        ])
+    };
+
+    await expect(
+      repository.listServices({
+        input: {
+          filter: {
+            status: "scheduled"
+          }
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_1",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).resolves.toEqual([
+      {
+        ...serviceRecord,
+        status: "scheduled"
+      }
+    ]);
+
+    await expect(
+      repository.getServiceReadiness({
+        input: {
+          serviceId: "service_1"
+        },
+        options: {
+          context: {
+            actorId: "actor_1",
+            requestId: "request_2",
+            tenantId: "tenant_1"
+          }
+        }
+      })
+    ).resolves.toEqual(readinessRecord);
   });
 });

@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:38 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added adapter-free Planning query persistence contracts in `packages/db` for `services(filter)`, `service(id)`, `serviceAssignments(serviceId)`, and `serviceReadiness(serviceId)`.
+- Added `createPlanningQueryService` in `apps/api` with Zod-validated query schemas, Planning read-role checks, actor/request tenant forwarding, and tenant/service mismatch guards for services, assignments, and readiness records.
+- Added focused API and DB tests for query input validation, repository operation shape, role rejection, tenant scope, service scope, nullable lookups, and readiness reads.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed the completed query service contract slice.
+
+Next task:
+- Wire Planning GraphQL query resolver contracts to the Planning query service contracts.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:34 EDT · feature/planning-readiness-domain
 
 Tasks completed:

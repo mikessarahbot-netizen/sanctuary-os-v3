@@ -1,0 +1,274 @@
+import { describe, expect, it, vi } from "vitest";
+import type { PlanningReadinessResult } from "../../domain/index.js";
+import {
+  createPlanningQueryService,
+  ListPlanningServicesQuerySchema,
+  type PlanningQueryRepository
+} from "./queries.js";
+import type { PlanningAssignmentRecord, PlanningServiceRecord } from "./commands.js";
+
+const serviceRecord: PlanningServiceRecord = {
+  serviceId: "service_1",
+  serviceTypeId: "type_sunday",
+  startsAt: "2026-06-21T14:00:00.000Z",
+  status: "scheduled",
+  tenantId: "tenant_1",
+  title: "Sunday Worship"
+};
+
+const assignmentRecord: PlanningAssignmentRecord = {
+  assignmentId: "assignment_1",
+  personId: "person_1",
+  roleId: "role_vocal",
+  serviceId: "service_1",
+  status: "confirmed",
+  tenantId: "tenant_1"
+};
+
+const readinessRecord: PlanningReadinessResult = {
+  band: "ready",
+  checks: [
+    {
+      code: "required-roles",
+      label: "Required roles assigned",
+      maxScore: 25,
+      score: 25
+    }
+  ],
+  readinessScore: 100,
+  recommendedActions: [],
+  risks: [],
+  serviceId: "service_1",
+  strengths: ["Required roles assigned is complete."],
+  tenantId: "tenant_1"
+};
+
+const createRepository = (
+  overrides: Partial<PlanningQueryRepository> = {}
+): PlanningQueryRepository => ({
+  getService: () => Promise.resolve(serviceRecord),
+  getServiceReadiness: () => Promise.resolve(readinessRecord),
+  listServiceAssignments: () => Promise.resolve([assignmentRecord]),
+  listServices: () => Promise.resolve([serviceRecord]),
+  ...overrides
+});
+
+describe("Planning query schemas", () => {
+  it("validates service list filters before repository access", () => {
+    expect(() =>
+      ListPlanningServicesQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          filter: {
+            startsAtOrAfter: "not-a-date"
+          }
+        },
+        requestId: "request_1"
+      })
+    ).toThrow();
+
+    expect(() =>
+      ListPlanningServicesQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          filter: {
+            startsAtOrAfter: "2026-06-22T00:00:00.000Z",
+            startsBefore: "2026-06-21T00:00:00.000Z"
+          }
+        },
+        requestId: "request_1"
+      })
+    ).toThrow("Service filter startsAtOrAfter must be before startsBefore.");
+
+    expect(
+      ListPlanningServicesQuerySchema.parse({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          filter: {
+            startsAtOrAfter: "2026-06-21T00:00:00.000Z",
+            status: "scheduled"
+          }
+        },
+        requestId: "request_1"
+      }).input.filter?.status
+    ).toBe("scheduled");
+  });
+});
+
+describe("createPlanningQueryService", () => {
+  it("tenant-scopes service list reads through the actor and repository boundary", async () => {
+    const listServices = vi.fn<PlanningQueryRepository["listServices"]>(() =>
+      Promise.resolve([serviceRecord])
+    );
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({ listServices })
+    });
+
+    await expect(
+      service.services({
+        actor: {
+          actorId: "actor_1",
+          roles: ["worship_leader"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          filter: {
+            serviceTypeId: "type_sunday",
+            status: "scheduled"
+          }
+        },
+        requestId: "request_1"
+      })
+    ).resolves.toEqual([serviceRecord]);
+
+    expect(listServices).toHaveBeenCalledWith({
+      input: {
+        filter: {
+          serviceTypeId: "type_sunday",
+          status: "scheduled"
+        }
+      },
+      options: {
+        context: {
+          actorId: "actor_1",
+          requestId: "request_1",
+          tenantId: "tenant_1"
+        }
+      }
+    });
+  });
+
+  it("rejects actors without Planning query roles before persistence", async () => {
+    const getService = vi.fn<PlanningQueryRepository["getService"]>(() =>
+      Promise.resolve(serviceRecord)
+    );
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({ getService })
+    });
+
+    await expect(
+      service.service({
+        actor: {
+          actorId: "actor_1",
+          roles: ["super_admin"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceId: "service_1"
+        },
+        requestId: "request_1"
+      })
+    ).rejects.toThrow("Actor is not allowed to read planning services.");
+
+    expect(getService).not.toHaveBeenCalled();
+  });
+
+  it("rejects cross-tenant service records returned by persistence", async () => {
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({
+        getService: () =>
+          Promise.resolve({
+            ...serviceRecord,
+            tenantId: "tenant_2"
+          })
+      })
+    });
+
+    await expect(
+      service.service({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceId: "service_1"
+        },
+        requestId: "request_1"
+      })
+    ).rejects.toThrow("Planning service query tenant mismatch.");
+  });
+
+  it("rejects assignment and readiness records outside the requested service", async () => {
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({
+        getServiceReadiness: () =>
+          Promise.resolve({
+            ...readinessRecord,
+            serviceId: "service_2"
+          }),
+        listServiceAssignments: () =>
+          Promise.resolve([
+            {
+              ...assignmentRecord,
+              serviceId: "service_2"
+            }
+          ])
+      })
+    });
+
+    await expect(
+      service.serviceAssignments({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceId: "service_1"
+        },
+        requestId: "request_assignments"
+      })
+    ).rejects.toThrow("Planning assignment query service mismatch.");
+
+    await expect(
+      service.serviceReadiness({
+        actor: {
+          actorId: "actor_1",
+          roles: ["viewer"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          serviceId: "service_1"
+        },
+        requestId: "request_readiness"
+      })
+    ).rejects.toThrow("Planning readiness query service mismatch.");
+  });
+
+  it("returns null when nullable service and readiness lookups miss", async () => {
+    const service = createPlanningQueryService({
+      planningRepository: createRepository({
+        getService: () => Promise.resolve(null),
+        getServiceReadiness: () => Promise.resolve(null)
+      })
+    });
+
+    const query = {
+      actor: {
+        actorId: "actor_1",
+        roles: ["viewer" as const],
+        tenantId: "tenant_1"
+      },
+      input: {
+        serviceId: "service_missing"
+      },
+      requestId: "request_1"
+    };
+
+    await expect(service.service(query)).resolves.toBeNull();
+    await expect(service.serviceReadiness(query)).resolves.toBeNull();
+  });
+});
