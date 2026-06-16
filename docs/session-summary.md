@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:42 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added Planning GraphQL query schema/resolver contracts for `services(filter)`, `service(id)`, `serviceAssignments(serviceId)`, and `serviceReadiness(serviceId)`.
+- Kept resolvers thin by parsing GraphQL-style args/context, attaching `AuthenticatedActor` and `requestId`, and delegating to the Planning query service.
+- Preserved existing mutation resolver behavior while adding query resolver dependencies.
+- Added focused GraphQL tests for query schema names, query resolver delegation, request context propagation, nullable service/readiness results, and invalid query input rejection.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Implement Planning service template query contracts.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:38 EDT · feature/planning-readiness-domain
 
 Tasks completed:
