@@ -40,7 +40,7 @@ export const PlanningSetlistChurchContextServiceSchema = z
   .object({
     serviceId: NonEmptyStringSchema,
     serviceType: NonEmptyStringSchema,
-    serviceTypeId: NonEmptyStringSchema,
+    serviceTypeId: OptionalNonEmptyStringSchema,
     startsAt: z.string().datetime().optional(),
     scriptureReference: OptionalNonEmptyStringSchema,
     sermonTheme: OptionalNonEmptyStringSchema,

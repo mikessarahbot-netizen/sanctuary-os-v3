@@ -1,6 +1,14 @@
 import { z } from "zod";
 import type { AuthenticatedActor } from "../../auth/index.js";
 import { ApiRoleSchema, AuthenticatedActorSchema } from "../../auth/index.js";
+import type {
+  PlanningSetlistChurchContextProjectionEnvelope,
+  PlanningSetlistChurchContextProjectionRequest
+} from "../../context/index.js";
+import {
+  buildPlanningSetlistChurchContextProjectionEnvelope,
+  PlanningSetlistChurchContextProjectionEnvelopeSchema
+} from "../../context/index.js";
 import type { EventPublisher } from "../../events/index.js";
 import type {
   PlanningPersistenceOperation,
@@ -334,8 +342,15 @@ export interface PlanningCommandRepository {
 
 export interface PlanningCommandServiceDependencies {
   readonly eventPublisher: EventPublisher;
+  readonly churchContextBuilder?: PlanningSetlistChurchContextBuilder;
   readonly setlistGenerator?: PlanningSetlistGenerator;
   readonly planningRepository: PlanningCommandRepository;
+}
+
+export interface PlanningSetlistChurchContextBuilder {
+  readonly buildPlanningSetlistProjection: (
+    request: PlanningSetlistChurchContextProjectionRequest
+  ) => Promise<PlanningSetlistChurchContextProjectionEnvelope>;
 }
 
 export interface PlanningSetlistGenerator {
@@ -562,16 +577,17 @@ export const createPlanningCommandService = (
       throw new Error("Planning setlist generator is not configured.");
     }
 
-    const promptRequest = PlanningSetlistPromptRequestSchema.parse({
-      ...command.input,
-      requestId: command.requestId,
-      tenantId: command.actor.tenantId
-    });
+    const projectionEnvelope = PlanningSetlistChurchContextProjectionEnvelopeSchema.parse(
+      await buildPlanningSetlistProjection(dependencies, command)
+    );
+    assertPlanningSetlistProjectionMatchesCommand(command, projectionEnvelope);
+
+    const promptRequest = toPlanningSetlistPromptRequest(projectionEnvelope);
     const promptResult = PlanningSetlistPromptResultSchema.parse(
       await generator.generateSetlist(promptRequest)
     );
 
-    assertGeneratedSongsFromLibrary(promptResult, command.input.songLibrary);
+    assertGeneratedSongsFromLibrary(promptResult, promptRequest.songLibrary);
 
     return PlanningGeneratedSetlistResultSchema.parse({
       ...promptResult,
@@ -582,11 +598,192 @@ export const createPlanningCommandService = (
       },
       persisted: false,
       requestId: command.requestId,
-      serviceId: command.input.serviceId,
+      serviceId: projectionEnvelope.serviceId,
       tenantId: command.actor.tenantId
     });
   }
 });
+
+const buildPlanningSetlistProjection = async (
+  dependencies: PlanningCommandServiceDependencies,
+  command: GeneratePlanningSetlistCommand
+): Promise<PlanningSetlistChurchContextProjectionEnvelope> => {
+  const request = {
+    projectionName: "planning-setlist",
+    requestId: command.requestId,
+    requestedByActorId: command.actor.actorId,
+    serviceId: command.input.serviceId,
+    tenantId: command.actor.tenantId
+  } as const;
+
+  if (dependencies.churchContextBuilder !== undefined) {
+    return dependencies.churchContextBuilder.buildPlanningSetlistProjection(request);
+  }
+
+  return buildPlanningSetlistChurchContextProjectionEnvelope({
+    payload: {
+      aiPolicyProfile: {
+        enabledAIFeatures: ["setlist-generation"],
+        humanReviewRequiredFor: ["ai-suggested-write"],
+        lastReviewedAt: new Date(0).toISOString(),
+        piiSharingAllowed: false,
+        retentionPolicy: "do-not-retain-prompt-payload"
+      },
+      churchContextSummary: command.input.churchContextSummary,
+      churchPreferences: {
+        bannedOrPausedSongIds: command.input.songLibrary
+          .filter((song) => song.isBannedOrPaused)
+          .map((song) => song.songId),
+        defaultServiceFlow: command.input.churchPreferences,
+        preferredKeys: [],
+        styleNotes: []
+      },
+      contextMetadata: {
+        generatedAt: new Date(0).toISOString(),
+        projectionName: "planning-setlist",
+        schemaVersion: "planning-setlist.v1",
+        tenantId: command.actor.tenantId
+      },
+      integrations: {
+        ccliAvailable: false,
+        songSelectAvailable: false
+      },
+      planningConstraints: {
+        availableRoleIds: [],
+        excludedSongIds: [],
+        keyTransitionsAllowed: true,
+        requiredSongIds: []
+      },
+      recentUsageHistory: {
+        overusedSongIds: [],
+        recentlyUsedSongIds: [],
+        summaryNotes: command.input.recentUsageHistory
+      },
+      service: {
+        scriptureReference: command.input.scriptureReference,
+        sermonTheme: command.input.sermonTheme,
+        serviceId: command.input.serviceId,
+        serviceType: command.input.serviceType,
+        serviceTypeId: command.input.serviceType,
+        targetSetLength: command.input.targetSetLength
+      },
+      songLibrary: command.input.songLibrary.map((song) => ({
+        artist: song.artist,
+        availableKeys: song.availableKeys,
+        defaultKey: song.defaultKey,
+        isBannedOrPaused: song.isBannedOrPaused,
+        licensingFlags: [],
+        songId: song.songId,
+        title: song.title,
+        usageCount: song.usageCount
+      })),
+      targetSetLength: command.input.targetSetLength,
+      teamConstraints: command.input.planningConstraints
+    },
+    request
+  });
+};
+
+const assertPlanningSetlistProjectionMatchesCommand = (
+  command: GeneratePlanningSetlistCommand,
+  projectionEnvelope: PlanningSetlistChurchContextProjectionEnvelope
+): void => {
+  if (projectionEnvelope.tenantId !== command.actor.tenantId) {
+    throw new Error("Planning setlist projection tenant mismatch.");
+  }
+
+  if (projectionEnvelope.requestId !== command.requestId) {
+    throw new Error("Planning setlist projection request mismatch.");
+  }
+
+  if (projectionEnvelope.requestedByActorId !== command.actor.actorId) {
+    throw new Error("Planning setlist projection actor mismatch.");
+  }
+
+  if (projectionEnvelope.serviceId !== command.input.serviceId) {
+    throw new Error("Planning setlist projection service mismatch.");
+  }
+};
+
+const toPlanningSetlistPromptRequest = (
+  projectionEnvelope: PlanningSetlistChurchContextProjectionEnvelope
+): PlanningSetlistPromptRequest =>
+  PlanningSetlistPromptRequestSchema.parse({
+    churchContextSummary: projectionEnvelope.payload.churchContextSummary,
+    churchPreferences: toPlanningSetlistPreferencePromptLines(
+      projectionEnvelope.payload.churchPreferences
+    ),
+    planningConstraints: toPlanningSetlistConstraintPromptLines(
+      projectionEnvelope.payload.planningConstraints,
+      projectionEnvelope.payload.teamConstraints
+    ),
+    recentUsageHistory: toPlanningSetlistUsagePromptLines(
+      projectionEnvelope.payload.recentUsageHistory
+    ),
+    requestId: projectionEnvelope.requestId,
+    scriptureReference: projectionEnvelope.payload.service.scriptureReference,
+    sermonTheme: projectionEnvelope.payload.service.sermonTheme,
+    serviceId: projectionEnvelope.payload.service.serviceId,
+    serviceType: projectionEnvelope.payload.service.serviceType,
+    songLibrary: toPlanningSetlistSongCandidates(
+      projectionEnvelope.payload.songLibrary
+    ),
+    targetSetLength: projectionEnvelope.payload.targetSetLength,
+    tenantId: projectionEnvelope.tenantId
+  });
+
+const toPlanningSetlistPreferencePromptLines = (
+  preferences: PlanningSetlistChurchContextProjectionEnvelope["payload"]["churchPreferences"]
+): readonly string[] => [
+  ...preferences.styleNotes,
+  ...preferences.preferredKeys.map((key) => `Preferred key: ${key}`),
+  ...preferences.defaultServiceFlow.map((moment) => `Default service flow: ${moment}`),
+  ...preferences.bannedOrPausedSongIds.map(
+    (songId) => `Banned or paused song ID: ${songId}`
+  )
+];
+
+const toPlanningSetlistConstraintPromptLines = (
+  constraints: PlanningSetlistChurchContextProjectionEnvelope["payload"]["planningConstraints"],
+  teamConstraints: readonly string[]
+): readonly string[] => [
+  ...teamConstraints,
+  ...constraints.availableRoleIds.map((roleId) => `Available role ID: ${roleId}`),
+  ...constraints.excludedSongIds.map((songId) => `Excluded song ID: ${songId}`),
+  ...constraints.requiredSongIds.map((songId) => `Required song ID: ${songId}`),
+  `Key transitions allowed: ${constraints.keyTransitionsAllowed ? "yes" : "no"}`,
+  ...(constraints.maxNewSongs === undefined
+    ? []
+    : [`Maximum new songs: ${constraints.maxNewSongs.toString()}`])
+];
+
+const toPlanningSetlistUsagePromptLines = (
+  recentUsageHistory: PlanningSetlistChurchContextProjectionEnvelope["payload"]["recentUsageHistory"]
+): readonly string[] => [
+  ...recentUsageHistory.summaryNotes,
+  ...recentUsageHistory.recentlyUsedSongIds.map(
+    (songId) => `Recently used song ID: ${songId}`
+  ),
+  ...recentUsageHistory.overusedSongIds.map((songId) => `Overused song ID: ${songId}`),
+  ...(recentUsageHistory.lastServiceDate === undefined
+    ? []
+    : [`Last service date: ${recentUsageHistory.lastServiceDate}`])
+];
+
+const toPlanningSetlistSongCandidates = (
+  songLibrary: PlanningSetlistChurchContextProjectionEnvelope["payload"]["songLibrary"]
+): readonly PlanningSetlistSongCandidate[] =>
+  songLibrary.map((song) =>
+    PlanningSetlistSongCandidateSchema.parse({
+      artist: song.artist,
+      availableKeys: song.availableKeys,
+      defaultKey: song.defaultKey,
+      isBannedOrPaused: song.isBannedOrPaused,
+      songId: song.songId,
+      title: song.title,
+      usageCount: song.usageCount
+    })
+  );
 
 const toPlanningPersistenceOperation = <TInput>(
   command: Readonly<{

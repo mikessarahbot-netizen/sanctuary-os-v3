@@ -19,10 +19,10 @@ Integrate the Planning setlist ChurchContext projection into the generateSetlist
 Production ChurchContext persistence · vendor AI adapter implementation · GraphQL SDL changes · UI components · prompt text changes · automatic service mutations · CCLI/SongSelect credentials
 
 ## Progress
-- [ ] Re-sync with required docs and current implementation
-- [ ] Wire Planning setlist projection validation into `generateSetlist`
-- [ ] Add focused service tests for projection usage and rejection paths
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current implementation
+- [x] Wire Planning setlist projection validation into `generateSetlist`
+- [x] Add focused service tests for projection usage and rejection paths
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 

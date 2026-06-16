@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedActor } from "../../auth/index.js";
+import type { PlanningSetlistChurchContextProjectionEnvelope } from "../../context/index.js";
 import type { ApiEventEnvelope } from "../../events/index.js";
 import {
   createPlanningCommandService,
@@ -10,6 +11,7 @@ import {
   type PlanningAssignmentRecord,
   type PlanningCommandRepository,
   type PlanningGeneratedSetlistResult,
+  type PlanningSetlistChurchContextBuilder,
   type PlanningSetlistGenerator,
   type PlanningSetlistPromptResult,
   type PlanningSetlistSongCandidate,
@@ -96,6 +98,86 @@ const generatedSetlistResult: PlanningGeneratedSetlistResult = {
   },
   persisted: false,
   requestId: "request_setlist",
+  serviceId: "service_1",
+  tenantId: "tenant_1"
+};
+
+const planningSetlistProjectionEnvelope: PlanningSetlistChurchContextProjectionEnvelope = {
+  generatedAt: "2026-06-16T18:00:00.000Z",
+  payload: {
+    aiPolicyProfile: {
+      enabledAIFeatures: ["setlist-generation"],
+      humanReviewRequiredFor: ["ai-suggested-write"],
+      lastReviewedAt: "2026-06-01T00:00:00.000Z",
+      piiSharingAllowed: false,
+      retentionPolicy: "do-not-retain-prompt-payload"
+    },
+    churchContextSummary: "Projection-safe planning summary.",
+    churchPreferences: {
+      bannedOrPausedSongIds: ["song_paused"],
+      defaultServiceFlow: ["Gathering", "Response"],
+      preferredKeys: ["G"],
+      styleNotes: ["Prefer congregational songs."]
+    },
+    contextMetadata: {
+      generatedAt: "2026-06-16T18:00:00.000Z",
+      projectionName: "planning-setlist",
+      schemaVersion: "planning-setlist.v1",
+      tenantId: "tenant_1"
+    },
+    integrations: {
+      ccliAvailable: false,
+      songSelectAvailable: false
+    },
+    planningConstraints: {
+      availableRoleIds: ["role_vocal"],
+      excludedSongIds: [],
+      keyTransitionsAllowed: true,
+      requiredSongIds: []
+    },
+    recentUsageHistory: {
+      overusedSongIds: [],
+      recentlyUsedSongIds: ["song_1"],
+      summaryNotes: ["song_1 used 4 weeks ago."]
+    },
+    service: {
+      scriptureReference: "Psalm 24",
+      sermonTheme: "King of Glory",
+      serviceId: "service_1",
+      serviceType: "Sunday",
+      serviceTypeId: "type_sunday",
+      startsAt: "2026-06-21T14:00:00.000Z",
+      targetSetLength: 1
+    },
+    songLibrary: [
+      {
+        artist: "Sanctuary Collective",
+        availableKeys: ["G", "A"],
+        defaultKey: "G",
+        isBannedOrPaused: false,
+        licensingFlags: [],
+        songId: "song_1",
+        title: "Open The Gates",
+        usageCount: 4
+      },
+      {
+        artist: "Sanctuary Collective",
+        availableKeys: ["D"],
+        defaultKey: "D",
+        isBannedOrPaused: true,
+        licensingFlags: [],
+        songId: "song_paused",
+        title: "Paused Song",
+        usageCount: 8
+      }
+    ],
+    targetSetLength: 1,
+    teamConstraints: ["Avoid paused songs."]
+  },
+  projectionName: "planning-setlist",
+  requestId: "request_setlist",
+  requestedByActorId: "actor_1",
+  schemaVersion: "planning-setlist.v1",
   serviceId: "service_1",
   tenantId: "tenant_1"
 };
@@ -503,8 +585,11 @@ describe("createPlanningCommandService", () => {
 
     expect(generateSetlist).toHaveBeenCalledWith({
       churchContextSummary: "Non-PII planning summary.",
-      churchPreferences: ["Prefer congregational songs."],
-      planningConstraints: ["Avoid paused songs."],
+      churchPreferences: [
+        "Default service flow: Prefer congregational songs.",
+        "Banned or paused song ID: song_paused"
+      ],
+      planningConstraints: ["Avoid paused songs.", "Key transitions allowed: yes"],
       recentUsageHistory: ["song_1 used 4 weeks ago."],
       requestId: "request_setlist",
       scriptureReference: "Psalm 24",
@@ -516,6 +601,126 @@ describe("createPlanningCommandService", () => {
       tenantId: "tenant_1"
     });
     expect(addServiceItem).not.toHaveBeenCalled();
+  });
+
+  it("builds and validates the Planning setlist projection before prompt execution", async () => {
+    const buildPlanningSetlistProjection = vi.fn<
+      PlanningSetlistChurchContextBuilder["buildPlanningSetlistProjection"]
+    >(() => Promise.resolve(planningSetlistProjectionEnvelope));
+    const generateSetlist = vi.fn<PlanningSetlistGenerator["generateSetlist"]>(() =>
+      Promise.resolve(setlistPromptResult)
+    );
+    const service = createPlanningCommandService({
+      churchContextBuilder: { buildPlanningSetlistProjection },
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository(),
+      setlistGenerator: { generateSetlist }
+    });
+
+    await expect(
+      service.generateSetlist({
+        actor: {
+          actorId: "actor_1",
+          roles: ["worship_leader"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          churchContextSummary: "Legacy GraphQL summary should not bypass projection.",
+          churchPreferences: [],
+          planningConstraints: [],
+          recentUsageHistory: [],
+          serviceId: "service_1",
+          serviceType: "Sunday",
+          songLibrary: setlistSongLibrary,
+          targetSetLength: 1
+        },
+        requestId: "request_setlist"
+      })
+    ).resolves.toEqual(generatedSetlistResult);
+
+    expect(buildPlanningSetlistProjection).toHaveBeenCalledWith({
+      projectionName: "planning-setlist",
+      requestId: "request_setlist",
+      requestedByActorId: "actor_1",
+      serviceId: "service_1",
+      tenantId: "tenant_1"
+    });
+    expect(generateSetlist).toHaveBeenCalledWith({
+      churchContextSummary: "Projection-safe planning summary.",
+      churchPreferences: [
+        "Prefer congregational songs.",
+        "Preferred key: G",
+        "Default service flow: Gathering",
+        "Default service flow: Response",
+        "Banned or paused song ID: song_paused"
+      ],
+      planningConstraints: [
+        "Avoid paused songs.",
+        "Available role ID: role_vocal",
+        "Key transitions allowed: yes"
+      ],
+      recentUsageHistory: [
+        "song_1 used 4 weeks ago.",
+        "Recently used song ID: song_1"
+      ],
+      requestId: "request_setlist",
+      scriptureReference: "Psalm 24",
+      sermonTheme: "King of Glory",
+      serviceId: "service_1",
+      serviceType: "Sunday",
+      songLibrary: setlistSongLibrary,
+      targetSetLength: 1,
+      tenantId: "tenant_1"
+    });
+  });
+
+  it("rejects invalid Planning setlist projections before prompt execution", async () => {
+    const buildPlanningSetlistProjection = vi.fn<
+      PlanningSetlistChurchContextBuilder["buildPlanningSetlistProjection"]
+    >(() =>
+      Promise.resolve({
+        ...planningSetlistProjectionEnvelope,
+        payload: {
+          ...planningSetlistProjectionEnvelope.payload,
+          contextMetadata: {
+            ...planningSetlistProjectionEnvelope.payload.contextMetadata,
+            tenantId: "tenant_2"
+          }
+        }
+      })
+    );
+    const generateSetlist = vi.fn<PlanningSetlistGenerator["generateSetlist"]>(() =>
+      Promise.resolve(setlistPromptResult)
+    );
+    const service = createPlanningCommandService({
+      churchContextBuilder: { buildPlanningSetlistProjection },
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: createRepository(),
+      setlistGenerator: { generateSetlist }
+    });
+
+    await expect(
+      service.generateSetlist({
+        actor: {
+          actorId: "actor_1",
+          roles: ["planner"],
+          tenantId: "tenant_1"
+        },
+        input: {
+          churchContextSummary: "Non-PII planning summary.",
+          churchPreferences: [],
+          planningConstraints: [],
+          recentUsageHistory: [],
+          serviceId: "service_1",
+          serviceType: "Sunday",
+          songLibrary: setlistSongLibrary,
+          targetSetLength: 1
+        },
+        requestId: "request_setlist"
+      })
+    ).rejects.toThrow("Planning setlist projection envelope tenant mismatch.");
+
+    expect(generateSetlist).not.toHaveBeenCalled();
   });
 
   it("rejects generate setlist actors without Planning command roles", async () => {
