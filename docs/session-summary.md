@@ -12,6 +12,7 @@ Tasks completed:
 - Added API context request/envelope contracts plus an adapter-free helper that wraps validated `planning-setlist` payloads with request actor/service metadata and rejects tenant/service/schema/timestamp mismatches.
 - Added focused shared package and API context tests for valid projections, PII-shaped field rejection, banned/paused song guards, and request metadata validation.
 - Ran and passed focused context checks, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `68398be feat(context): add planning setlist projection contracts`.
 - Completed the task checklist in `06-tasks/active/NOW.md`.
 
 Next task:
