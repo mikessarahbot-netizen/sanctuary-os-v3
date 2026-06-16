@@ -47,7 +47,7 @@ Tasks completed:
 - Verified `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass.
 
 Next task:
-- Implement the next approved Planning API service contract slice, likely GraphQL resolver contract wiring for readiness once persistence adapters are available.
+- Implement Planning service command contracts.
 
 Open questions:
 - None.
