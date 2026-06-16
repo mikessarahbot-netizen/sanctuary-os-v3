@@ -3,6 +3,7 @@ import type { PlanningReadinessResult } from "../domain/planning/index.js";
 import type {
   PlanningAssignmentRecord,
   PlanningCommandService,
+  PlanningGeneratedSetlistResult,
   PlanningQueryService,
   PlanningServiceItemRecord,
   PlanningServiceRecord,
@@ -99,6 +100,32 @@ const readinessResult: PlanningReadinessResult = {
   tenantId: "tenant_1"
 };
 
+const generatedSetlistResult: PlanningGeneratedSetlistResult = {
+  alternatives: [],
+  confidence: 0.8,
+  flowAnalysis: "Builds from gathering to response.",
+  generatedByActorId: "actor_1",
+  humanReview: {
+    gate: "ai-suggested-write",
+    required: true
+  },
+  needsReview: true,
+  persisted: false,
+  recommendedSetlist: [
+    {
+      rationale: "Known opener.",
+      songId: "song_1",
+      title: "Opening Song"
+    }
+  ],
+  requestId: "request_1",
+  reviewNotes: ["Review before adding to the plan."],
+  serviceId: "service_1",
+  status: "suggested",
+  tenantId: "tenant_1",
+  usageWarnings: []
+};
+
 const createPlanningCommandService = (
   overrides: Partial<PlanningCommandService> = {}
 ): PlanningCommandService => ({
@@ -115,31 +142,7 @@ const createPlanningCommandService = (
     PlanningCommandService["duplicateServiceFromTemplate"]
   >(() => Promise.resolve(serviceRecord)),
   generateSetlist: vi.fn<PlanningCommandService["generateSetlist"]>(() =>
-    Promise.resolve({
-      alternatives: [],
-      confidence: 0.8,
-      flowAnalysis: "Builds from gathering to response.",
-      needsReview: true,
-      recommendedSetlist: [
-        {
-          rationale: "Known opener.",
-          songId: "song_1",
-          title: "Opening Song"
-        }
-      ],
-      reviewNotes: ["Review before adding to the plan."],
-      generatedByActorId: "actor_1",
-      humanReview: {
-        gate: "ai-suggested-write",
-        required: true
-      },
-      persisted: false,
-      requestId: "request_1",
-      serviceId: "service_1",
-      status: "suggested",
-      tenantId: "tenant_1",
-      usageWarnings: []
-    })
+    Promise.resolve(generatedSetlistResult)
   ),
   reorderServiceItems: vi.fn<PlanningCommandService["reorderServiceItems"]>(() =>
     Promise.resolve([serviceItemRecord])
@@ -227,7 +230,12 @@ describe("planningGraphqlTypeDefs", () => {
     expect(planningGraphqlTypeDefs).toContain(
       "updateAssignmentStatus(input: UpdateAssignmentStatusInput!)"
     );
-    expect(planningGraphqlTypeDefs).toContain("generateSetlist(input: GenerateSetlistInput!)");
+    expect(planningGraphqlTypeDefs).toContain("type PlanningGeneratedSetlist");
+    expect(planningGraphqlTypeDefs).toContain("type PlanningSetlistRecommendation");
+    expect(planningGraphqlTypeDefs).toContain("type PlanningSetlistAlternative");
+    expect(planningGraphqlTypeDefs).toContain(
+      "generateSetlist(input: GenerateSetlistInput!): PlanningGeneratedSetlist!"
+    );
     expect(planningGraphqlTypeDefs).toContain(
       "refreshReadinessScore(input: RefreshReadinessScoreInput!)"
     );
@@ -402,6 +410,160 @@ describe("createPlanningGraphqlResolvers", () => {
       },
       requestId: "request_1"
     });
+  });
+
+  it("delegates generateSetlist to the Planning command service with actor and request scope", async () => {
+    const generateSetlist = vi.fn<PlanningCommandService["generateSetlist"]>(() =>
+      Promise.resolve({
+        ...generatedSetlistResult,
+        requestId: "request_setlist"
+      })
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService({ generateSetlist }),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.generateSetlist(
+        undefined,
+        {
+          input: {
+            churchContextSummary: "Sunday gathering with a volunteer band.",
+            churchPreferences: ["Keep keys congregational."],
+            planningConstraints: ["No new songs this week."],
+            recentUsageHistory: ["Opening Song used last month."],
+            scriptureReference: "Psalm 100",
+            sermonTheme: "Gratitude",
+            serviceId: "service_1",
+            serviceType: "Sunday Worship",
+            songLibrary: [
+              {
+                artist: "Sanctuary Collective",
+                availableKeys: ["G", "A"],
+                defaultKey: "G",
+                isBannedOrPaused: false,
+                songId: "song_1",
+                title: "Opening Song",
+                usageCount: 6
+              }
+            ],
+            targetSetLength: 1
+          }
+        },
+        {
+          ...graphqlContext,
+          requestId: "request_setlist"
+        }
+      )
+    ).resolves.toEqual({
+      ...generatedSetlistResult,
+      requestId: "request_setlist"
+    });
+
+    expect(generateSetlist).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        churchContextSummary: "Sunday gathering with a volunteer band.",
+        churchPreferences: ["Keep keys congregational."],
+        planningConstraints: ["No new songs this week."],
+        recentUsageHistory: ["Opening Song used last month."],
+        scriptureReference: "Psalm 100",
+        sermonTheme: "Gratitude",
+        serviceId: "service_1",
+        serviceType: "Sunday Worship",
+        songLibrary: [
+          {
+            artist: "Sanctuary Collective",
+            availableKeys: ["G", "A"],
+            defaultKey: "G",
+            isBannedOrPaused: false,
+            songId: "song_1",
+            title: "Opening Song",
+            usageCount: 6
+          }
+        ],
+        targetSetLength: 1
+      },
+      requestId: "request_setlist"
+    });
+  });
+
+  it("returns generated setlists as reviewable suggestions instead of persisted services", async () => {
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService(),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.generateSetlist(
+        undefined,
+        {
+          input: {
+            churchContextSummary: "Sunday gathering with a volunteer band.",
+            churchPreferences: [],
+            planningConstraints: [],
+            recentUsageHistory: [],
+            serviceId: "service_1",
+            serviceType: "Sunday Worship",
+            songLibrary: [
+              {
+                availableKeys: ["G"],
+                songId: "song_1",
+                title: "Opening Song"
+              }
+            ],
+            targetSetLength: 1
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toMatchObject({
+      humanReview: {
+        gate: "ai-suggested-write",
+        required: true
+      },
+      needsReview: true,
+      persisted: false,
+      recommendedSetlist: [
+        {
+          songId: "song_1"
+        }
+      ],
+      serviceId: "service_1",
+      status: "suggested"
+    });
+  });
+
+  it("rejects invalid generateSetlist input before delegating", async () => {
+    const generateSetlist = vi.fn<PlanningCommandService["generateSetlist"]>(() =>
+      Promise.resolve(generatedSetlistResult)
+    );
+    const resolvers = createPlanningGraphqlResolvers({
+      planningCommandService: createPlanningCommandService({ generateSetlist }),
+      planningQueryService: createPlanningQueryService(),
+      planningReadinessService: createPlanningReadinessService()
+    });
+
+    await expect(
+      resolvers.Mutation.generateSetlist(
+        undefined,
+        {
+          input: {
+            churchContextSummary: "",
+            serviceId: "service_1",
+            serviceType: "Sunday Worship",
+            songLibrary: [],
+            targetSetLength: 1
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(generateSetlist).not.toHaveBeenCalled();
   });
 
   it("delegates refreshReadinessScore to the Planning readiness service", async () => {

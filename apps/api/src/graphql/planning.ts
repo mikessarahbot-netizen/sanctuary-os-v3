@@ -4,6 +4,7 @@ import type { PlanningReadinessResult } from "../domain/planning/index.js";
 import type {
   PlanningAssignmentRecord,
   PlanningCommandService,
+  PlanningGeneratedSetlistResult,
   PlanningServiceItemRecord,
   PlanningServiceRecord
 } from "../services/planning/commands.js";
@@ -12,6 +13,7 @@ import {
   AssignPlanningVolunteerCommandSchema,
   CreatePlanningServiceCommandSchema,
   DuplicatePlanningServiceFromTemplateCommandSchema,
+  GeneratePlanningSetlistCommandSchema,
   ReorderPlanningServiceItemsCommandSchema,
   UpdatePlanningAssignmentStatusCommandSchema,
   UpdatePlanningServiceCommandSchema,
@@ -147,6 +149,42 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     usageCount: Int!
   }
 
+  type PlanningSetlistRecommendation {
+    key: String
+    rationale: String!
+    serviceMoment: String
+    songId: ID!
+    title: String!
+  }
+
+  type PlanningSetlistAlternative {
+    reason: String!
+    songId: ID!
+    title: String!
+  }
+
+  type PlanningGeneratedSetlistHumanReview {
+    gate: String!
+    required: Boolean!
+  }
+
+  type PlanningGeneratedSetlist {
+    alternatives: [PlanningSetlistAlternative!]!
+    confidence: Float!
+    flowAnalysis: String!
+    generatedByActorId: ID!
+    humanReview: PlanningGeneratedSetlistHumanReview!
+    needsReview: Boolean!
+    persisted: Boolean!
+    recommendedSetlist: [PlanningSetlistRecommendation!]!
+    requestId: ID!
+    reviewNotes: [String!]!
+    serviceId: ID!
+    status: String!
+    tenantId: ID!
+    usageWarnings: [String!]!
+  }
+
   input PlanningConfirmationIntentInput {
     confirmed: Boolean!
     reason: String!
@@ -209,9 +247,27 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     title: String!
   }
 
+  input PlanningSetlistSongCandidateInput {
+    artist: String
+    availableKeys: [String!]!
+    defaultKey: String
+    isBannedOrPaused: Boolean
+    songId: ID!
+    title: String!
+    usageCount: Int
+  }
+
   input GenerateSetlistInput {
+    churchContextSummary: String!
+    churchPreferences: [String!]!
+    planningConstraints: [String!]!
+    recentUsageHistory: [String!]!
+    scriptureReference: String
+    sermonTheme: String
     serviceId: ID!
-    theme: String
+    serviceType: String!
+    songLibrary: [PlanningSetlistSongCandidateInput!]!
+    targetSetLength: Int!
   }
 
   input RefreshReadinessScoreInput {
@@ -251,7 +307,7 @@ export const planningGraphqlTypeDefs = /* GraphQL */ `
     reorderServiceItems(input: ReorderServiceItemsInput!): [PlanningServiceItem!]!
     assignVolunteer(input: AssignVolunteerInput!): PlanningAssignment!
     updateAssignmentStatus(input: UpdateAssignmentStatusInput!): PlanningAssignment!
-    generateSetlist(input: GenerateSetlistInput!): PlanningService!
+    generateSetlist(input: GenerateSetlistInput!): PlanningGeneratedSetlist!
     refreshReadinessScore(input: RefreshReadinessScoreInput!): PlanningReadiness!
   }
 `;
@@ -293,6 +349,7 @@ export interface PlanningMutationResolvers {
   >;
   readonly assignVolunteer: GraphqlMutationResolver<PlanningAssignmentRecord>;
   readonly updateAssignmentStatus: GraphqlMutationResolver<PlanningAssignmentRecord>;
+  readonly generateSetlist: GraphqlMutationResolver<PlanningGeneratedSetlistResult>;
   readonly refreshReadinessScore: GraphqlMutationResolver<PlanningReadinessResult>;
 }
 
@@ -550,6 +607,22 @@ export const createPlanningGraphqlResolvers = (
 
       return dependencies.planningCommandService.updateAssignmentStatus(
         UpdatePlanningAssignmentStatusCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    generateSetlist: async (
+      _parent,
+      args,
+      context
+    ): Promise<PlanningGeneratedSetlistResult> => {
+      const graphqlContext = parseContext(context);
+
+      return dependencies.planningCommandService.generateSetlist(
+        GeneratePlanningSetlistCommandSchema.parse({
           actor: graphqlContext.actor,
           input: parseInput(args),
           requestId: graphqlContext.requestId

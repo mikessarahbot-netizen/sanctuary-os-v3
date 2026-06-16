@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 13:20 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Wired Planning GraphQL `generateSetlist(input)` to `PlanningCommandService.generateSetlist`.
+- Added reviewable generated-setlist GraphQL SDL contracts (`PlanningGeneratedSetlist`, recommendation/alternative/human-review types, and setlist song candidate input) so generated setlists no longer masquerade as persisted `PlanningService` records.
+- Kept the resolver thin by parsing GraphQL-style `{ input }` args/context, attaching `AuthenticatedActor` and `requestId`, and delegating through `GeneratePlanningSetlistCommandSchema`.
+- Added focused GraphQL tests for SDL return shape, resolver delegation, request context propagation, reviewable result shape, and invalid input rejection before service delegation.
+- Ran and passed focused API GraphQL tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed the task checklist in `06-tasks/active/NOW.md`.
+
+Next task:
+- Select the next approved Planning/API implementation slice from `05-plans/planning-module-plan.md`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 13:15 EDT · feature/planning-readiness-domain
 
 Tasks completed:

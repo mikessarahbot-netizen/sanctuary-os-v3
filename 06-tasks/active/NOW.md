@@ -18,12 +18,12 @@ Wire Planning GraphQL `generateSetlist(input)` resolver contracts to the Plannin
 Database migrations · concrete production persistence adapter · UI components · vendor SDK integrations · direct Claude/OpenAI calls · automatic writes to service items · CCLI/SongSelect implementation · GraphQL server runtime
 
 ## Progress
-- [ ] Add generated setlist GraphQL result SDL contract
-- [ ] Wire `generateSetlist(input)` resolver to the command service
-- [ ] Add focused API GraphQL resolver tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add generated setlist GraphQL result SDL contract
+- [x] Wire `generateSetlist(input)` resolver to the command service
+- [x] Add focused API GraphQL resolver tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning GraphQL `generateSetlist(input)` resolver delegates to the command service with tenant/request context, returns a reviewable generated-setlist result contract, rejects invalid input before delegation, preserves existing resolver behavior, passes lint/typecheck/tests, is committed, pushed, and documented in session handoff.
