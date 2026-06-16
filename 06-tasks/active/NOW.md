@@ -18,10 +18,10 @@ Run a Planning API contract release-check and write findings to `07-reviews/arch
 New runtime features · new public GraphQL operations · UI · vendor adapters · database migrations · queue workers · notification delivery
 
 ## Progress
-- [ ] Re-sync with required docs and current implementation
-- [ ] Audit Planning API contracts against plans and standards
-- [ ] Run lint, typecheck, and tests
-- [ ] Write findings to `07-reviews/architecture/planning-api-contract-release-check.md`
+- [x] Re-sync with required docs and current implementation
+- [x] Audit Planning API contracts against plans and standards
+- [x] Run lint, typecheck, and tests
+- [x] Write findings to `07-reviews/architecture/planning-api-contract-release-check.md`
 - [ ] Commit and push release-check
 - [ ] Session handoff
 
