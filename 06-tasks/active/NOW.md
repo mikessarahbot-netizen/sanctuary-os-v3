@@ -19,11 +19,11 @@ Wire API composition to select Planning persistence adapters by environment.
 Live PostgreSQL connection/client implementation · connection strings or secrets · migration runner execution · production deployment config · GraphQL contract changes · UI · queue workers · vendor SDKs · Auth0 integration changes · ORM/query-builder adoption · new Planning domain behavior
 
 ## Progress
-- [ ] Re-sync with required docs, release-check, API composition code, and repository adapters
-- [ ] Identify current API dependency construction and safe environment/config switch point
-- [ ] Add Planning persistence adapter selection boundary
-- [ ] Add composition tests without live database requirements
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, release-check, API composition code, and repository adapters
+- [x] Identify current API dependency construction and safe environment/config switch point
+- [x] Add Planning persistence adapter selection boundary
+- [x] Add composition tests without live database requirements
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
