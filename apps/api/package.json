@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sanctuary-os/church-context": "workspace:*",
     "@sanctuary-os/db": "workspace:*",
     "zod": "^3.25.67"
   }

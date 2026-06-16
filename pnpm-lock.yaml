@@ -29,6 +29,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@sanctuary-os/church-context':
+        specifier: workspace:*
+        version: link:../../packages/church-context
       '@sanctuary-os/db':
         specifier: workspace:*
         version: link:../../packages/db
