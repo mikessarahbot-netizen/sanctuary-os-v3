@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { AuthenticatedActor } from "../../auth/index.js";
 import type { ApiEventEnvelope } from "../../events/index.js";
 import {
   createPlanningCommandService,
@@ -9,6 +10,7 @@ import {
   type PlanningServiceItemRecord,
   type PlanningServiceRecord
 } from "./commands.js";
+import { createInMemoryPlanningCommandRepositoryAdapter } from "./testing/in-memory-command-repository.js";
 
 const serviceRecord: PlanningServiceRecord = {
   serviceId: "service_1",
@@ -351,5 +353,246 @@ describe("createPlanningCommandService", () => {
         tenantId: "tenant_1"
       })
     );
+  });
+
+  it("persists a command sequence through the in-memory Planning repository adapter", async () => {
+    const repositoryAdapter = createInMemoryPlanningCommandRepositoryAdapter();
+    const publishAfterCommit = vi.fn<(event: ApiEventEnvelope) => Promise<void>>(() =>
+      Promise.resolve()
+    );
+    const service = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit },
+      planningRepository: repositoryAdapter.repository
+    });
+    const actor: AuthenticatedActor = {
+      actorId: "actor_1",
+      roles: ["worship_leader"],
+      tenantId: "tenant_1"
+    };
+
+    const createdService = await service.createService({
+      actor,
+      input: {
+        serviceTypeId: "type_sunday",
+        startsAt: "2026-06-21T14:00:00.000Z",
+        title: "Sunday Worship"
+      },
+      requestId: "request_create"
+    });
+    const openingSong = await service.addServiceItem({
+      actor,
+      input: {
+        durationMinutes: 5,
+        serviceId: createdService.serviceId,
+        songId: "song_1",
+        title: "Opening Song",
+        type: "song"
+      },
+      requestId: "request_add_song"
+    });
+    const welcome = await service.addServiceItem({
+      actor,
+      input: {
+        durationMinutes: 2,
+        serviceId: createdService.serviceId,
+        title: "Welcome",
+        type: "announcement"
+      },
+      requestId: "request_add_welcome"
+    });
+    const reorderedItems = await service.reorderServiceItems({
+      actor,
+      input: {
+        orderedServiceItemIds: [welcome.serviceItemId, openingSong.serviceItemId],
+        serviceId: createdService.serviceId
+      },
+      requestId: "request_reorder"
+    });
+    const assignment = await service.assignVolunteer({
+      actor,
+      input: {
+        personId: "person_1",
+        roleId: "role_vocal",
+        serviceId: createdService.serviceId
+      },
+      requestId: "request_assign"
+    });
+    const confirmedAssignment = await service.updateAssignmentStatus({
+      actor,
+      input: {
+        assignmentId: assignment.assignmentId,
+        serviceId: createdService.serviceId,
+        status: "confirmed"
+      },
+      requestId: "request_confirm"
+    });
+    const publishedService = await service.updateService({
+      actor,
+      input: {
+        confirmationIntent: {
+          confirmed: true,
+          reason: "Ready for volunteers."
+        },
+        serviceId: createdService.serviceId,
+        status: "published"
+      },
+      requestId: "request_publish"
+    });
+
+    expect(reorderedItems.map((serviceItem) => serviceItem.serviceItemId)).toEqual([
+      welcome.serviceItemId,
+      openingSong.serviceItemId
+    ]);
+    expect(repositoryAdapter.readServiceItems(createdService.serviceId)).toMatchObject([
+      {
+        serviceItemId: welcome.serviceItemId,
+        sortOrder: 0,
+        tenantId: "tenant_1"
+      },
+      {
+        serviceItemId: openingSong.serviceItemId,
+        sortOrder: 1,
+        tenantId: "tenant_1"
+      }
+    ]);
+    expect(confirmedAssignment).toMatchObject({
+      assignmentId: assignment.assignmentId,
+      status: "confirmed",
+      tenantId: "tenant_1"
+    });
+    expect(publishedService).toMatchObject({
+      serviceId: createdService.serviceId,
+      status: "published",
+      tenantId: "tenant_1"
+    });
+    expect(repositoryAdapter.readOperations()).toMatchObject([
+      {
+        intent: "create",
+        operationName: "createService",
+        requestId: "request_create",
+        tenantId: "tenant_1"
+      },
+      {
+        intent: "create",
+        operationName: "addServiceItem",
+        requestId: "request_add_song",
+        tenantId: "tenant_1"
+      },
+      {
+        intent: "create",
+        operationName: "addServiceItem",
+        requestId: "request_add_welcome",
+        tenantId: "tenant_1"
+      },
+      {
+        intent: "update",
+        operationName: "reorderServiceItems",
+        requestId: "request_reorder",
+        tenantId: "tenant_1"
+      },
+      {
+        intent: "create",
+        operationName: "assignVolunteer",
+        requestId: "request_assign",
+        tenantId: "tenant_1"
+      },
+      {
+        intent: "update",
+        operationName: "updateAssignmentStatus",
+        requestId: "request_confirm",
+        tenantId: "tenant_1"
+      },
+      {
+        intent: "destructive-confirmed",
+        operationName: "updateService",
+        requestId: "request_publish",
+        tenantId: "tenant_1"
+      }
+    ]);
+    expect(publishAfterCommit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "assignment.statusChanged",
+        tenantId: "tenant_1"
+      })
+    );
+    expect(publishAfterCommit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "service.published",
+        tenantId: "tenant_1"
+      })
+    );
+  });
+
+  it("keeps in-memory command adapter writes tenant-scoped", async () => {
+    const repositoryAdapter = createInMemoryPlanningCommandRepositoryAdapter();
+    const service = createPlanningCommandService({
+      eventPublisher: { publishAfterCommit: () => Promise.resolve() },
+      planningRepository: repositoryAdapter.repository
+    });
+    const tenantOneActor: AuthenticatedActor = {
+      actorId: "actor_1",
+      roles: ["planner"],
+      tenantId: "tenant_1"
+    };
+    const tenantTwoActor: AuthenticatedActor = {
+      actorId: "actor_2",
+      roles: ["planner"],
+      tenantId: "tenant_2"
+    };
+
+    const tenantOneService = await service.createService({
+      actor: tenantOneActor,
+      input: {
+        serviceTypeId: "type_sunday",
+        title: "Tenant One Worship"
+      },
+      requestId: "request_tenant_1"
+    });
+    const tenantTwoService = await service.createService({
+      actor: tenantTwoActor,
+      input: {
+        serviceTypeId: "type_sunday",
+        title: "Tenant Two Worship"
+      },
+      requestId: "request_tenant_2"
+    });
+
+    await expect(
+      service.addServiceItem({
+        actor: tenantTwoActor,
+        input: {
+          serviceId: tenantOneService.serviceId,
+          title: "Cross Tenant Song",
+          type: "song"
+        },
+        requestId: "request_cross_tenant"
+      })
+    ).rejects.toThrow("Planning service not found for tenant.");
+
+    expect(repositoryAdapter.readServices()).toEqual([
+      expect.objectContaining({
+        serviceId: tenantOneService.serviceId,
+        tenantId: "tenant_1"
+      }),
+      expect.objectContaining({
+        serviceId: tenantTwoService.serviceId,
+        tenantId: "tenant_2"
+      })
+    ]);
+    expect(repositoryAdapter.readServiceItems(tenantTwoService.serviceId)).toEqual([]);
+    expect(repositoryAdapter.readOperations()).toMatchObject([
+      {
+        operationName: "createService",
+        tenantId: "tenant_1"
+      },
+      {
+        operationName: "createService",
+        tenantId: "tenant_2"
+      },
+      {
+        operationName: "addServiceItem",
+        tenantId: "tenant_2"
+      }
+    ]);
   });
 });

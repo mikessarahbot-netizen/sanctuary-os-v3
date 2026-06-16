@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 12:29 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, and Planning plan.
+- Added a test-only in-memory Planning command repository adapter in `apps/api/src/services/planning/testing/` that implements the DB package `PlanningServiceCommandPersistenceRepository` contract.
+- The adapter Zod-validates DB persistence operation shapes, stores tenant-scoped services/items/assignments in memory, enforces tenant lookup boundaries, and records actor/request/tenant mutation intent metadata for assertions.
+- Added Planning command service integration tests that run create service, add/reorder service items, assign/update volunteer status, and confirmed publish through the in-memory adapter.
+- Added tenant-scope assertions proving cross-tenant writes are rejected by the adapter boundary and mutation-intent assertions for create/update/destructive-confirmed operations.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Implement Planning service repository adapter contract notes for the eventual production database adapter.
+
+Open questions:
+- None.
+
 ## 2026-06-16 12:23 EDT · feature/planning-readiness-domain
 
 Tasks completed:

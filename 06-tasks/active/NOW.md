@@ -17,12 +17,12 @@ Implement Planning repository in-memory test adapter for service command integra
 Database migrations · production persistence adapters · GraphQL changes · UI components · prompt execution · vendor SDK integrations · volunteer contact data
 
 ## Progress
-- [ ] Add Planning in-memory repository test adapter
-- [ ] Integrate adapter with command service tests
-- [ ] Add tenant-scope and mutation-intent integration assertions
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Add Planning in-memory repository test adapter
+- [x] Integrate adapter with command service tests
+- [x] Add tenant-scope and mutation-intent integration assertions
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Planning command service integration tests exercise a test-only in-memory repository adapter that implements the DB package persistence contract, with validation passing, committed, pushed, and documented in session handoff.
