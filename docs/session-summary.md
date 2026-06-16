@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:10 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, Planning API contract release-check, ADR 0002, and the Planning production adapter contract.
+- Added `08-decisions/0003-use-sql-first-postgres-for-planning-persistence.md`.
+- Chose a SQL-first PostgreSQL adapter with explicit repo-owned SQL migrations for the first Planning production persistence implementation.
+- Evaluated SQL-first PostgreSQL, typed query builder, and ORM-backed approaches against tenant scope, transaction handles, migration reviewability, local testing without secrets, and future SQLite compatibility.
+- Kept the slice documentation-only with no adapter code, migrations, schema files, dependency installation, connection strings, secrets, UI, GraphQL, or service changes.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `7eb4975 docs(db): choose planning persistence tooling`.
+
+Next task:
+- Add migration framework tests and the initial Planning schema migration shape for SQL-first PostgreSQL persistence.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:07 EDT · feature/planning-readiness-domain
 
 Tasks completed:
