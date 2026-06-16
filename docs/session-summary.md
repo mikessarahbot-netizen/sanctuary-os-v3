@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 15:35 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, ADR 0003, existing `packages/db` SQL adapter code, and the Planning CCLI usage service contract.
+- Added the SQL-first Planning CCLI usage persistence adapter in `packages/db` for `recordCcliUsage` and `listCcliUsageLogs`.
+- Added tenant-scoped SQL for usage-log recording and listing, service/service-item ownership checks, pending reporting status defaults, audit inserts, transaction propagation, and row validation.
+- Covered CCLI usage writes, reads by service/status, supplied transaction behavior, audit metadata, no vendor credential/token/password storage, malformed-row rejection, and live-DB-free adapter behavior with tests.
+- Kept the slice free of live database connections, secrets, dependency installation, GraphQL/resolver changes, API service wiring, UI, workers, vendor CCLI submission/report generation, command adapter changes, query adapter changes, rehearsal adapter work, readiness adapter work, and ORM/query-builder adoption.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `2849ec6 feat(db): add planning ccli usage sql adapter`.
+
+Next task:
+- Implement the SQL-first Planning rehearsal tracking persistence adapter.
+
+Open questions:
+- None.
+
 ## 2026-06-16 15:31 EDT · feature/planning-readiness-domain
 
 Tasks completed:
