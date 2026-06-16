@@ -19,12 +19,12 @@ Implement SQL-first Planning command repository adapter coverage for service ite
 Live PostgreSQL execution · connection strings or secrets · GraphQL/resolver changes · API service wiring · UI · queue workers · query repository adapter · CCLI reporting adapter · rehearsal adapter · readiness adapter · ORM/query-builder adoption
 
 ## Progress
-- [ ] Re-sync with required docs, DB plan, ADR, and adapter contract
-- [ ] Extend SQL-first adapter for service item and assignment command methods
-- [ ] Add adapter-level tests without live database requirements
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs, DB plan, ADR, and adapter contract
+- [x] Extend SQL-first adapter for service item and assignment command methods
+- [x] Add adapter-level tests without live database requirements
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 The DB package SQL-first Planning command repository adapter covers service item create/update/reorder and assignment create/status update with tenant/audit/transaction behavior covered by adapter-level tests; gates pass; the slice is committed, pushed, and documented in session handoff.
