@@ -21,8 +21,20 @@ Service · ServiceItem · Assignment · RehearsalTracking · CCLIUsageLog
 ## GraphQL (queries)
 `services(filter)` · `service(id)` · `serviceTemplates(serviceTypeId)` · `serviceAssignments(serviceId)` · `serviceReadiness(serviceId)` · `songLibrary(searchInput)`
 
+### Approved v1 GraphQL query extensions
+`ccliUsageLogs(input)` · `ccliReportingJobStatus(input)` · `rehearsalAssetVisibility(input)` · `rehearsalAcknowledgements(input)`
+
 ## GraphQL (mutations)
 `createService` · `updateService` · `duplicateServiceFromTemplate` · `addServiceItem` · `updateServiceItem` · `reorderServiceItems` · `assignVolunteer` · `updateAssignmentStatus` · `generateSetlist` · `refreshReadinessScore`
+
+### Approved v1 GraphQL mutation extensions
+`recordCcliUsage(input)` · `scheduleCcliReportingJob(input)` · `setRehearsalAssetVisibility(input)` · `recordRehearsalAcknowledgement(input)`
+
+## GraphQL extension notes
+- CCLI reporting uses an API job + poll pattern; scheduling and status lookup stay separate from vendor submission and worker execution.
+- CCLI usage logs track song usage and reporting status without owning vendor credentials.
+- Rehearsal asset visibility and acknowledgements belong to `RehearsalTracking` and do not own chart rendering, media storage, playback, notifications, or attendance workflows.
+- These extensions are additive v1 Planning contracts approved by implementation handoffs after the first GraphQL surface was defined.
 
 ## WebSocket events emitted
 `service.published` · `assignment.statusChanged` · `readiness.updated`

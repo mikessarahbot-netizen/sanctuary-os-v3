@@ -17,9 +17,9 @@ Refresh the Planning module plan with approved GraphQL extension operations.
 New runtime features · new public GraphQL operations · resolver changes · service changes · UI · vendor adapters · database migrations · queue workers
 
 ## Progress
-- [ ] Re-sync with required docs, release-check, and current implementation
-- [ ] Update Planning plan GraphQL sections with approved extension operations
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, release-check, and current implementation
+- [x] Update Planning plan GraphQL sections with approved extension operations
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push plan refresh
 - [ ] Session handoff
 
