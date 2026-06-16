@@ -20,8 +20,9 @@ Business logic · database migrations · production GraphQL resolvers · UI comp
 - [x] Scaffold `apps/api`
 - [x] Commit API scaffold locally (`chore(api): scaffold api workspace`)
 - [ ] Push API scaffold (`origin` remote not configured)
-- [ ] Scaffold `packages/church-context`
-- [ ] Commit and push ChurchContext scaffold
+- [x] Scaffold `packages/church-context`
+- [x] Commit ChurchContext scaffold locally (`chore(church-context): scaffold context package`)
+- [ ] Push ChurchContext scaffold (`origin` remote not configured)
 - [ ] Scaffold `packages/db`
 - [ ] Commit and push DB scaffold
 - [ ] Run scaffold release check
