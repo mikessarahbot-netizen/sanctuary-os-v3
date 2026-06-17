@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 20:56 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current app/package layout.
+- Created `feature/presenter-domain-contracts` from the pushed `feature/planning-live-postgres-integration` tip because the worktree started detached at that commit.
+- Added the first Presenter domain contract surface in `apps/api/src/domain/presenter/` for Presentation, Slide, SlideBlock, ScripturePassage, MediaCue, OutputTarget, and PresenterTheme.
+- Added local Presenter run-mode schemas for loading an embedded offline-safe presentation, slide navigation, blank/restore output, and confidence output toggling.
+- Kept the slice adapter-free with no UI, GraphQL resolvers, persistence adapters, media storage, Bible API, OBS control, vendor SDKs, Auth0, deployment config, checked-in secrets, or AI prompt execution.
+- Added focused Zod contract tests for schema validation, tenant consistency, load-action tenant boundaries, offline-safe loaded state, output run-mode actions, duplicate/missing slide references, and rejection of secret-like fields.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- src/domain/presenter/contracts.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Add Presenter GraphQL contract documentation or API contract scaffolding based on the Presenter domain schemas.
+
+Open questions:
+- None.
+
 ## 2026-06-16 20:51 EDT · feature/planning-live-postgres-integration
 
 Tasks completed:

@@ -19,13 +19,13 @@ Add Presenter domain contracts and local run-mode schemas.
 GraphQL resolver implementation · UI screens · desktop output windows · Tauri commands · persistence adapters · database migrations · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current app/package layout
-- [ ] Identify where Presenter contracts should live
-- [ ] Add Presenter domain and run-mode schemas
-- [ ] Add focused Presenter contract tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs and current app/package layout
+- [x] Identify where Presenter contracts should live
+- [x] Add Presenter domain and run-mode schemas
+- [x] Add focused Presenter contract tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Presenter has a typed, tested contract surface for domain records and local run-mode actions aligned with `05-plans/presenter-module-plan.md`; default gates pass; the slice is committed, pushed, and documented in session handoff.
