@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop replay runtime assembly (Presenter offline-sync feature complete)
+
+Tasks completed:
+- Added `createPresenterDesktopReplayRuntime` in `apps/desktop/src/replay-runtime.ts`: an async factory composing the migrated store, a replay-pass binding, and the scheduler from injected adapters, returning the migration result, repository, and scheduler.
+- Added an availability-guarded `node:sqlite` end-to-end smoke proving migrate → enqueue → offline-skip → online-sync → entry-synced through the assembled runtime. Re-exported from the desktop barrel.
+- Wrote `07-reviews/architecture/presenter-desktop-replay-runtime-release-check.md` (pass with follow-ups).
+- This completes the Presenter local sync queue offline-edit feature at the logic level across `packages/db`, `apps/api`, and `apps/desktop` — all with no-live-engine default tests plus node:sqlite smokes, in four green workspaces.
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm --filter @sanctuary-os/desktop typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (desktop 18 tests).
+- Pushed implementation commit `9c64384` (`feat(desktop): add Presenter replay runtime assembly`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- BLOCKED: the desktop Tauri shell requires the Rust toolchain (`cargo`/`rustc` not installed) and is not unit-testable via the current gates. A direction decision is required — see `06-tasks/blocked/2026-06-17-presenter-desktop-tauri-shell-blocked.md` and `06-tasks/active/NOW.md`.
+
+Open questions:
+- Is the Rust/Tauri toolchain expected in the build environment, or should the next work pivot to another pure-TypeScript module?
+- What transport and error shapes will the production `PresenterCommandService` use?
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop replay scheduler
 
 Tasks completed:
