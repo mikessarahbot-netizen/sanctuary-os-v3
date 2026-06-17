@@ -19,6 +19,24 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 22:05 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, product vision, system map, engineering rules, API plan, Presenter module plan, the Presenter release check, current Planning composition patterns, and Presenter DB SQL/in-memory repositories.
+- Added `apps/api/src/services/presenter/composition.ts` to select Presenter persistence adapters by environment/mode.
+- Defaulted development/test Presenter persistence to the DB in-memory adapter and production Presenter persistence to SQL when dependencies are supplied.
+- Added strict Presenter runtime config parsing that stores database URL environment variable names only and rejects secret-bearing config fields.
+- Added PostgreSQL runtime dependency construction using the existing SQL executor boundary without requiring a live database in default tests.
+- Added focused API composition tests for default/test selection, production SQL construction, explicit production in-memory mode, strict config validation, injected executor behavior, PostgreSQL binding forwarding, and missing runtime dependency failure.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- composition.test.ts presenter`, `pnpm --filter @sanctuary-os/api typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `b14d48f feat(presenter): add persistence composition`.
+
+Next task:
+- Run a focused Presenter persistence composition release check and record findings under `07-reviews/architecture/`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:59 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
