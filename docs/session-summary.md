@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Local sync queue status counts + summary
+
+Tasks completed:
+- Added a tenant-scoped `countByStatus` capability to `PresenterLocalSyncQueuePersistenceRepository` and its SQLite adapter (`SELECT status, COUNT(*) ... GROUP BY status`, absent statuses default to 0), with a recording-executor test.
+- Added a pure `summarizePresenterLocalSyncQueue` helper (`packages/db/src/presenter-local-sync-queue-status.ts`) deriving total / pending / synced / needs-attention, with unit tests.
+- Updated the two interface fakes (contracts test, desktop replay-pass test) for the new method.
+- Wrote `07-reviews/architecture/presenter-local-sync-queue-status-summary-release-check.md` (pass). db now 143 tests.
+- Validation passed: `pnpm lint`, `pnpm typecheck`, `pnpm test` (db 143, api 230 + 2 skipped, desktop 44, church-context 5).
+- Pushed implementation commit `82bc758` (`feat(db): add Presenter local sync queue status counts and summary`).
+
+Next task:
+- Add a desktop sidecar status reporter (`getStatus` via `countByStatus` + `summarizePresenterLocalSyncQueue`).
+
+Open questions:
+- The sidecar↔webview IPC channel and the status UI remain (verified by running the app, not unit tests).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Tauri sidecar spawn (launchable desktop app)
 
 Tasks completed:

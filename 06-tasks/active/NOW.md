@@ -1,30 +1,30 @@
 # NOW
 
 ## Task
-Add a Presenter local sync queue status summary: a repository count-by-status capability and a pure summary the sidecar can report.
+Add a desktop sidecar status reporter (`getStatus` via `countByStatus` + `summarizePresenterLocalSyncQueue`) and expose it from the runtime.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `packages/db/src/presenter-repository-contracts.ts`, `packages/db/src/presenter-local-sync-queue-sql-repository.ts`, and the desktop runtime
-- Add a `countByStatus(context)` (or `listEntries` + a pure counter) capability to `PresenterLocalSyncQueuePersistenceRepository` returning tenant-scoped counts per status (`queued`, `replaying`, `synced`, `conflict`, `failed`, `cancelled`), with the SQLite adapter implementation and tests (recording-executor + `node:sqlite` smoke)
-- Add a pure `summarizePresenterLocalSyncQueue` helper turning the counts into an operator status object (totals, pending, needs-attention = conflict + failed), with unit tests
-- Keep this slice the status data + summary only; do not add the IPC channel, the UI, or the Tauri command (next slice)
-- Default tests only; no live database/network by default
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/desktop/src/replay-runtime.ts`, `apps/desktop/src/sidecar-entry.ts`, and the new `countByStatus`/`summarizePresenterLocalSyncQueue` in `@sanctuary-os/db`
+- Add a `getStatus(actor)` (or context-scoped) capability to the desktop runtime/sidecar handle that calls `repository.countByStatus` and returns `summarizePresenterLocalSyncQueue(counts)` plus the last replay-pass result
+- Surface it on the runtime assembly and the sidecar handle so a future IPC/UI can read it
+- Add focused tests (fake repository returning counts → expected summary; last-result tracking) with no live engine, plus a `node:sqlite` smoke if consistent
+- Keep this slice the status reporter only; the Tauri command/IPC channel and the UI rendering are the next slice
+- Default tests only; no live network/IPC
 
 ## Out of scope
-Sidecar↔webview IPC channel · desktop status UI · Tauri commands · packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
+Tauri command/IPC channel · desktop status UI rendering · packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [x] Re-sync with the queue repository contract and SQLite adapter
-- [x] Add `countByStatus` to the contract + SQLite adapter (tenant-scoped GROUP BY, absent statuses default to 0)
-- [x] Add a recording-executor adapter test; updated two interface fakes for the new method
-- [x] Add the pure `summarizePresenterLocalSyncQueue` helper with tests
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the status-summary slice
+- [ ] Re-sync with the runtime, sidecar handle, and the new db status helpers
+- [ ] Add `getStatus` to the runtime/sidecar handle (counts → summary + last result)
+- [ ] Add focused tests (fake repository + last-result tracking)
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the status-reporter slice
 - [ ] Session handoff
 
 ## Done when
-The queue repository exposes a tenant-scoped count-by-status capability with SQLite adapter tests, a pure summary helper derives an operator status object, both are covered by default tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+The desktop runtime/sidecar exposes a `getStatus` that returns the queue summary (and last replay result), covered by focused tests with no live engine, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Expose the status from the sidecar to the Tauri webview (a status channel/Tauri command) and render a minimal desktop status UI with operator retry/cancel — addressing any status-summary findings first.
+Add the Tauri command/IPC channel and a minimal desktop status UI rendering the summary with operator retry/cancel — addressing any reporter findings first.
