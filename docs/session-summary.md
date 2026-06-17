@@ -19,6 +19,18 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue repository contract release check
+
+- Completed the Presenter local sync queue repository contract release check and wrote findings to `07-reviews/architecture/presenter-local-sync-queue-repository-contract-release-check.md`.
+- Result: pass with follow-ups. The DB package repository contract layer has strict Zod validation for storage schema versioning, approved queued operations, queue entry persistence records, conflict details, status transitions, enqueue/read/list/transition/conflict/failure/cleanup operation shapes, replay ordering, and stale-data blocking.
+- Verified the slice avoids SQLite migrations, concrete adapters, production queue runners, desktop/Tauri/event-bus wiring, GraphQL/API replay changes, OBS/stream controls, raw media payloads, vendor tokens, and secrets.
+- Validation passed: `pnpm --filter @sanctuary-os/db test -- presenter-repository-contracts.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed release-check commit `01d5567` (`docs(presenter): add local sync queue repository release check`) to `feature/presenter-domain-contracts`.
+- Next task: add Presenter local sync queue SQLite migration artifacts and migration tests.
+
+Open questions:
+- None.
+
 ## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue repository contracts
 
 - Added Presenter local sync queue persistence repository contracts in `packages/db/src/presenter-repository-contracts.ts`.
