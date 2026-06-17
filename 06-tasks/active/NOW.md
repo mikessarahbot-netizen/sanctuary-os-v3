@@ -16,12 +16,12 @@ Bootstrap the desktop Presenter replay runtime: a concrete fetch GraphQL transpo
 Tauri sidecar process wiring · desktop UI screens · live network endpoint/secrets · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · API GraphQL server transport
 
 ## Progress
-- [ ] Re-sync with the runtime, adapters, and executor release check
-- [ ] Record the SQLite execution-model ADR in `08-decisions/`
-- [ ] Add the concrete fetch GraphQL transport with fake-fetch tests
-- [ ] Add the Node runtime bootstrap factory
-- [ ] Add default tests and a `node:sqlite` availability-guarded smoke
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the runtime, adapters, and executor release check
+- [x] Record the SQLite execution-model ADR in `08-decisions/` (ADR 0005)
+- [x] Add the concrete fetch GraphQL transport with fake-fetch tests
+- [x] Add the Node runtime bootstrap factory
+- [x] Add default tests and a `node:sqlite` availability-guarded smoke
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the bootstrap slice
 - [ ] Session handoff
 

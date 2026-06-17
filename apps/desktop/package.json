@@ -19,7 +19,8 @@
   },
   "dependencies": {
     "@sanctuary-os/api": "workspace:*",
-    "@sanctuary-os/db": "workspace:*"
+    "@sanctuary-os/db": "workspace:*",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2"

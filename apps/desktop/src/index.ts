@@ -4,12 +4,14 @@ import {
   type PresenterLocalSyncQueuePersistenceRuntimeConfigInput
 } from "@sanctuary-os/db";
 
+export * from "./graphql-transport.js";
 export * from "./local-sync-queue-store.js";
 export * from "./network-command-service.js";
 export * from "./replay-error-classifier.js";
 export * from "./replay-pass.js";
 export * from "./replay-runtime.js";
 export * from "./replay-scheduler.js";
+export * from "./runtime-bootstrap.js";
 
 /**
  * Entry point for the Sanctuary OS desktop app workspace.
