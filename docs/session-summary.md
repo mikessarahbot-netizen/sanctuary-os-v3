@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop status endpoint + status UI
+
+Tasks completed:
+- Added a localhost status HTTP endpoint (`apps/desktop/src/status-server.ts`): a pure `{ method, path } → { status, body }` handler over `runtime.getStatus` plus a `node:http` server factory (permissive CORS, localhost-only).
+- Wired the env starter to start the status server when `SANCTUARY_OS_PRESENTER_STATUS_PORT` is set and close it with the sidecar.
+- Added a polling status panel to `apps/desktop/web/index.html` (total / pending / synced / needs-attention; degrades to "offline").
+- Added 3 handler unit tests + a real listen+fetch smoke; the sidecar bundle still builds (`node --check`).
+- Wrote `07-reviews/architecture/presenter-desktop-status-endpoint-ui-release-check.md` (pass with follow-ups). desktop now 48 tests.
+- Validation passed: `pnpm lint`, `pnpm typecheck`, `pnpm test` (db 143, api 230 + 2 skipped, desktop 48, church-context 5).
+- Pushed implementation commit `8d0c661` (`feat(desktop): serve sidecar status over HTTP and render a status UI`).
+
+Next task:
+- Add operator retry/cancel for conflict/failed queue entries (sidecar action endpoint → repository requeue/cancel + UI controls).
+
+Open questions:
+- The status port is hardcoded (7421) in the UI; pass it from the Tauri shell to both sidecar and webview (follow-up).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop runtime getStatus reporter
 
 Tasks completed:
