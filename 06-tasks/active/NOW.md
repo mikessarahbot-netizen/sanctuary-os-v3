@@ -15,10 +15,10 @@ Add a Presenter local sync queue desktop-local persistence selection factory tha
 Production queue runner · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · GraphQL/API replay changes · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs, executor, adapter, and composition pattern
-- [ ] Add the runtime-config schema and selection factory
-- [ ] Add default selection tests (and availability-guarded smoke if consistent)
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, executor, adapter, and composition pattern
+- [x] Add the runtime-config schema and selection factory
+- [x] Add default selection tests (fake injected client, no live engine)
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the composition slice
 - [ ] Session handoff
 

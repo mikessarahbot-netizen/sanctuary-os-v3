@@ -9,6 +9,7 @@ export * from "./planning-rehearsal-tracking-sql-repository.js";
 export * from "./planning-repository-contracts.js";
 export * from "./presenter-migrations.js";
 export * from "./presenter-in-memory-repository.js";
+export * from "./presenter-local-sync-queue-composition.js";
 export * from "./presenter-local-sync-queue-sql-repository.js";
 export * from "./presenter-repository-contracts.js";
 export * from "./presenter-sql-repository.js";
