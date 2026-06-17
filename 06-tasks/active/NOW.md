@@ -1,31 +1,29 @@
 # NOW
 
 ## Task
-Add a local SQLite migration runner (apply/rollback with checksum-drift detection) for the Presenter local sync queue store.
+Add a pure Presenter local sync queue replay decision contract (ordering, backoff, attempt-limit gating) extending the existing replay-readiness helper.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `03-context/church-context-schema.md`, `05-plans/presenter-local-sync-queue-storage-plan.md`, `packages/db/src/migrations.ts`, `packages/db/src/sqlite-executor.ts`, and `packages/db/src/presenter-migrations.ts`
-- Add a pure migration planner that, given applied records and ordered artifacts, decides apply/skip per migration and throws on checksum drift
-- Add a SQLite migration runner over an injected SQLite client (extending the executor's client with `exec`) that ensures a tracking table, applies pending migrations in order (honoring the `transactional` flag), records applied/checksum/timestamp, lists applied records, and rolls a migration back
-- Add default planner tests (no engine) plus an availability-guarded real-engine smoke that applies `PresenterLocalSyncQueueMigration`, proves idempotent re-apply, drift rejection, and rollback
-- Keep default `pnpm test` free of any live database, network, Tauri, event bus, or secret
-- Keep the slice migration-runner-only; do not add desktop UI, Tauri commands, event-bus wiring, replay scheduling, or API/GraphQL changes
+- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `03-context/church-context-schema.md`, `05-plans/presenter-local-sync-queue-plan.md`, `05-plans/presenter-local-sync-queue-storage-plan.md`, `07-reviews/architecture/presenter-local-sync-queue-sqlite-migration-runner-release-check.md`, and the existing `listPresenterLocalSyncQueueEntriesReadyForReplay` helper plus queue entry contracts in `packages/db/src/presenter-repository-contracts.ts`
+- Add a Zod-validated replay policy (max attempts, backoff base/multiplier/cap in seconds) and a pure decision function that, given validated queue entries, the policy, and the current time, returns the entries eligible to replay now plus directives for entries that have exhausted their attempt budget
+- Reuse `listPresenterLocalSyncQueueEntriesReadyForReplay` for ordering and conflict/failed blocking; layer backoff (skip an entry whose `lastAttemptedAt` + computed delay is still in the future) and attempt-limit exhaustion (surface as an `exhausted` directive, never an automatic API call) on top
+- Keep this slice pure decision logic in `packages/db` alongside the existing readiness helper; do not add a running scheduler loop, timers, Tauri commands, event-bus wiring, live API replay, or GraphQL changes
+- Add focused unit tests covering ordering, backoff gating, attempt-limit exhaustion, and conflict/failed blocking, with no live database, network, Tauri, event bus, or API replay
 
 ## Out of scope
-Production queue runner loop · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · GraphQL/API replay changes · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
+Running scheduler loop/timers · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · GraphQL/API replay changes · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [x] Re-sync with migrations, executor, and presenter migration artifacts
-- [x] Add the pure migration planner with drift detection
-- [x] Add the SQLite migration runner over the injected client
-- [x] Add planner unit tests and an availability-guarded runner smoke
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the migration runner slice
+- [ ] Re-sync with the replay-readiness helper and queue entry contracts
+- [ ] Add the replay policy schema and pure decision function
+- [ ] Add focused decision tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the replay decision contract slice
 - [ ] Session handoff
 
 ## Done when
-A pure planner decides apply/skip and rejects checksum drift, a SQLite migration runner applies/records/rolls back migrations over an injected client, default planner tests pass without an engine, an availability-guarded smoke proves apply/idempotency/drift/rollback against `node:sqlite`, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+A Zod-validated replay policy and a pure decision function order eligible entries, gate retries by backoff, surface attempt-limit exhaustion, and block behind conflicts/failures (reusing the readiness helper), covered by focused tests with no live integrations, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Add a Presenter local sync queue replay scheduling decision contract (pure policy logic: ordering, backoff, attempt limits, conflict/failed stops), then later wire the desktop replay coordinator — addressing any migration-runner findings first.
+Scaffold the `apps/desktop` workspace (package.json, tsconfig, vitest, lint integration) so the local sync queue persistence, migration runner, and replay decision can be wired into a desktop composition root — or address any replay-decision findings first.

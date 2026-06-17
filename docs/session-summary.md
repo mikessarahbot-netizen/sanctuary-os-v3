@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Local SQLite migration runner
+
+Tasks completed:
+- Re-synced with `migrations.ts`, `sqlite-executor.ts`, `presenter-migrations.ts`, and the storage plan's migration-runner requirement.
+- Added `planSqliteMigrationApply` (pure apply/skip decision with checksum-drift detection) and `createSqliteMigrationRunner` in `packages/db/src/sqlite-migration-runner.ts`.
+- The runner ensures a `sanctuary_migrations` tracking table, applies pending migrations in order honoring the `transactional` flag (atomic DDL + record write), upserts checksum/state/timestamp, lists applied records, and rolls a migration back, all over an injected `SqliteMigrationDatabaseClient` (the executor's client plus `exec`).
+- Added 4 engine-free planner tests and a `node:sqlite` availability-guarded smoke proving apply, idempotent re-run, drift rejection, and rollback (queue table dropped). Exported from the barrel.
+- Wrote `07-reviews/architecture/presenter-local-sync-queue-sqlite-migration-runner-release-check.md` (pass with follow-ups).
+- Sequenced this before replay scheduling because migrations are owned by `packages/db` and the runner is a prerequisite for desktop wiring, whereas replay scheduling is desktop-owned.
+- Validation passed: `pnpm --filter @sanctuary-os/db test -- sqlite-migration-runner.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (db 131 tests).
+- Pushed implementation commit `656656d` (`feat(db): add local SQLite migration runner`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a pure Presenter local sync queue replay decision contract (ordering, backoff, attempt-limit gating) extending the existing replay-readiness helper.
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue persistence composition
 
 Tasks completed:
