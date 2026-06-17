@@ -6,6 +6,7 @@ export * from "./charts-local-sync-queue-status.js";
 export * from "./charts-migrations.js";
 export * from "./charts-repository-contracts.js";
 export * from "./charts-sql-repository.js";
+export * from "./community-repository-contracts.js";
 export * from "./config.js";
 export * from "./migrations.js";
 export * from "./planning-ccli-usage-sql-repository.js";
