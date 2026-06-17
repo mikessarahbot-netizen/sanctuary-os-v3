@@ -1,29 +1,30 @@
 # NOW
 
 ## Task
-Add the desktop Presenter local sync queue replay pass that drives an injected command service from the queue, marking outcomes.
+Add injected conflict-vs-failure classification to the desktop replay pass so stale/validation/authorization errors become `conflict` and transient errors stay retryable `failed`.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `05-plans/presenter-local-sync-queue-plan.md`, `07-reviews/architecture/presenter-desktop-local-sync-composition-release-check.md`, and the building blocks: `PresenterLocalSyncQueuePersistenceRepository` + `decidePresenterLocalSyncQueueReplay` (`@sanctuary-os/db`) and `mapPresenterLocalSyncQueueEntryToReplayCommand` + `PresenterCommandService` (`@sanctuary-os/api`)
-- Add `@sanctuary-os/api` as an `apps/desktop` workspace dependency
-- Add `runPresenterDesktopReplayPass`: read ready entries from the repository, apply `decidePresenterLocalSyncQueueReplay` with an injected policy/now, mark each `exhausted` entry `failed`, and for each `eligible` entry mark it `replaying`, map it to the command via the coordinator, call the matching `PresenterCommandService` method, then mark `synced` on success or `failed` (with a redacted safe message) on error
-- Return a structured pass summary (synced/failed/exhausted ids); keep it a single pass with no timer/interval loop, no Tauri, no real transport, and no offline/online detection
-- Add focused tests with an in-memory fake repository and a fake command service covering: a clean sync, an error → failed, an exhausted → failed, and backoff/blocking (no eligible entry); no live database, network, Tauri, or API
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `05-plans/presenter-local-sync-queue-plan.md`, `07-reviews/architecture/presenter-desktop-replay-pass-release-check.md`, and `apps/desktop/src/replay-pass.ts` plus the queue conflict-detail contract in `@sanctuary-os/db`
+- Add a `ReplayErrorClassification` result (`conflict` with a validated `PresenterLocalSyncConflictDetailPersistence`, or retryable `failed` with a safe message) and an injectable `ReplayErrorClassifier` dependency; default the classifier to `failed`
+- On a command-service error, run the classifier: a `conflict` classification calls `markConflict` (transition `replaying -> conflict`) with the details; a `failed` classification calls `markFailed` as today
+- Track conflicted entries in the pass result alongside synced/failed/exhausted
+- Add focused tests with fakes covering: default (failed), an injected classifier returning conflict (markConflict with details), and a classifier returning failed with a custom message; no live database, network, Tauri, or API
+- Keep the slice classification-only; do not add a timer loop, offline/online detection, Tauri commands, or a real network command service
 
 ## Out of scope
-Timer/interval scheduler loop · offline/online detection · rich conflict-vs-failure error classification (follow-up) · Tauri/Rust shell · real desktop windows · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
+Timer/interval scheduler loop · offline/online detection · Tauri/Rust shell · real desktop windows · real network command service · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
 
 ## Progress
-- [x] Re-sync with the decision, coordinator, repository, and command service contracts
-- [x] Add `@sanctuary-os/api` desktop dependency and the replay pass
-- [x] Add focused replay-pass tests with fakes
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the replay pass slice
+- [ ] Re-sync with the replay pass and the conflict-detail contract
+- [ ] Add the classification result, classifier dependency, and conflict branch
+- [ ] Add focused classification tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the classification slice
 - [ ] Session handoff
 
 ## Done when
-A single replay pass reads ready entries, decides eligibility, marks `replaying`/`synced`/`failed`/exhausted-`failed`, drives the injected command service through the coordinator, returns a structured summary, is covered by focused fake-backed tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+The replay pass classifies command-service errors via an injected classifier (defaulting to failed), marks conflicts with validated details and transient errors failed, reports conflicted entries in its result, is covered by focused fake-backed tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Add rich conflict-vs-failure classification to the replay pass (stale revision/validation/authorization/tenant-mismatch → `conflict` with details; transient → retryable `failed`), then a timer wrapper and offline/online gating — addressing any replay-pass findings first.
+Add a desktop replay scheduler wrapper (interval + offline/online gating) around the pass, then begin the Tauri shell wiring — addressing any classification findings first.

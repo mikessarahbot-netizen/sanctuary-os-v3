@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop Presenter replay pass
+
+Tasks completed:
+- Re-synced with the replay decision, coordinator, repository, and command service contracts.
+- Added `runPresenterDesktopReplayPass` in `apps/desktop/src/replay-pass.ts`: a single pass that reads ready entries, applies `decidePresenterLocalSyncQueueReplay`, marks each eligible entry `replaying`, maps it via `mapPresenterLocalSyncQueueEntryToReplayCommand`, calls the injected `PresenterCommandService`, then marks `synced`/`failed`; exhausted entries are marked `failed` without a service call. Returns a synced/failed/exhausted summary.
+- Added a focused `@sanctuary-os/api/presenter` subpath export so the desktop imports the coordinator without evaluating the full api barrel (graphql/jobs/pg); added `@sanctuary-os/api` as a desktop dependency.
+- Added 4 engine-free tests with a fake repository and fake command service (clean sync, error → failed, exhausted → failed, backoff no-op). Re-exported from the desktop barrel.
+- Wrote `07-reviews/architecture/presenter-desktop-replay-pass-release-check.md` (pass with follow-ups). The Presenter local sync queue offline-edit pipeline is now functional end to end at the logic level.
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm --filter @sanctuary-os/desktop typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (desktop 9 tests; all 4 workspaces green).
+- Pushed implementation commit `86ddd21` (`feat(desktop): add Presenter local sync queue replay pass`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add injected conflict-vs-failure classification to the desktop replay pass.
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop local sync composition root
 
 Tasks completed:
