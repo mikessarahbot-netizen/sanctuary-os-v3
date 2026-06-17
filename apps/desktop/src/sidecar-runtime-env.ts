@@ -5,6 +5,7 @@ import {
 } from "./node-sqlite-client.js";
 import { parsePresenterDesktopSidecarConfig } from "./sidecar-config.js";
 import { startPresenterDesktopSidecar, type PresenterDesktopSidecarHandle } from "./sidecar-entry.js";
+import { createPresenterStatusHttpServer } from "./status-server.js";
 
 /**
  * Env-driven start for the desktop Presenter replay sidecar.
@@ -38,10 +39,34 @@ export const startPresenterDesktopSidecarFromEnv = async (
       ? dependencies.createDatabase(config.sqliteFilePath)
       : await openNodeSqliteDatabase(config.sqliteFilePath);
 
-  return startPresenterDesktopSidecar(config, {
+  const handle = await startPresenterDesktopSidecar(config, {
     database: wrapNodeSqliteMigrationDatabase(rawDatabase),
     fetch: dependencies.fetch ?? globalThis.fetch,
     isOnline: dependencies.isOnline ?? ((): boolean => true),
     ...(dependencies.clock !== undefined ? { clock: dependencies.clock } : {})
   });
+
+  const statusPortRaw = env.SANCTUARY_OS_PRESENTER_STATUS_PORT;
+
+  if (statusPortRaw === undefined) {
+    return handle;
+  }
+
+  const statusServer = createPresenterStatusHttpServer({
+    getStatus: () => handle.runtime.getStatus()
+  });
+
+  await new Promise<void>((resolve) => {
+    statusServer.listen(Number.parseInt(statusPortRaw, 10), "127.0.0.1", () => {
+      resolve();
+    });
+  });
+
+  return {
+    runtime: handle.runtime,
+    stop: (): void => {
+      statusServer.close();
+      handle.stop();
+    }
+  };
 };

@@ -16,12 +16,12 @@ Expose the sidecar status over a localhost HTTP endpoint and render a minimal de
 Operator retry/cancel mutations from the UI · packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the runtime getStatus, sidecar, and web frontend
-- [ ] Add the pure status HTTP handler + `node:http` localhost server factory
-- [ ] Wire the sidecar to start/stop the status server (configurable port)
-- [ ] Add the minimal status UI section to web/index.html
-- [ ] Add handler unit tests + a real listen+fetch smoke
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the runtime getStatus, sidecar, and web frontend
+- [x] Add the pure status HTTP handler + `node:http` localhost server factory (permissive CORS, localhost-only)
+- [x] Wire the env starter to start/stop the status server when `SANCTUARY_OS_PRESENTER_STATUS_PORT` is set
+- [x] Add a polling status panel (total/pending/synced/needs-attention) to web/index.html
+- [x] Add 3 handler unit tests + a real listen+fetch smoke; verified the sidecar bundle still builds
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the status endpoint/UI slice
 - [ ] Session handoff
 

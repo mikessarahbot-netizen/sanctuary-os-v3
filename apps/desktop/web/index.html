@@ -20,22 +20,86 @@
       main {
         text-align: center;
         padding: 2rem;
+        width: min(420px, 90vw);
       }
       h1 {
         font-size: 1.5rem;
-        margin: 0 0 0.5rem;
+        margin: 0 0 0.25rem;
       }
-      p {
-        margin: 0;
+      p.subtitle {
+        margin: 0 0 1.5rem;
         opacity: 0.7;
         font-size: 0.95rem;
+      }
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+      }
+      .status-card {
+        background: #1b2733;
+        border-radius: 0.75rem;
+        padding: 1rem;
+      }
+      .status-card .value {
+        font-size: 1.75rem;
+        font-weight: 600;
+      }
+      .status-card .label {
+        font-size: 0.8rem;
+        opacity: 0.7;
+        margin-top: 0.25rem;
+      }
+      .status-card.attention .value {
+        color: #ffb74d;
+      }
+      #connection {
+        margin-top: 1rem;
+        font-size: 0.8rem;
+        opacity: 0.6;
       }
     </style>
   </head>
   <body>
     <main>
       <h1>Sanctuary OS — Presenter</h1>
-      <p>Desktop shell. Local sync queue replay runtime loads here.</p>
+      <p class="subtitle">Local sync queue status</p>
+      <div class="status-grid">
+        <div class="status-card"><div class="value" id="total">—</div><div class="label">Total</div></div>
+        <div class="status-card"><div class="value" id="pending">—</div><div class="label">Pending</div></div>
+        <div class="status-card"><div class="value" id="synced">—</div><div class="label">Synced</div></div>
+        <div class="status-card attention"><div class="value" id="needsAttention">—</div><div class="label">Needs attention</div></div>
+      </div>
+      <div id="connection">Connecting to the replay sidecar…</div>
     </main>
+    <script>
+      const STATUS_PORT = "7421";
+      const STATUS_URL = `http://127.0.0.1:${STATUS_PORT}/status`;
+      const fields = ["total", "pending", "synced", "needsAttention"];
+
+      const render = (summary) => {
+        for (const field of fields) {
+          document.getElementById(field).textContent = String(summary[field] ?? 0);
+        }
+      };
+
+      const poll = async () => {
+        const connection = document.getElementById("connection");
+        try {
+          const response = await fetch(STATUS_URL, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          render(data.summary);
+          connection.textContent = "Connected to the replay sidecar.";
+        } catch {
+          connection.textContent = "Replay sidecar is offline.";
+        }
+      };
+
+      poll();
+      setInterval(poll, 5000);
+    </script>
   </body>
 </html>

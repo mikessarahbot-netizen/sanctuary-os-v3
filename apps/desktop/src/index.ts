@@ -17,6 +17,7 @@ export * from "./sidecar-config.js";
 export * from "./sidecar-entry.js";
 export * from "./sidecar-main.js";
 export * from "./sidecar-runtime-env.js";
+export * from "./status-server.js";
 
 /**
  * Entry point for the Sanctuary OS desktop app workspace.
