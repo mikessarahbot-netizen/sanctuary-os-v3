@@ -1,33 +1,32 @@
 # NOW
 
 ## Task
-Charts module, slice 1: the pure ChordPro domain — Zod schemas + a deterministic parse and transpose with no I/O.
+Charts module, slice 2: the Charts persistence contracts in `packages/db` (Chart, ChartArrangement, ChartAnnotation, MusicianChartPreference), tenant-scoped and Zod-validated.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `05-plans/charts-module-plan.md`, `01-architecture/system-map.md`, `03-context/church-context-schema.md`, and the `apps/api/src/domain/presenter` structure (mirror its style)
-- Add `apps/api/src/domain/charts`: strict Zod schemas for `ChordProDocument`, `ChartSection`, `ChartLine`, `ChartSegment` (chord?/lyric), and a chart `Key`/chord representation
-- Add `parseChordPro(source)` — a pure function turning ChordPro text into a validated `ChordProDocument` (directives for title/artist/key, section delimiters for verse/chorus/bridge/intro/tag/instrumental, and inline `[chord]lyric` segments)
-- Add `transposeChordProDocument(document, semitones)` — a pure transform shifting every chord (root + optional bass) by a semitone offset with a fixed sharp enharmonic policy; non-chord tokens pass through unchanged
-- Export the charts domain from the api domain barrel
-- Add focused unit tests (parse of a multi-section chart, inline chords, directives; transpose up/down with wrap-around, slash chords, pass-through) with no I/O
-- Keep this slice pure domain logic; no persistence, GraphQL, service, or mobile wiring
+- Re-sync with `agents.md`, `05-plans/charts-module-plan.md`, `packages/db/src/presenter-repository-contracts.ts` (mirror its style), `packages/db/src/repository-contracts.ts`, and `apps/api/src/domain/charts/chordpro.ts`
+- Add `packages/db/src/charts-repository-contracts.ts`: strict Zod persistence record schemas for `Chart` (tenant, chartId, songRef, arrangementRef, defaultKey, chordProSource, title/metadata), `ChartArrangement` (tenant, arrangementRef, songRef, label, defaultKey, capo, sectionOrder), `ChartAnnotation` (tenant, annotationId, chartId, musicianId, sectionIndex/lineIndex anchor, kind, note/color), and `MusicianChartPreference` (tenant, chartId, musicianId, transposeSemitones, capo, instrument, fontScale, chordsVisible)
+- Add read/write persistence option schemas and operation schemas mirroring the presenter ones (require an actor; tenant-scoped), plus the `ChartsQueryPersistenceRepository` and `ChartsCommandPersistenceRepository` interfaces with the operations from the plan
+- Validate the stored `chordProSource` is parseable (cross-check with `parseChordPro`) or store it as opaque text with a separate render step — keep the contract storing source text and a schema-version, deferring the runtime adapter
+- Export from the `packages/db` barrel
+- Add focused schema tests (valid records, tenant/musician scoping refinements, rejection of unknown fields)
+- Keep this slice persistence contracts only; no SQLite adapter, migration, GraphQL, or service wiring
 
 ## Out of scope
-Charts persistence/db contracts · GraphQL/API surface · per-musician preferences/annotations storage · offline sync · mobile UI · CCLI/catalog · AI suggestions · notation rendering
+SQLite adapter/migration · GraphQL/API surface · service layer · offline sync · mobile UI · CCLI/catalog · AI suggestions
 
 ## Progress
-- [x] Re-sync with the Charts plan and presenter domain style
-- [x] Add the ChordPro Zod schemas (document/section/line/segment/kind)
-- [x] Add `parseChordPro` (pure: directives, sections, inline chords, default section)
-- [x] Add `transposeChord` + `transposeChordProDocument` (pure: root/bass shift, sharp policy, key transpose)
-- [x] Add 9 focused parse + transpose unit tests
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the ChordPro core slice
+- [ ] Re-sync with the Charts plan and presenter persistence contract style
+- [ ] Add the Charts persistence record schemas (chart/arrangement/annotation/preference)
+- [ ] Add read/write option + operation schemas and the query/command repository interfaces
+- [ ] Add focused schema tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the Charts persistence contracts slice
 - [ ] Session handoff
 
 ## Done when
-The ChordPro domain parses source into a validated document and transposes it deterministically, both pure and covered by focused tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next Charts slice (the persistence/db contracts).
+The Charts persistence contracts define tenant-scoped, Zod-validated records and repository interfaces mirroring the presenter contracts, covered by focused schema tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next Charts slice (the SQLite migration + adapter).
 
 ## Next task after this
-Charts slice 2: the Charts persistence contracts in `packages/db` (Chart, ChartArrangement, ChartAnnotation, MusicianChartPreference) mirroring the presenter persistence contracts, tenant-scoped and Zod-validated.
+Charts slice 3: the Charts SQLite migration artifact + migration tests (mirroring the presenter local sync queue migration), then the SQLite repository adapter.

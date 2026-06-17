@@ -2,6 +2,21 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 1: ChordPro domain
+
+Tasks completed:
+- Added the pure ChordPro domain in `apps/api/src/domain/charts/chordpro.ts`: strict Zod schemas (`ChordProDocument`/`ChartSection`/`ChartLine`/`ChartSegment`/kind), `parseChordPro` (directives, section delimiters, inline `[chord]lyric`, default section), and `transposeChord`/`transposeChordProDocument` (root + bass shift, sharp policy, key transpose, non-chord pass-through). Exported from the api domain barrel.
+- Added 9 pure unit tests (multi-section parse, default section, unknown directives, transpose up/down with octave wrap, slash chords, pass-through, key transpose, zero no-op).
+- Wrote `07-reviews/architecture/charts-chordpro-domain-release-check.md` (pass). api now 239 tests.
+- Validation passed: `pnpm lint`, `pnpm typecheck`, `pnpm test` (db 143, api 239 + 2 skipped, desktop 54, church-context 5).
+- Pushed implementation commit `ac5124c` (`feat(charts): add the pure ChordPro domain (parse + transpose)`).
+
+Next task:
+- Charts slice 2: the Charts persistence contracts in `packages/db` (Chart, ChartArrangement, ChartAnnotation, MusicianChartPreference).
+
+Open questions:
+- None blocking; building Charts slice-by-slice (next: persistence contracts → migration + adapter → GraphQL → offline).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts module: plan authored (next module)
 
 Tasks completed:
