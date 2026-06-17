@@ -46,6 +46,12 @@ importers:
         specifier: ^8.21.0
         version: 8.21.0
 
+  apps/desktop:
+    dependencies:
+      '@sanctuary-os/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+
   packages/church-context:
     dependencies:
       zod:

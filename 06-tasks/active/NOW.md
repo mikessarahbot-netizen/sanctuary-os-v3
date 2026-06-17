@@ -15,10 +15,10 @@ Scaffold the `apps/desktop` workspace as a minimal TypeScript package integrated
 Tauri/Rust shell · real desktop windows · replay loop runtime · desktop UI screens · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
 
 ## Progress
-- [ ] Re-sync with the workspace wiring of an existing app/package
-- [ ] Add `apps/desktop` package.json, tsconfig, and typed placeholder + test
-- [ ] Confirm lint, typecheck, and tests pick up and pass for the new workspace
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the workspace wiring of an existing app/package
+- [x] Add `apps/desktop` package.json, tsconfig, and typed placeholder + test
+- [x] Confirm lint, typecheck, and tests pick up and pass for the new workspace
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the desktop scaffold slice
 - [ ] Session handoff
 
