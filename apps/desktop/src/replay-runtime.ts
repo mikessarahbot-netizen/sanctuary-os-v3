@@ -1,9 +1,11 @@
-import type {
-  MigrationRunStep,
-  PresenterLocalSyncQueuePersistenceRepository,
-  PresenterLocalSyncQueuePersistenceRuntimeConfigInput,
-  PresenterLocalSyncQueueReplayPolicyInput,
-  SqliteMigrationDatabaseClient
+import {
+  summarizePresenterLocalSyncQueue,
+  type MigrationRunStep,
+  type PresenterLocalSyncQueuePersistenceRepository,
+  type PresenterLocalSyncQueuePersistenceRuntimeConfigInput,
+  type PresenterLocalSyncQueueReplayPolicyInput,
+  type PresenterLocalSyncQueueStatusSummary,
+  type SqliteMigrationDatabaseClient
 } from "@sanctuary-os/db";
 import type { AuthenticatedActor } from "@sanctuary-os/api";
 import type { PresenterReplayCommandExecutor } from "@sanctuary-os/api/presenter";
@@ -44,7 +46,13 @@ export interface PresenterDesktopReplayRuntimeDependencies<THandle> {
   readonly safeErrorMessage?: string;
 }
 
+export interface PresenterDesktopReplayStatus {
+  readonly lastResult?: PresenterDesktopReplayPassResult;
+  readonly summary: PresenterLocalSyncQueueStatusSummary;
+}
+
 export interface PresenterDesktopReplayRuntime {
+  readonly getStatus: () => Promise<PresenterDesktopReplayStatus>;
   readonly migrations: readonly MigrationRunStep[];
   readonly repository: PresenterLocalSyncQueuePersistenceRepository;
   readonly scheduler: PresenterDesktopReplayScheduler<PresenterDesktopReplayPassResult>;
@@ -74,16 +82,41 @@ export const createPresenterDesktopReplayRuntime = async <THandle>(
         : {})
     });
 
+  let lastResult: PresenterDesktopReplayPassResult | undefined;
+  const handleResult = (result: PresenterDesktopReplayPassResult): void => {
+    lastResult = result;
+    dependencies.onResult?.(result);
+  };
+
   const scheduler = createPresenterDesktopReplayScheduler({
     interval: dependencies.interval,
     intervalMs: dependencies.intervalMs,
     isOnline: dependencies.isOnline,
+    onResult: handleResult,
     runPass,
-    ...(dependencies.onError !== undefined ? { onError: dependencies.onError } : {}),
-    ...(dependencies.onResult !== undefined ? { onResult: dependencies.onResult } : {})
+    ...(dependencies.onError !== undefined ? { onError: dependencies.onError } : {})
   });
 
+  const getStatus = async (): Promise<PresenterDesktopReplayStatus> => {
+    const counts = await store.repository.countByStatus({
+      input: {},
+      options: {
+        context: {
+          actorId: dependencies.actor.actorId,
+          requestId: `presenter-status:${dependencies.clock()}`,
+          tenantId: dependencies.actor.tenantId
+        }
+      }
+    });
+
+    return {
+      summary: summarizePresenterLocalSyncQueue(counts),
+      ...(lastResult !== undefined ? { lastResult } : {})
+    };
+  };
+
   return {
+    getStatus,
     migrations: store.migrations,
     repository: store.repository,
     scheduler

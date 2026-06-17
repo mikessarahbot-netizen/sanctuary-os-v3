@@ -174,6 +174,16 @@ describe("createPresenterDesktopReplayRuntime", () => {
         options: { context: { actorId: actor.actorId, requestId: "request_read", tenantId } }
       });
       expect(stored?.status).toBe("synced");
+
+      const status = await runtime.getStatus();
+      expect(status.summary).toEqual({
+        cancelled: 0,
+        needsAttention: 0,
+        pending: 0,
+        synced: 1,
+        total: 1
+      });
+      expect(status.lastResult?.synced).toEqual(["queue_entry_runtime_1"]);
     } finally {
       database.close();
     }

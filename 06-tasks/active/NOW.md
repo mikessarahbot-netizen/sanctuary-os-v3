@@ -16,10 +16,10 @@ Add a desktop sidecar status reporter (`getStatus` via `countByStatus` + `summar
 Tauri command/IPC channel · desktop status UI rendering · packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the runtime, sidecar handle, and the new db status helpers
-- [ ] Add `getStatus` to the runtime/sidecar handle (counts → summary + last result)
-- [ ] Add focused tests (fake repository + last-result tracking)
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the runtime, sidecar handle, and the new db status helpers
+- [x] Add `getStatus` to the runtime (counts → summary + last replay result; wraps `onResult` to track last result)
+- [x] Extend the `node:sqlite` runtime smoke to assert the summary + last result after a real replay
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the status-reporter slice
 - [ ] Session handoff
 
