@@ -2,6 +2,21 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 3: SQLite migration artifact
+
+Tasks completed:
+- Added `packages/db/src/charts-migrations.ts`: a `defineSqlMigrationArtifact` creating tenant-scoped SQLite tables `charts`, `chart_arrangements`, `chart_annotations`, `musician_chart_preferences` (PKs, `charts.v1` schema-version CHECK, annotation-kind/instrument/boolean CHECKs, tenant indexes, rollback; TEXT/INTEGER/REAL only). Exported with name lists + `ChartsSqlMigrations`.
+- Added 7 tests (artifact shape, constraint/index presence, rollback drops, checksum stability) + a `node:sqlite` smoke proving the CHECKs reject bad rows and rollback drops the tables. db now 156.
+- Wrote `07-reviews/architecture/charts-migration-artifact-release-check.md` (pass).
+- Validation passed: `pnpm lint`, `pnpm typecheck`, `pnpm test` (db 156, api 239 + 2 skipped, desktop 54, church-context 5).
+- Pushed implementation commit `30554af` (`feat(db): add the Charts SQLite migration artifact`).
+
+Next task:
+- Charts slice 4: the SQLite repository adapter (query/command repositories over an injected executor).
+
+Open questions:
+- None blocking; Charts module progression: ChordPro core → contracts → migration → adapter (next) → GraphQL → service → offline.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 2: persistence contracts
 
 Tasks completed:
