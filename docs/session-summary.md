@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 4: SQLite adapter
+
+Tasks completed:
+- Play slice 4 (delegated; parent verified gates + confirmed origin current): `packages/db/src/play-sql-repository.ts` — query + command SQL repositories over an injected executor; tenant-filtered, row↔contract mapping, boolean↔0/1, track_refs/section_order JSON, reorderPlaySections via section_order + json_each ordering, updateTrackSetMembers RETURNING+clock, field↔column mappings (e.g. key↔pad_key). +17 db tests (incl. node:sqlite smoke). Gates green: db 275 / api 339 + 2 skipped / desktop 54 / church-context 5. Committed `46fed50`.
+
+Next task:
+- Play slice 5: GraphQL + in-memory service (domain contracts/errors, services/play/in-memory.ts, graphql/play.ts), mirroring Charts slice 5.
+
+Open questions: unchanged.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 3: migration artifact
 
 Tasks completed:
