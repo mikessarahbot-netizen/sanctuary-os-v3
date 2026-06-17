@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ module plan authored
+
+Tasks completed:
+- Authored `05-plans/community-plus-module-plan.md` (delegated). Community+ = the people/relationships module (members, households, groups, attendance, comms, engagement) — the strictest privacy surface. 8 domain objects; 13-slice breakdown (1–10 backend-verifiable; 11 send-integration behind a carrier decision; 12 web UI deferred; 13 optional offline attendance). Strong privacy posture: NO raw PII in records (opaque contactChannelRefs + consent flags; raw values in an external vault), AI-bound projections PII-free by construction, outbound comms human-confirmation-gated (AI drafts, never sends), consent enforced in a pure audience resolver.
+
+Next task:
+- Community+ backend slice 1 (domain + pure logic, incl. the consent-aware audience resolver + a PII-free-projection test), then slices 2–10 per the plan.
+
+Open questions / follow-ups: Community+ open questions (offline attendance? consent source-of-truth? bulk-confirm granularity?); contact-vault boundary is external (flagged); plus the standing follow-ups (network-executor JSON gap; enum mismatch task_85338bf7; UI surface decision; live /goal hook forces continuation).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 10: desktop replay runtime (PLAY BACKEND COMPLETE 1-10)
 
 Tasks completed:
