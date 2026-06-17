@@ -2,6 +2,20 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 4 COMPLETE: SQLite adapter
+
+Tasks completed:
+- Finished the Charts SQLite adapter (`packages/db/src/charts-sql-repository.ts`): reconciled it to the real contract surface (the contracts expose operation SCHEMAS + generic `ChartsReadPersistenceOperation`/`ChartsPersistenceOperation` wrappers, not per-operation type aliases — re-declared the needed operation types as local `z.infer` aliases, leaving method bodies untouched). Added the barrel export.
+- Added `packages/db/src/charts-sql-repository.test.ts` (10 tests): recording-executor unit tests (tenant-scoped SQL + params, row→contract mapping, tenant-mismatch rejection, RETURNING update with clock, DELETE scoping) + a live `node:sqlite` smoke (migrate → save → get → preference round-trip → annotate → list → update source).
+- Gates green: `pnpm lint`, `pnpm typecheck`, `pnpm test` (db 166, api 239 + 2 skipped, desktop 54, church-context 5).
+- Wrote `07-reviews/architecture/charts-sql-adapter-release-check.md` (pass) + the slice-5 handoff note.
+
+Next task:
+- Charts slice 5: GraphQL schema + resolvers + in-memory service, wired into the executable schema/transport (mirror the presenter GraphQL).
+
+Open questions:
+- The live `/goal` Stop hook still forces continuation; re-issue `/goal` with the session-handoff wording to allow clean stops at breakpoints.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Session-continuity protocol + Charts slice 4 (WIP)
 
 Tasks completed:
