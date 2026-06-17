@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 5 (+6): GraphQL + in-memory service (with comms gates)
+
+Tasks completed:
+- Community+ slice 5 (delegated; parent verified gates): `apps/api/src/domain/community/{contracts,errors}.ts`, `apps/api/src/services/community/in-memory.ts`, `apps/api/src/graphql/community.ts` (14 queries, 15 mutations) merged into the executable schema with `CommunityDomainError → extensions.code`. Real privacy gates: consent suppression (CONSENT_REQUIRED; only consented recipients sent) + human-confirmation lifecycle gate (AI-drafted can't self-send; all paths tested). No raw PII in any type. Added enum value maps so hyphenated Community+ enums round-trip through GraphQL (reference fix for the tracked cross-module enum task). This also delivered the plan's slice-6 comms lifecycle + gate. +30 api tests. Gates green: db 401 / api 529 + 2 skipped / desktop 89 / church-context 5. Committed `cbfe161`.
+
+Next task:
+- Community+ slice 7: persistence-backed service over the slice-4 adapter + composition/migration usage (mirror Charts/Play slice 6). [Plan slice 6 folded into slice 5.]
+
+Open questions / follow-ups: Community+ open questions; the cross-module Charts/Play enum fix (task_85338bf7) now has Community+ enum maps as a reference; standing follow-ups (network-executor JSON gap; UI surface decision; live /goal hook).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 4: SQLite adapter
 
 Tasks completed:
