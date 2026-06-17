@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Typed Presenter domain error + conflict-code mapping
+
+Tasks completed:
+- Added `PresenterDomainError` (`apps/api/src/domain/presenter/errors.ts`) carrying a stable conflict `code` and a redacted `safeMessage`, exported via the domain barrel.
+- Mapped it through the GraphQL transport: `formatError` reads `error.originalError` and emits `{ message: safeMessage, extensions: { code } }` for domain errors while keeping other resolver errors redacted — no resolver changes needed.
+- This completes the offline replay conflict round-trip: service throws → `extensions.code` → desktop classifier marks the entry `conflict` (the codes match the desktop `CONFLICT_CODE_TO_KIND` map exactly).
+- Added a transport test proving a thrown `STALE_PRESENTATION` surfaces the code + safe message (api now 218 + 2 skipped).
+- Wrote `07-reviews/architecture/presenter-typed-domain-error-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- transport.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+- Pushed implementation commit `b05b30f` (`feat(api): add typed Presenter domain error and conflict-code mapping`).
+
+Next task:
+- Bind the Presenter GraphQL request handler to a concrete Node `http` listener so the API can serve requests.
+
+Open questions:
+- The in-memory/SQL services still throw generic errors for real conditions; emitting `PresenterDomainError` per condition is a follow-up.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - API Presenter GraphQL schema + HTTP transport handler
 
 Tasks completed:
