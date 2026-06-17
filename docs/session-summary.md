@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:43 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, current Presenter service contracts, and `packages/db/src/presenter-repository-contracts.ts`.
+- Added in-memory Presenter persistence repository adapters in `apps/api/src/services/presenter/testing/`.
+- Implemented separate query and command repository surfaces for saved presentations, themes, output targets, and slide add/update/reorder/remove mutations.
+- Preserved tenant-scoped reads/writes, required actor/request audit metadata, operation recording, strict Zod validation, defensive copy behavior, adapter isolation, and no raw media payload storage.
+- Added focused tests for tenant isolation, operation validation, mutation behavior, audit metadata requirements, defensive copying, output target presentation association, and rejection of raw media/cross-tenant fields.
+- Kept the slice persistence-adapter-only with no SQL adapter, database migration, WebSocket server, desktop event bus wiring, UI, OBS automation, stream start/stop, vendor SDKs, AI execution, deployment config, or checked-in secrets.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- presenter`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `766eeae feat(presenter): add in-memory persistence repositories`.
+
+Next task:
+- Run a Presenter API/event/persistence release-check before SQL adapter work.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:36 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
