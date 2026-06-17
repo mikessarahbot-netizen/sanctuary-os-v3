@@ -2,6 +2,19 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts module: plan authored (next module)
+
+Tasks completed:
+- Presenter offline-sync feature confirmed complete; recorded ADR 0006 (Node SEA sidecar distribution) and a feature-complete handoff.
+- Per the adjusted goal (build modules in sequential order, keep going), chose the module order Charts → Play → Community+ → OBS (Charts/Play are offline-first per the non-negotiables).
+- Authored `05-plans/charts-module-plan.md` from `00-product/vision.md` + `01-architecture/system-map.md` (Charts owns ChordPro rendering/editor, annotations, per-musician prefs; mobile, offline-first): scope, domain objects (Chart/ChartArrangement/ChordProDocument/ChartSection/ChartAnnotation/MusicianChartPreference), boundaries, GraphQL surface, pure render/transform rules, offline/privacy/AI rules, acceptance — mirroring the presenter module plan.
+
+Next task:
+- Charts slice 1: the pure ChordPro domain (Zod schemas + `parseChordPro` + `transposeChordProDocument`) in `apps/api/src/domain/charts`.
+
+Open questions:
+- None blocking; building Charts slice-by-slice from the plan.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop packaging wiring
 
 Tasks completed:
