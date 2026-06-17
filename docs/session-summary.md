@@ -19,6 +19,23 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 22:07 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, product vision, system map, engineering rules, API plan, Presenter module plan, the prior Presenter API/event/persistence release check, Presenter composition code/tests, and current Presenter DB persistence adapters.
+- Audited the Presenter persistence composition boundary against the Presenter plan, API plan, engineering rules, and earlier release-check follow-up.
+- Verified default/test in-memory selection, production SQL dependency requirements, strict secret-free runtime config, PostgreSQL binding isolation, live-DB-free default tests, tenant/audit repository boundary preservation, no GraphQL-to-DB coupling, no raw media storage, no OBS/stream automation, and no checked-in secrets.
+- Wrote `07-reviews/architecture/presenter-persistence-composition-release-check.md`.
+- Recorded a pass-with-follow-up result: no blocking defects found; opt-in live PostgreSQL coverage, WebSocket server wiring, desktop run-mode/output-window integration, and local sync queue remain future slices.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- composition.test.ts presenter`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `40af0af docs(presenter): add persistence composition release check`.
+
+Next task:
+- Add opt-in live PostgreSQL coverage for Presenter persistence composition with documented skip behavior and no checked-in secrets.
+
+Open questions:
+- None.
+
 ## 2026-06-16 22:05 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
