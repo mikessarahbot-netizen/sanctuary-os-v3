@@ -15,10 +15,10 @@ Add a desktop Presenter replay runtime assembly factory that composes the migrat
 Tauri/Rust shell · real desktop windows · real network command service · real timer/connectivity wiring at startup · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
 
 ## Progress
-- [ ] Re-sync with the store, pass, and scheduler building blocks
-- [ ] Add the runtime assembly factory
-- [ ] Add an availability-guarded end-to-end smoke and a default offline test
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the store, pass, and scheduler building blocks
+- [x] Add the runtime assembly factory
+- [x] Add an availability-guarded end-to-end smoke (migrate → offline skip → online sync)
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the runtime assembly slice
 - [ ] Session handoff
 
