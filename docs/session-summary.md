@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop replay conflict classification
+
+Tasks completed:
+- Re-synced with the replay pass and the queue conflict-detail contract.
+- Added `PresenterDesktopReplayErrorClassification` (conflict-with-details or retryable-failed) and an injectable `PresenterDesktopReplayErrorClassifier` to `runPresenterDesktopReplayPass`; the default classifier treats every error as `failed`.
+- On a command-service error the pass now classifies: a `conflict` calls `markConflict` with validated details (`replaying -> conflict`); a `failed` calls `markFailed` with the supplied safe message. The result reports a `conflicted` set.
+- Added 2 engine-free tests (injected conflict path, classifier-supplied failure message) and updated the existing result-shape assertion.
+- Wrote `07-reviews/architecture/presenter-desktop-replay-conflict-classification-release-check.md` (pass with follow-ups). This completes the replay pass's correctness against the plan's conflict-vs-failure distinction.
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm --filter @sanctuary-os/desktop typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (desktop 11 tests; all 4 workspaces green).
+- Pushed implementation commit `ffd90d7` (`feat(desktop): classify replay errors as conflict or failed`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a desktop replay scheduler that runs the replay pass on an injected interval with offline/online gating.
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop Presenter replay pass
 
 Tasks completed:
