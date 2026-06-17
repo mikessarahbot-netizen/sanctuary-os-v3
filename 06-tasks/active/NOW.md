@@ -19,11 +19,11 @@ Add Presenter PostgreSQL persistence migrations and repository adapters.
 Live PostgreSQL integration · migration runner execution · API runtime composition · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current DB patterns
-- [ ] Add Presenter SQL migration definitions
-- [ ] Add Presenter PostgreSQL query and command repository adapters
-- [ ] Add focused Presenter SQL persistence tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current DB patterns
+- [x] Add Presenter SQL migration definitions
+- [x] Add Presenter PostgreSQL query and command repository adapters
+- [x] Add focused Presenter SQL persistence tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
