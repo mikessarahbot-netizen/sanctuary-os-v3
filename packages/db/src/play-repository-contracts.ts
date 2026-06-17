@@ -224,6 +224,9 @@ export const ListTrackSetsForSongPersistenceInputSchema = z
 export const ListPlayArrangementsPersistenceInputSchema = z
   .object({ songRef: NonEmptyStringSchema })
   .strict();
+export const GetPlayArrangementPersistenceInputSchema = z
+  .object({ arrangementRef: NonEmptyStringSchema })
+  .strict();
 export const ListPlaySectionsPersistenceInputSchema = z
   .object({ arrangementRef: NonEmptyStringSchema })
   .strict();
@@ -316,6 +319,9 @@ export const ListTrackSetsForSongPersistenceOperationSchema = readOperation(
 export const ListPlayArrangementsPersistenceOperationSchema = readOperation(
   ListPlayArrangementsPersistenceInputSchema
 );
+export const GetPlayArrangementPersistenceOperationSchema = readOperation(
+  GetPlayArrangementPersistenceInputSchema
+);
 export const ListPlaySectionsPersistenceOperationSchema = readOperation(
   ListPlaySectionsPersistenceInputSchema
 );
@@ -387,6 +393,9 @@ export type ListTrackSetsForSongPersistenceInput = z.infer<
 export type ListPlayArrangementsPersistenceInput = z.infer<
   typeof ListPlayArrangementsPersistenceInputSchema
 >;
+export type GetPlayArrangementPersistenceInput = z.infer<
+  typeof GetPlayArrangementPersistenceInputSchema
+>;
 export type ListPlaySectionsPersistenceInput = z.infer<
   typeof ListPlaySectionsPersistenceInputSchema
 >;
@@ -428,6 +437,9 @@ export interface PlayQueryPersistenceRepository {
   readonly listPlayArrangements: (
     operation: PlayReadPersistenceOperation<ListPlayArrangementsPersistenceInput>
   ) => Promise<readonly PlayArrangementPersistenceRecord[]>;
+  readonly getPlayArrangement: (
+    operation: PlayReadPersistenceOperation<GetPlayArrangementPersistenceInput>
+  ) => Promise<PlayArrangementPersistenceRecord | null>;
   readonly listPlaySections: (
     operation: PlayReadPersistenceOperation<ListPlaySectionsPersistenceInput>
   ) => Promise<readonly PlaySectionPersistenceRecord[]>;

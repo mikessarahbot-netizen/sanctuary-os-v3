@@ -5,6 +5,7 @@ import type {
 } from "./planning-command-sql-repository.js";
 import {
   AddPlayCuePersistenceOperationSchema,
+  GetPlayArrangementPersistenceOperationSchema,
   GetPlaybackStatePersistenceOperationSchema,
   GetTrackSetPersistenceOperationSchema,
   ListPadLayersPersistenceOperationSchema,
@@ -49,6 +50,9 @@ type ListTrackSetsForSongPersistenceOperation = z.infer<
 >;
 type ListPlayArrangementsPersistenceOperation = z.infer<
   typeof ListPlayArrangementsPersistenceOperationSchema
+>;
+type GetPlayArrangementPersistenceOperation = z.infer<
+  typeof GetPlayArrangementPersistenceOperationSchema
 >;
 type ListPlaySectionsPersistenceOperation = z.infer<
   typeof ListPlaySectionsPersistenceOperationSchema
@@ -351,6 +355,18 @@ export const createPlayQuerySqlRepository = (
     });
 
     return parseOptionalRow(PlaybackStateSqlRowSchema, result.rows);
+  },
+
+  getPlayArrangement: async (rawOperation: GetPlayArrangementPersistenceOperation) => {
+    const operation = GetPlayArrangementPersistenceOperationSchema.parse(rawOperation);
+    const result = await dependencies.executor.query({
+      name: "play.arrangements.get",
+      parameters: [operation.options.context.tenantId, operation.input.arrangementRef],
+      sql: `SELECT ${PLAY_ARRANGEMENT_COLUMNS} FROM play_arrangements WHERE tenant_id = ? AND arrangement_ref = ? LIMIT 1`,
+      ...optionalTransaction(operation.options.transaction)
+    });
+
+    return parseOptionalRow(PlayArrangementSqlRowSchema, result.rows);
   },
 
   getTrackSet: async (rawOperation: GetTrackSetPersistenceOperation) => {

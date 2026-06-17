@@ -231,6 +231,48 @@ describe("Play SQL repository (recording executor)", () => {
     expect(statements[0]?.parameters).toEqual([TENANT, null, null]);
   });
 
+  it("scopes getPlayArrangement by tenant and decodes the section order JSON", async () => {
+    const arrangementRow: PlanningSqlRow = {
+      arrangement_ref: "arrangement_1",
+      default_key: "G",
+      label: "Default",
+      loop_section_ref: "section_1",
+      section_order: JSON.stringify(["section_1", "section_2"]),
+      song_id: "song_1",
+      tempo_bpm: 120,
+      tenant_id: TENANT
+    };
+    const { executor, statements } = createRecordingExecutor({
+      "play.arrangements.get": [arrangementRow]
+    });
+    const repository = createPlayQuerySqlRepository({ executor });
+
+    const arrangement = await repository.getPlayArrangement({
+      input: { arrangementRef: "arrangement_1" },
+      options: readOptions
+    });
+
+    expect(arrangement?.arrangementRef).toBe("arrangement_1");
+    expect(arrangement?.tenantId).toBe(TENANT);
+    expect(arrangement?.sectionOrder).toEqual(["section_1", "section_2"]);
+    expect(arrangement?.loopSectionRef).toBe("section_1");
+    const [statement] = statements;
+    expect(statement?.sql).toContain("WHERE tenant_id = ? AND arrangement_ref = ?");
+    expect(statement?.parameters).toEqual([TENANT, "arrangement_1"]);
+  });
+
+  it("returns null when getPlayArrangement matches no row", async () => {
+    const { executor } = createRecordingExecutor({});
+    const repository = createPlayQuerySqlRepository({ executor });
+
+    expect(
+      await repository.getPlayArrangement({
+        input: { arrangementRef: "missing" },
+        options: readOptions
+      })
+    ).toBeNull();
+  });
+
   it("maps a pad-layer row, renaming pad_key to key and decoding the loop flag", async () => {
     const { executor } = createRecordingExecutor({ "play.pad_layers.list": [padLayerRow] });
     const repository = createPlayQuerySqlRepository({ executor });
