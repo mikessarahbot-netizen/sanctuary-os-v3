@@ -1,33 +1,33 @@
 # NOW
 
 ## Task
-Add opt-in live PostgreSQL coverage for Presenter persistence composition.
+Add API WebSocket/event transport wiring for validated Presenter events.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/presenter-module-plan.md`, `07-reviews/architecture/presenter-persistence-composition-release-check.md`, `apps/api/src/services/presenter/composition.ts`, `packages/db/src/presenter-migrations.ts`, `packages/db/src/presenter-sql-repository.ts`, and the Planning opt-in PostgreSQL smoke test pattern
-- Add an opt-in live PostgreSQL smoke test for Presenter runtime persistence composition in the API package
-- Skip by default unless `SANCTUARY_OS_PRESENTER_POSTGRES_URL` is set
-- Use an isolated schema name validated by Zod, apply the Presenter initial migration, exercise SQL-backed Presenter query and command repositories through API runtime composition, and clean up the schema afterward
-- Document the environment variables, command, schema behavior, and no-secrets rule in API/DB docs
-- Preserve default live-DB-free gates, tenant/audit scope, repository contract boundaries, no raw media payload storage, no OBS/stream automation, and no checked-in secrets
+- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/presenter-module-plan.md`, `07-reviews/architecture/presenter-api-event-persistence-release-check.md`, `07-reviews/architecture/presenter-persistence-composition-release-check.md`, current `apps/api/src/events/` contracts, and Presenter service event publication code
+- Add an API event transport boundary for validated `presentation.updated`, `presenter.slideChanged`, `presenter.outputBlanked`, and `presenter.outputRestored` envelopes
+- Keep the transport adapter-injected and live-network-free in default tests; use recording/in-memory clients only
+- Preserve `publishAfterCommit` validation, event ordering, tenant/aggregate envelope checks, actor/request payload scope, and no publication of rejected payloads
+- Add focused tests for Presenter event subscription/dispatch behavior, malformed envelope rejection, tenant-scoped routing metadata, and no OBS/stream/raw-media payload support
+- Document any new API event transport surface if needed
 - Run lint, typecheck, and tests
 - Commit and push the slice
 - Run session handoff
 
 ## Out of scope
-Always-on live PostgreSQL requirement · production deployment config · migration runner execution outside the smoke harness · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
+Desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [x] Re-sync with required docs and current Presenter SQL/runtime patterns
-- [x] Add opt-in Presenter PostgreSQL integration smoke test
-- [x] Document local command and no-secrets behavior
-- [x] Run lint, typecheck, and tests
+- [ ] Re-sync with required docs and current event contracts
+- [ ] Add API event transport boundary for Presenter events
+- [ ] Add focused event transport tests
+- [ ] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
-Presenter SQL-backed persistence can be exercised through API runtime composition by an opt-in live PostgreSQL smoke test that is skipped by default, documented, committed, pushed, and validated by default live-DB-free gates.
+Validated Presenter event envelopes can be dispatched through an API event transport boundary in tests without live network dependencies, preserving post-commit semantics and safety exclusions, committed and pushed with handoff documentation.
 
 ## Next task after this
-Start the next Presenter delivery slice, likely WebSocket server wiring for validated Presenter events, or address any live PostgreSQL coverage findings first.
+Run a focused Presenter event transport release check, or address any transport findings first.

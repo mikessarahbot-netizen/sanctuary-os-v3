@@ -19,6 +19,25 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 22:12 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, product vision, system map, engineering rules, API plan, Presenter module plan, Presenter persistence composition release check, Presenter runtime composition, Presenter migrations, Presenter SQL repositories, and the Planning opt-in PostgreSQL smoke test pattern.
+- Added `apps/api/src/services/presenter/postgresql-integration.test.ts`, skipped by default unless `SANCTUARY_OS_PRESENTER_POSTGRES_URL` is set.
+- The Presenter smoke test validates an isolated Zod-checked schema name, applies `PresenterInitialSchemaMigration`, builds SQL-backed Presenter persistence through API runtime composition, and exercises presentation save/query, service lookup, theme query, output target linking, slide add/update/reorder/remove, and audit rows.
+- Updated `apps/api` integration script so `pnpm --filter @sanctuary-os/api test:integration:postgres` runs both Planning and Presenter smoke tests, each skipped unless its module URL variable is set.
+- Documented `SANCTUARY_OS_PRESENTER_POSTGRES_URL`, optional `SANCTUARY_OS_PRESENTER_POSTGRES_SCHEMA`, schema cleanup behavior, and no-secrets guidance in API/DB docs.
+- Fixed two live-PostgreSQL Presenter SQL issues covered by the smoke path: aggregate slide JSON now strips null optional fields before Zod parsing, and `removeSlide` deletes slide blocks before deleting the slide row.
+- Verified default validation remains live-DB-free: `pnpm --filter @sanctuary-os/api test:integration:postgres` passed with both live tests skipped without database URLs.
+- Ran and passed focused Presenter API/DB tests, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `44485d4 test(presenter): add postgres integration smoke`.
+
+Next task:
+- Add API WebSocket/event transport wiring for validated Presenter events, without desktop event bus, UI, OBS, or stream automation.
+
+Open questions:
+- None.
+
 ## 2026-06-16 22:07 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
