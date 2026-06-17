@@ -1,33 +1,26 @@
 # NOW
 
 ## Task
-Community+ module, slice 1: the Community domain + pure logic — strict Zod records for the 8 objects + enums, and the pure logic (esp. the consent-aware audience resolver). Backend, no persistence/I/O. Mirror the Charts/Play domain slice.
+Community+ module, slice 2: the persistence contracts (`packages/db/src/community-repository-contracts.ts`) — tenant-scoped Zod persistence records + per-operation input schemas + read/write option guards + query/command repository interfaces, mirroring the Charts/Play persistence contracts. (Community+ slice 1 — domain + pure logic — done + green at `b612bf1`.)
 
 ## Module / authority
-Building Community+ from `05-plans/community-plus-module-plan.md` (just authored; authoritative). Community+ = the people/relationships module (members, households, groups, attendance, comms, engagement) — the STRICTEST PRIVACY surface. Charts + Play backends are complete.
-
-## Privacy non-negotiables (this module especially)
-- NO raw PII (phone/email/address) in domain records — only opaque `contactChannelRef`s + consent flags (per the plan; raw values live in an external contact-vault boundary).
-- Tenant-scope every record. No PII to AI unless `aiPolicyProfile.piiSharingAllowed = true`; AI-bound projections (EngagementSummary etc.) are PII-free BY CONSTRUCTION (refs + counts only).
-- Outbound comms require a human-confirmation gate; AI may draft (`origin="ai-drafted"`) but never send. Consent enforced in the pure audience resolver (non-consented suppressed).
-- No secrets/credentials in records; redacted safeMessages only in logs.
+Building Community+ from `05-plans/community-plus-module-plan.md` (authoritative). Strictest-privacy module: NO raw PII in records (opaque contactChannelRefs + consent only); tenant-scope everything; AI-bound projections PII-free. Charts + Play backends complete.
 
 ## Session protocol (in force)
 `agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`. Ceremony streamlined per backend slice; consolidated release check at the Community+-backend milestone.
 
-## In scope (slice 1)
+## In scope (slice 2)
 - Continue on `feature/presenter-domain-contracts`
-- Mirror `apps/api/src/domain/charts/` + `apps/api/src/domain/play/` (schemas + pure logic + index + tests)
-- Add `apps/api/src/domain/community/` (or the name matching the plan): strict `.strict()` Zod records for Member, Household, CommunityGroup, GroupMembership, AttendanceRecord, CommunicationMessage, CommunicationRecipient, EngagementSummary + enums, with invariants from the plan; mark PII fields per the plan (opaque refs only — do NOT add raw PII fields)
-- Add the pure logic: the consent-aware audience resolver (pure: members + consent + message → eligible recipients, non-consented suppressed, flagged not dropped) + any other pure rules the plan lists (e.g. engagement rollup computation if pure). No I/O, no Date.now.
-- Export via the domain barrel
-- Unit tests: schema validity/invariants, PII-free EngagementSummary (a test asserting the AI-projectable type cannot carry PII), consent suppression in the audience resolver, pure-rule determinism
+- Mirror `packages/db/src/charts-repository-contracts.ts` + `packages/db/src/play-repository-contracts.ts` exactly in shape
+- Add `packages/db/src/community-repository-contracts.ts`: `CommunityPersistenceReadOptions`/`WriteOptions` (reuse RepositoryReadOptions/WriteOptions + inlined superRefine requiring actorId); a `*PersistenceRecordSchema` per object (Member, Household, CommunityGroup, GroupMembership, AttendanceRecord, CommunicationMessage, CommunicationRecipient, EngagementSummary — durable persistence shapes mirroring the slice-1 domain records; plain storage strings; opaque contact refs only — NO raw PII columns; JSON for any array fields); per-operation `*PersistenceInputSchema`; readOperation/writeOperation wrappers; `CommunityQueryPersistenceRepository` + `CommunityCommandPersistenceRepository` interfaces (list/get per object + the writes from the plan, incl. the comms confirmation-gated path shape)
+- Export from the db barrel
+- Contract tests mirroring the charts/play contract tests (round-trip parse, .strict() rejection, actor-id requirement, key invariants, and a persistence-record PII-free assertion for EngagementSummary)
 
 ## Out of scope
-Persistence/contracts (slice 2+) · GraphQL/service · comms send transport · the web admin UI (slice 12, deferred) · offline attendance (optional slice 13)
+Migration (slice 3) · adapter (slice 4) · GraphQL/service · the web UI · send integration
 
 ## Done when
-The Community+ domain records + enums + pure logic (incl. consent-aware audience resolver) exist with invariants and tests (incl. a PII-free-projection test), gates green, committed and pushed.
+The Community+ persistence contracts exist (records + per-op inputs + option guards + query/command interfaces) with contract tests (incl. PII-free EngagementSummary), gates green, committed and pushed.
 
 ## Next task after this
-Community+ slice 2: persistence contracts (`packages/db/src/community-repository-contracts.ts`). Then slices 3–10 per `05-plans/community-plus-module-plan.md` (migration → adapter → GraphQL+service → comms lifecycle/confirmation gate → persistence service → engagement rollup → events → AI assist). Slices 11 (send integration, behind a carrier decision), 12 (web UI), 13 (optional offline attendance) await user decisions. After Community+: the OBS module.
+Community+ slice 3: the migration artifact (`packages/db/src/community-migrations.ts`). Then slices 4–10 per `05-plans/community-plus-module-plan.md` (adapter → GraphQL+service → comms lifecycle/confirmation gate → persistence service → engagement rollup → events → AI assist). Slices 11–13 await user decisions. After Community+: the OBS module.

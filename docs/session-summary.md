@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 1: domain + pure logic
+
+Tasks completed:
+- Community+ slice 1 (delegated; parent verified gates + PII guard): `apps/api/src/domain/community/` — 8 strict Zod records (no raw PII; opaque contactChannelRefs + consent), PII-free-by-construction EngagementSummary (tests lock out phone/email/address keys), consent-aware audience resolver (suppress-with-reason), message lifecycle with a human-confirm gate AI-drafted messages can't bypass, pure engagement/attendance rollups. +91 api tests. Gates green: db 347 / api 499 + 2 skipped / desktop 89 / church-context 5. Committed `b612bf1`.
+
+Next task:
+- Community+ slice 2: persistence contracts (`packages/db/src/community-repository-contracts.ts`). Then slices 3–10 per the plan.
+
+Open questions / follow-ups: Community+ open questions (offline attendance? consent source-of-truth?); standing follow-ups (network-executor JSON gap; enum mismatch task_85338bf7; UI surface decision; live /goal hook).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ module plan authored
 
 Tasks completed:
