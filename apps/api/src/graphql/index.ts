@@ -41,6 +41,7 @@ export interface GraphqlSurface {
   readonly mutations: readonly PlannedGraphqlMutation[];
 }
 
+export * from "./http-server.js";
 export * from "./planning.js";
 export * from "./presenter.js";
 export * from "./presenter-schema.js";

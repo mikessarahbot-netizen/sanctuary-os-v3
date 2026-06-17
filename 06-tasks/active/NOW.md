@@ -16,11 +16,11 @@ Bind the Presenter GraphQL request handler to a concrete Node `http` listener so
 Deployment/runtime/TLS config · service-side conflict detection · desktop process main / Tauri spawn / UI · planning schema wiring · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the transport handler and schema factory
-- [ ] Add the Node `http` request/response adapter over the handler
-- [ ] Add the `createPresenterGraphqlHttpServer` start/stop factory
-- [ ] Add adapter unit tests (valid POST / malformed body / non-POST)
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the transport handler and schema factory
+- [x] Add the Node `http` request/response adapter over the handler (pure, testable)
+- [x] Add the `createPresenterGraphqlHttpServer` start/stop factory
+- [x] Add adapter unit tests (valid POST / 404 / 405 / 400) plus a real listen+POST smoke (200 / 401)
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the http listener slice
 - [ ] Session handoff
 
