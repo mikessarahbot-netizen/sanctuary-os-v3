@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 8: replay decision + coordinator
+
+Tasks completed:
+- Play slice 8 (delegated; parent verified gates): `packages/db/src/play-local-sync-queue-replay.ts` (pure decision: backoff + attempt limits, injected clock) + `play-local-sync-queue-status.ts`, and `apps/api/src/services/play/local-sync-queue-replay-coordinator.ts` (single-pass map-and-run over the 9 queued ops → PlayCommandService; retryable-vs-terminal typed-error classification; status transitions). +13 db, +9 api tests. Gates green: db 347 / api 396 + 2 skipped / desktop 54 / church-context 5. Committed `8bfaad9`.
+
+Next task:
+- Play slice 9: WebSocket events (trackSet.updated, play.playbackStateChanged, play.cueFired) into the API event union. Then slice 10 (desktop replay runtime) → Play backend complete.
+
+Open questions / follow-ups: GraphQL enum mismatch (background task task_85338bf7); Play scope assumptions; UI awaits scaffold; live /goal hook forces continuation (building with safe commits/pushes).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 7: offline-sync queue
 
 Tasks completed:
