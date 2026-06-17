@@ -19,6 +19,19 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue storage plan
+
+- Added `05-plans/presenter-local-sync-queue-storage-plan.md`.
+- Defined local persistence ownership, storage record shape, SQLite-compatible table/index expectations, migration expectations, repository contract operations, replay/idempotency metadata, stale-data/conflict behavior, retry/retention behavior, tenant isolation, privacy constraints, and implementation test expectations.
+- Linked the storage plan from `05-plans/presenter-local-sync-queue-plan.md`.
+- Kept the slice planning-only with no SQLite migrations, concrete local adapter, production queue runner, desktop UI, Tauri command, desktop event bus, API replay implementation, vendor SDK, Auth0 integration, AI execution, deployment config, or checked-in secrets.
+- Validation passed: `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed planning commit `8cc6f9b` (`docs(presenter): add local sync queue storage plan`) to `feature/presenter-domain-contracts`.
+- Next task: add Presenter local sync queue local persistence repository contracts and tests.
+
+Open questions:
+- None.
+
 ## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue contract release check
 
 - Completed the Presenter local sync queue contract release check and wrote findings to `07-reviews/architecture/presenter-local-sync-queue-contract-release-check.md`.
