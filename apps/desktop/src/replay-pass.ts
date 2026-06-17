@@ -10,8 +10,8 @@ import {
 import type { AuthenticatedActor } from "@sanctuary-os/api";
 import {
   mapPresenterLocalSyncQueueEntryToReplayCommand,
-  type PresenterCommandService,
-  type PresenterLocalSyncQueueReplayCommand
+  type PresenterLocalSyncQueueReplayCommand,
+  type PresenterReplayCommandExecutor
 } from "@sanctuary-os/api/presenter";
 
 /**
@@ -44,7 +44,7 @@ export type PresenterDesktopReplayErrorClassifier = (
 
 export interface PresenterDesktopReplayPassDependencies {
   readonly actor: AuthenticatedActor;
-  readonly commandService: PresenterCommandService;
+  readonly commandService: PresenterReplayCommandExecutor;
   readonly errorClassifier?: PresenterDesktopReplayErrorClassifier;
   readonly now: string;
   readonly policy: PresenterLocalSyncQueueReplayPolicyInput;
@@ -60,7 +60,7 @@ export interface PresenterDesktopReplayPassResult {
 }
 
 const executeReplayCommand = async (
-  commandService: PresenterCommandService,
+  commandService: PresenterReplayCommandExecutor,
   mapped: PresenterLocalSyncQueueReplayCommand
 ): Promise<void> => {
   switch (mapped.operation) {

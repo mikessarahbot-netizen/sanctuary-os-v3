@@ -6,7 +6,7 @@ import type {
   SqliteMigrationDatabaseClient
 } from "@sanctuary-os/db";
 import type { AuthenticatedActor } from "@sanctuary-os/api";
-import type { PresenterCommandService } from "@sanctuary-os/api/presenter";
+import type { PresenterReplayCommandExecutor } from "@sanctuary-os/api/presenter";
 import { createPresenterDesktopLocalSyncQueueStore } from "./local-sync-queue-store.js";
 import {
   runPresenterDesktopReplayPass,
@@ -31,7 +31,7 @@ import {
 export interface PresenterDesktopReplayRuntimeDependencies<THandle> {
   readonly actor: AuthenticatedActor;
   readonly clock: () => string;
-  readonly commandService: PresenterCommandService;
+  readonly commandService: PresenterReplayCommandExecutor;
   readonly config?: PresenterLocalSyncQueuePersistenceRuntimeConfigInput;
   readonly database: SqliteMigrationDatabaseClient;
   readonly errorClassifier?: PresenterDesktopReplayErrorClassifier;

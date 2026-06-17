@@ -15,11 +15,11 @@ Add a production network `PresenterCommandService` and a concrete replay error c
 SQLite client bridge / runtime bootstrap (separate slice, pending the SQLite-execution-model ADR) · Tauri commands beyond the existing shell · running scheduler loop · desktop UI framework · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the GraphQL presenter mutations and command/classifier contracts
-- [ ] Add the network `PresenterCommandService` over an injected transport
-- [ ] Add the concrete replay error classifier
-- [ ] Add focused unit tests (success / conflict / retryable failure)
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the GraphQL presenter mutations and command/classifier contracts
+- [x] Add the network replay executor over an injected transport (narrower `PresenterReplayCommandExecutor`, since GraphQL results are truncated projections)
+- [x] Add the concrete replay error classifier
+- [x] Add focused unit tests (success / conflict / retryable failure)
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the network command service slice
 - [ ] Session handoff
 
