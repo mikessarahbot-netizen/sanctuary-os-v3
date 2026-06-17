@@ -74,6 +74,7 @@ export interface GraphqlSurface {
 }
 
 export * from "./charts.js";
+export * from "./community.js";
 export * from "./http-server.js";
 export * from "./planning.js";
 export * from "./play.js";

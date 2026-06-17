@@ -6,6 +6,11 @@ import {
   type ChartsGraphqlResolverDependencies
 } from "./charts.js";
 import {
+  communityGraphqlTypeDefs,
+  createCommunityGraphqlResolvers,
+  type CommunityGraphqlResolverDependencies
+} from "./community.js";
+import {
   createPlayGraphqlResolvers,
   playGraphqlTypeDefs,
   type PlayGraphqlResolverDependencies
@@ -27,8 +32,13 @@ import {
  * reuses the `DateTime` scalar the Presenter SDL declares, so it is only merged
  * in when Charts dependencies are supplied. The Play SDL likewise `extend`s the
  * roots and reuses the `DateTime` scalar, so it is only merged in when Play
- * dependencies are supplied. Planning is not wired here yet; this schema is the
- * surface the desktop replay transport executes.
+ * dependencies are supplied. The Community SDL follows the same pattern and is
+ * only merged in when Community dependencies are supplied; its hyphenated enum
+ * values (`small-group`, `serving-team`, `co-leader`, `ai-drafted`) are exposed
+ * with underscore SDL names and mapped back to the domain values via the enum
+ * value maps below (GraphQL enum names cannot contain hyphens). Planning is not
+ * wired here yet; this schema is the surface the desktop replay transport
+ * executes.
  */
 const baseTypeDefs = `
   scalar JSON
@@ -56,8 +66,36 @@ const JsonScalar = new GraphQLScalarType({
   serialize: (value) => value
 });
 
+/**
+ * Enum value maps for the Community enums whose domain values contain hyphens.
+ * Registering the internal value for each underscore SDL name makes graphql-js
+ * coerce inputs to the hyphenated domain value (so the Zod enums parse) and
+ * serialize the hyphenated value back to the underscore SDL name. Hyphen-free
+ * Community enums need no map (SDL name === value).
+ */
+const communityEnumValueMaps = {
+  CommunicationOrigin: {
+    ai_drafted: "ai-drafted",
+    human: "human"
+  },
+  GroupKind: {
+    class: "class",
+    ministry: "ministry",
+    other: "other",
+    serving_team: "serving-team",
+    small_group: "small-group"
+  },
+  GroupRole: {
+    co_leader: "co-leader",
+    guest: "guest",
+    leader: "leader",
+    member: "member"
+  }
+} as const;
+
 export interface ApiGraphqlSchemaDependencies extends PresenterGraphqlResolverDependencies {
   readonly charts?: ChartsGraphqlResolverDependencies;
+  readonly community?: CommunityGraphqlResolverDependencies;
   readonly play?: PlayGraphqlResolverDependencies;
 }
 
@@ -73,6 +111,10 @@ export const createPresenterGraphqlSchema = (
     dependencies.play !== undefined
       ? createPlayGraphqlResolvers(dependencies.play)
       : undefined;
+  const communityResolvers =
+    dependencies.community !== undefined
+      ? createCommunityGraphqlResolvers(dependencies.community)
+      : undefined;
 
   return makeExecutableSchema({
     resolvers: {
@@ -81,19 +123,29 @@ export const createPresenterGraphqlSchema = (
       Mutation: {
         ...presenterResolvers.Mutation,
         ...(chartsResolvers !== undefined ? chartsResolvers.Mutation : {}),
-        ...(playResolvers !== undefined ? playResolvers.Mutation : {})
+        ...(playResolvers !== undefined ? playResolvers.Mutation : {}),
+        ...(communityResolvers !== undefined ? communityResolvers.Mutation : {})
       },
       Query: {
         ...presenterResolvers.Query,
         ...(chartsResolvers !== undefined ? chartsResolvers.Query : {}),
-        ...(playResolvers !== undefined ? playResolvers.Query : {})
-      }
+        ...(playResolvers !== undefined ? playResolvers.Query : {}),
+        ...(communityResolvers !== undefined ? communityResolvers.Query : {})
+      },
+      ...(communityResolvers !== undefined
+        ? {
+            AudienceDescriptor: communityResolvers.AudienceDescriptor,
+            EngagementScope: communityResolvers.EngagementScope,
+            ...communityEnumValueMaps
+          }
+        : {})
     },
     typeDefs: [
       baseTypeDefs,
       presenterGraphqlTypeDefs,
       ...(chartsResolvers !== undefined ? [chartsGraphqlTypeDefs] : []),
-      ...(playResolvers !== undefined ? [playGraphqlTypeDefs] : [])
+      ...(playResolvers !== undefined ? [playGraphqlTypeDefs] : []),
+      ...(communityResolvers !== undefined ? [communityGraphqlTypeDefs] : [])
     ]
   });
 };
