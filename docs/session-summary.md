@@ -2,6 +2,25 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:05 EDT · feature/presenter-module-plan
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current Presenter domain/service contracts.
+- Added Presenter GraphQL SDL and resolver shells in `apps/api/src/graphql/presenter.ts` for presentation lookup, style templates, output state lookup, scripture preview, presentation creation, slide group/slide updates, slide reorder, style application, scripture slide import, and output-state mutation.
+- Extended Presenter service contract names narrowly for planned scripture preview/import operations so the GraphQL layer delegates to typed service boundaries without vendor SDKs or Bible API implementation.
+- Kept resolvers thin: Zod-parse GraphQL-style args/context, preserve actor/request scope, add mutation intent, derive output-state tenant from the authenticated actor, normalize GraphQL enum spellings to domain values, and delegate to injected Presenter services.
+- Added focused Presenter GraphQL tests for SDL operation names, resolver validation, actor/request/tenant propagation, delegation, service error propagation, scripture preview non-persistence, and rejection of stream/OBS/raw-media fields.
+- Exported Presenter GraphQL contracts from the API GraphQL barrel and included Presenter operation names in the planned GraphQL surface list.
+- Kept the slice free of Presenter service implementation, persistence adapters, database migrations, UI screens, desktop output windows, Tauri commands, raw media storage, Bible API integration, OBS control, stream start/stop, vendor SDKs, Auth0 integration, AI prompt execution, deployment config, or checked-in secrets.
+- Installed workspace dependencies locally because this worktree had no `node_modules`.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- presenter`, `pnpm --filter @sanctuary-os/api typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Add in-memory Presenter services/repositories for contract tests and development composition.
+
+Open questions:
+- None.
+
 ## 2026-06-16 20:58 EDT · feature/presenter-module-plan
 
 Tasks completed:

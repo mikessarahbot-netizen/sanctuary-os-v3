@@ -18,13 +18,13 @@ Add Presenter GraphQL contract and resolver shells.
 Presenter service implementation · persistence adapters · database migrations · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and Presenter contract code
-- [ ] Add Presenter GraphQL SDL/operation contracts
-- [ ] Add thin Presenter resolver shells
-- [ ] Add focused Presenter GraphQL tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs and Presenter contract code
+- [x] Add Presenter GraphQL SDL/operation contracts
+- [x] Add thin Presenter resolver shells
+- [x] Add focused Presenter GraphQL tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Presenter GraphQL contract/resolver shells exist, validate inputs/context with Zod, delegate to Presenter services, preserve tenant/request/actor context, reject out-of-scope fields, pass default gates, and are committed/pushed with handoff.

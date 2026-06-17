@@ -4,7 +4,11 @@ export const plannedGraphqlQueries = [
   "serviceTemplates",
   "serviceAssignments",
   "serviceReadiness",
-  "songLibrary"
+  "songLibrary",
+  "presentation",
+  "presenterStyleTemplates",
+  "presenterOutputState",
+  "scripturePreview"
 ] as const;
 
 export const plannedGraphqlMutations = [
@@ -17,7 +21,14 @@ export const plannedGraphqlMutations = [
   "assignVolunteer",
   "updateAssignmentStatus",
   "generateSetlist",
-  "refreshReadinessScore"
+  "refreshReadinessScore",
+  "createPresentationFromService",
+  "updateSlideGroup",
+  "updateSlide",
+  "reorderSlides",
+  "applyPresenterStyleTemplate",
+  "importScriptureSlides",
+  "setPresenterOutputState"
 ] as const;
 
 export type PlannedGraphqlQuery = (typeof plannedGraphqlQueries)[number];
@@ -29,3 +40,4 @@ export interface GraphqlSurface {
 }
 
 export * from "./planning.js";
+export * from "./presenter.js";

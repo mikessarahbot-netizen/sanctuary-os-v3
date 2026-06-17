@@ -6,6 +6,7 @@ import {
   PresenterSlideSchema,
   type PresenterOutputState,
   type PresenterPresentation,
+  type PresenterScriptureReference,
   type PresenterSlide,
   type PresenterSlideGroup,
   type PresenterStyleTemplate
@@ -78,6 +79,17 @@ export const GetPresenterOutputStateQuerySchema =
     input: PresenterPresentationIdInputSchema
   }).strict();
 
+export const PreviewPresenterScriptureQuerySchema =
+  PresenterServiceOperationContextSchema.extend({
+    input: z
+      .object({
+        passageRef: NonEmptyStringSchema,
+        serviceId: NonEmptyStringSchema.optional(),
+        translationLabel: NonEmptyStringSchema.optional()
+      })
+      .strict()
+  }).strict();
+
 export const CreatePresentationFromServiceCommandSchema =
   PresenterServiceOperationContextSchema.extend({
     input: PresenterServiceIdInputSchema.extend({
@@ -131,6 +143,19 @@ export const ApplyPresenterStyleTemplateCommandSchema =
     intent: z.literal("update")
   }).strict();
 
+export const ImportScriptureSlidesCommandSchema =
+  PresenterServiceOperationContextSchema.extend({
+    input: z
+      .object({
+        passageRef: NonEmptyStringSchema,
+        presentationId: NonEmptyStringSchema,
+        slideGroupId: NonEmptyStringSchema.optional(),
+        translationLabel: NonEmptyStringSchema.optional()
+      })
+      .strict(),
+    intent: z.literal("update")
+  }).strict();
+
 export const SetPresenterOutputStateCommandSchema =
   PresenterServiceOperationContextSchema.extend({
     input: PresenterOutputStateSchema,
@@ -178,6 +203,12 @@ export const PresenterCommandSchema = z.discriminatedUnion("commandName", [
     .strict(),
   z
     .object({
+      commandName: z.literal("importScriptureSlides"),
+      operation: ImportScriptureSlidesCommandSchema
+    })
+    .strict(),
+  z
+    .object({
       commandName: z.literal("setPresenterOutputState"),
       operation: SetPresenterOutputStateCommandSchema
     })
@@ -204,6 +235,9 @@ export type ListPresenterStyleTemplatesQuery = z.infer<
 export type GetPresenterOutputStateQuery = z.infer<
   typeof GetPresenterOutputStateQuerySchema
 >;
+export type PreviewPresenterScriptureQuery = z.infer<
+  typeof PreviewPresenterScriptureQuerySchema
+>;
 export type CreatePresentationFromServiceCommand = z.infer<
   typeof CreatePresentationFromServiceCommandSchema
 >;
@@ -212,6 +246,9 @@ export type UpdateSlideCommand = z.infer<typeof UpdateSlideCommandSchema>;
 export type ReorderSlidesCommand = z.infer<typeof ReorderSlidesCommandSchema>;
 export type ApplyPresenterStyleTemplateCommand = z.infer<
   typeof ApplyPresenterStyleTemplateCommandSchema
+>;
+export type ImportScriptureSlidesCommand = z.infer<
+  typeof ImportScriptureSlidesCommandSchema
 >;
 export type SetPresenterOutputStateCommand = z.infer<
   typeof SetPresenterOutputStateCommandSchema
@@ -234,6 +271,9 @@ export interface PresenterQueryService {
   readonly listPresenterStyleTemplates: (
     query: ListPresenterStyleTemplatesQuery
   ) => Promise<readonly PresenterStyleTemplate[]>;
+  readonly previewScripture: (
+    query: PreviewPresenterScriptureQuery
+  ) => Promise<readonly PresenterScriptureReference[]>;
 }
 
 export interface PresenterCommandService {
@@ -246,6 +286,9 @@ export interface PresenterCommandService {
   readonly deletePresentation: (
     command: DeletePresentationCommand
   ) => Promise<{ readonly presentationId: string }>;
+  readonly importScriptureSlides: (
+    command: ImportScriptureSlidesCommand
+  ) => Promise<PresenterSlideGroup>;
   readonly reorderSlides: (
     command: ReorderSlidesCommand
   ) => Promise<PresenterPresentation>;
