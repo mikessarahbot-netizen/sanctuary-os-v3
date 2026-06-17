@@ -1,32 +1,30 @@
 # NOW
 
 ## Task
-Charts module, slice 2: the Charts persistence contracts in `packages/db` (Chart, ChartArrangement, ChartAnnotation, MusicianChartPreference), tenant-scoped and Zod-validated.
+Charts module, slice 3: the Charts SQLite migration artifact + migration tests (charts tables, indexes, constraints, rollback, checksum).
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `05-plans/charts-module-plan.md`, `packages/db/src/presenter-repository-contracts.ts` (mirror its style), `packages/db/src/repository-contracts.ts`, and `apps/api/src/domain/charts/chordpro.ts`
-- Add `packages/db/src/charts-repository-contracts.ts`: strict Zod persistence record schemas for `Chart` (tenant, chartId, songRef, arrangementRef, defaultKey, chordProSource, title/metadata), `ChartArrangement` (tenant, arrangementRef, songRef, label, defaultKey, capo, sectionOrder), `ChartAnnotation` (tenant, annotationId, chartId, musicianId, sectionIndex/lineIndex anchor, kind, note/color), and `MusicianChartPreference` (tenant, chartId, musicianId, transposeSemitones, capo, instrument, fontScale, chordsVisible)
-- Add read/write persistence option schemas and operation schemas mirroring the presenter ones (require an actor; tenant-scoped), plus the `ChartsQueryPersistenceRepository` and `ChartsCommandPersistenceRepository` interfaces with the operations from the plan
-- Validate the stored `chordProSource` is parseable (cross-check with `parseChordPro`) or store it as opaque text with a separate render step — keep the contract storing source text and a schema-version, deferring the runtime adapter
-- Export from the `packages/db` barrel
-- Add focused schema tests (valid records, tenant/musician scoping refinements, rejection of unknown fields)
-- Keep this slice persistence contracts only; no SQLite adapter, migration, GraphQL, or service wiring
+- Re-sync with `agents.md`, `05-plans/charts-module-plan.md`, `packages/db/src/presenter-migrations.ts` (mirror its style), `packages/db/src/migrations.ts`, and `packages/db/src/charts-repository-contracts.ts`
+- Add `packages/db/src/charts-migrations.ts`: a `defineSqlMigrationArtifact` artifact creating SQLite-compatible tenant-scoped tables `charts`, `chart_arrangements`, `chart_annotations`, `musician_chart_preferences` with primary keys, the `charts.v1` schema-version CHECK, annotation-kind/instrument CHECKs, and indexes (by tenant+song, tenant+chart, tenant+chart+musician); forward + rollback SQL; `TEXT`/`INTEGER`/`REAL` columns only (no PostgreSQL-only types)
+- Export the artifact and table/index name lists; add to a `ChartsSqlMigrations` list
+- Add migration tests mirroring the presenter migration tests (table/column presence, schema-version + kind constraints, required indexes, rollback drops, checksum stability via `calculateSqlMigrationChecksum`), default no-live-database
+- Export from the db barrel
+- Keep this slice the migration artifact only; no repository adapter, GraphQL, or service
 
 ## Out of scope
-SQLite adapter/migration · GraphQL/API surface · service layer · offline sync · mobile UI · CCLI/catalog · AI suggestions
+SQLite repository adapter · GraphQL/API surface · service layer · offline sync · mobile UI
 
 ## Progress
-- [x] Re-sync with the Charts plan and presenter persistence contract style
-- [x] Add the Charts persistence record schemas (chart/arrangement/annotation/preference) with tenant scope + note refinement
-- [x] Add read/write option + operation schemas and the query/command repository interfaces
-- [x] Add 6 focused schema tests (valid record, unknown field, schema version, note refinement, negative transpose, actor requirement)
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the Charts persistence contracts slice
+- [ ] Re-sync with the Charts contracts and presenter migration style
+- [ ] Add the Charts SQLite migration artifact (tables/indexes/constraints/rollback)
+- [ ] Add migration tests (shape, constraints, indexes, rollback, checksum)
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the Charts migration slice
 - [ ] Session handoff
 
 ## Done when
-The Charts persistence contracts define tenant-scoped, Zod-validated records and repository interfaces mirroring the presenter contracts, covered by focused schema tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next Charts slice (the SQLite migration + adapter).
+The Charts SQLite migration artifact creates the tenant-scoped charts tables with constraints, indexes, rollback, and a stable checksum, covered by no-live-database migration tests, default gates pass, the slice is committed and pushed, and handoff documents identify the next Charts slice (the SQLite repository adapter).
 
 ## Next task after this
-Charts slice 3: the Charts SQLite migration artifact + migration tests (mirroring the presenter local sync queue migration), then the SQLite repository adapter.
+Charts slice 4: the Charts SQLite repository adapter (reusing `createSqliteExecutor`), implementing the query/command repositories with tenant filtering, row-to-contract mapping, and a `node:sqlite` smoke.

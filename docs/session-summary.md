@@ -2,6 +2,21 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 2: persistence contracts
+
+Tasks completed:
+- Added `packages/db/src/charts-repository-contracts.ts`: tenant-scoped, Zod-validated persistence records (Chart, ChartArrangement, ChartAnnotation with a note refinement, MusicianChartPreference with integer transpose/capo/instrument/fontScale/chordsVisible), actor-required read/write options, per-operation schemas, and the query/command repository interfaces from the Charts plan. Exported from the db barrel.
+- Added 6 schema tests (valid record, unknown-field rejection, schema version, note refinement, negative transpose, actor requirement). db now 149 tests.
+- Wrote `07-reviews/architecture/charts-persistence-contracts-release-check.md` (pass).
+- Validation passed: `pnpm lint`, `pnpm typecheck`, `pnpm test` (db 149, api 239 + 2 skipped, desktop 54, church-context 5).
+- Pushed implementation commit `1d20689` (`feat(db): add Charts persistence contracts`).
+
+Next task:
+- Charts slice 3: the Charts SQLite migration artifact + migration tests.
+
+Open questions:
+- None blocking; building Charts slice-by-slice (next: migration → adapter → GraphQL → service → offline).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 1: ChordPro domain
 
 Tasks completed:
