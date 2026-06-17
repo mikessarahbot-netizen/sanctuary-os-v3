@@ -1,27 +1,25 @@
 # NOW
 
-## Task
-Play module, slice 9: the Play WebSocket events — add `trackSet.updated`, `play.playbackStateChanged`, `play.cueFired` to the API event union with `.strict()` payloads + tenant/aggregate scope superRefines, emitted after durable commits. Mirror the presenter events. (Play slices 1–8 done + green at `8bfaad9`.)
+## Milestone reached
+The **Charts and Play API/db backends are both complete** end-to-end (Charts slices 1–7b; Play slices 1–9), all green and pushed at `583f3ef`. Gates: db 347 · api 402 (+2 skipped) · desktop 54 · church-context 5. See `07-reviews/architecture/play-backend-release-check.md`.
 
-## Module / authority
-Building Play from `05-plans/play-module-plan.md` (authoritative; slices 1–10 backend, 11–12 UI). Backend-first.
+## Decision point — next direction (the real fork)
+Everything built so far is backend; nothing is runnable as a UI yet. Choose the next direction:
+
+1. **Pivot to a runnable surface (recommended).** Build ONE module (Charts or Play) end-to-end including a UI, so there is an app you can open. This requires choosing the app-shell approach — and they differ in how autonomously verifiable they are:
+   - **Web (`apps/web`, Next.js)** — most autonomously verifiable (can be loaded + screenshotted via the preview/browser tools), but `apps/web` role vs the desktop/mobile product surfaces should be confirmed.
+   - **Desktop (`apps/desktop`, Tauri)** — product-aligned (the operator surface; the Tauri shell + Node sidecar already exist), but the webview UI is hard to verify without a human/screenshot.
+   - **Mobile (`apps/mobile`, Expo)** — product-aligned for volunteers, but a bare workspace needing a full Expo scaffold; unit-verifiable only.
+2. **Continue backend-first.** Play slice 10 (desktop replay runtime) + then author the Community+ module plan and build its backend, then OBS. More foundation; still nothing runnable for a long while.
 
 ## Session protocol (in force)
-`agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the Play plan + this NOW.md + `docs/session-summary.md`. Ceremony streamlined per backend slice; consolidated release check at the Play-backend milestone (after slice 10); gates are the per-slice verification.
+`agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`. The live `/goal` hook forces continuation; building under it with safe commits/pushes at every breakpoint.
 
-## In scope (slice 9)
-- Continue on `feature/presenter-domain-contracts`
-- Read `apps/api/src/events/index.ts` (the current event union — enumerates planning + presenter events) and the presenter event definitions + their tests to mirror the tenant/aggregate scope superRefine pattern exactly
-- Add three `.strict()` Play event payload schemas to the API event union: `trackSet.updated` (tenant + trackSetId scope), `play.playbackStateChanged` (tenant + trackSetId; carries the coarse PlaybackState snapshot fields), `play.cueFired` (tenant + trackSetId + cueId) — each with the tenant/aggregate scope superRefine like the presenter events
-- Wire emission points minimally: the Play service/coordinator emit these only AFTER durable state commits (mirror how presenter wires its event emission); keep the high-frequency playhead OFF this union (durable/coarse only, per the plan)
-- Export/extend the union as the presenter events are
-- Tests: event payload validation (valid + scope-mismatch rejected) + the emit-after-commit wiring (mirror the presenter event tests)
+## If proceeding autonomously
+Default per the user's "continue at your discretion": pivot toward a runnable surface, choosing the most verifiable viable option (web preview if `apps/web` is an acceptable first surface; otherwise the desktop operator surface accepting limited autonomous verification). Build the smallest end-to-end Charts surface first (list track sets/charts → open one → render), wired to the GraphQL API, with component/hook tests + gates green, then verify it actually loads.
 
-## Out of scope
-The desktop Play replay runtime (slice 10) · UI · changing the high-frequency local-bus playhead (stays ephemeral)
-
-## Done when
-The three Play events are in the API event union with strict payloads + scope superRefines, emitted after durable commits, covered by validation + wiring tests, gates green, committed and pushed.
-
-## Next task after this
-Play slice 10: the desktop Play replay runtime (Node sidecar; mirror the presenter desktop replay runtime — replay-pass + scheduler + error-classifier + runtime-bootstrap + sidecar-entry for Play, on synchronous node:sqlite, engine/transport-agnostic via injected fetch/auth/connectivity). After slice 10 the PLAY BACKEND IS COMPLETE → write `07-reviews/architecture/play-backend-release-check.md` (consolidated). UI slices 11–12 (desktop Play surface, mobile read-only) await the scaffold decision. After Play: author the Community+ module plan, then OBS.
+## Deferred / tracked
+- Play slice 10 (desktop replay runtime) — pairs with the desktop UI.
+- UI slices (Charts + Play) — this decision.
+- Community+ and OBS modules — not yet started (each: plan → backend slices → UI).
+- GraphQL enum mismatch — background task `task_85338bf7`.

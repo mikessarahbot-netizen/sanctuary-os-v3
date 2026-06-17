@@ -2,6 +2,18 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 9: WebSocket events (PLAY API/DB BACKEND COMPLETE)
+
+Tasks completed:
+- Play slice 9 (delegated; parent verified gates + confirmed the changeset was exactly the 4 expected files): trackSet.updated / play.playbackStateChanged / play.cueFired added to the API event union (`apps/api/src/events/index.ts`) with scope superRefines, emitted after durable commits in the in-memory service (mirrors presenter emission). +6 api tests. Gates green: db 347 / api 402 + 2 skipped / desktop 54 / church-context 5. Committed `583f3ef`.
+- MILESTONE: Charts AND Play API/db backends are both complete. Wrote consolidated `07-reviews/architecture/play-backend-release-check.md`.
+- User checked in twice ("is this working toward goal?", then "continue at your discretion") — gave an honest assessment that it is all backend / nothing runnable, recommended pivoting to a runnable UI surface. Reached this clean milestone deliberately as the right place to pivot.
+
+Next task (decision point in NOW.md):
+- Pivot to a runnable surface (recommended) — one module end-to-end incl. UI, choosing the app-shell approach (web = most verifiable; desktop = product-aligned; mobile = bare scaffold). OR continue backend-first (Play slice 10 desktop runtime → Community+ → OBS).
+
+Open questions / follow-ups: app-shell/scaffold approach for UIs (the pivot); GraphQL enum mismatch (task_85338bf7); play.cueFired v1 semantics; Play scope assumptions; live /goal hook forces continuation.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 8: replay decision + coordinator
 
 Tasks completed:
