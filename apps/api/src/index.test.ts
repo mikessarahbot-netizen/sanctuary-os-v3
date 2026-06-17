@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ApiEventTypeSchema,
   ApiRoleSchema,
+  PresentationUpdatedEventPayloadSchema,
   ReadinessUpdatedEventPayloadSchema,
   calculatePlanningReadiness,
   plannedGraphqlMutations,
@@ -17,6 +18,20 @@ describe("api scaffold", () => {
   it("validates planned API boundary enums", () => {
     expect(ApiRoleSchema.parse("worship_leader")).toBe("worship_leader");
     expect(ApiEventTypeSchema.parse("readiness.updated")).toBe("readiness.updated");
+    expect(ApiEventTypeSchema.parse("presentation.updated")).toBe("presentation.updated");
+    expect(
+      PresentationUpdatedEventPayloadSchema.parse({
+        changeKind: "metadata-updated",
+        presentationId: "presentation_1",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-16T18:30:00.000Z"
+      })
+    ).toEqual({
+      changeKind: "metadata-updated",
+      presentationId: "presentation_1",
+      tenantId: "tenant_1",
+      updatedAt: "2026-06-16T18:30:00.000Z"
+    });
   });
 
   it("calculates readiness from planning domain inputs", () => {

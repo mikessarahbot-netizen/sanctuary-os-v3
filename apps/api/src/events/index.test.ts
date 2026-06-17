@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createInMemoryEventPublisher, validateApiEventEnvelope } from "./index.js";
+import {
+  ApiEventTypeSchema,
+  PresentationUpdatedEventPayloadSchema,
+  PresenterOutputBlankedEventPayloadSchema,
+  PresenterOutputRestoredEventPayloadSchema,
+  PresenterSlideChangedEventPayloadSchema,
+  createInMemoryEventPublisher,
+  validateApiEventEnvelope
+} from "./index.js";
 
 describe("createInMemoryEventPublisher", () => {
   it("validates and records published events in order", async () => {
@@ -126,184 +134,209 @@ describe("createInMemoryEventPublisher", () => {
 
     expect(eventPublisher.readPublishedEvents()).toEqual([]);
   });
+});
 
-  it("validates Presenter event payload contracts and schema versions", async () => {
+describe("Presenter event contracts", () => {
+  it("validates Presenter event type names and schema versions", () => {
+    const eventTypes = [
+      "presentation.updated",
+      "presenter.slideChanged",
+      "presenter.outputBlanked",
+      "presenter.outputRestored"
+    ] as const;
+
+    expect(eventTypes.map((eventType) => ApiEventTypeSchema.parse(eventType))).toEqual([
+      "presentation.updated",
+      "presenter.slideChanged",
+      "presenter.outputBlanked",
+      "presenter.outputRestored"
+    ]);
+
+    expect(
+      eventTypes.map((eventType) =>
+        validateApiEventEnvelope({
+          aggregateId: "presentation_1",
+          actorId: "actor_1",
+          eventType,
+          occurredAt: "2026-06-16T18:30:00.000Z",
+          payload: buildPresenterPayload(eventType),
+          requestId: `request_${eventType}`,
+          schemaVersion: buildPresenterSchemaVersion(eventType),
+          tenantId: "tenant_1"
+        }).schemaVersion
+      )
+    ).toEqual([
+      "presenter-presentation-updated.v1",
+      "presenter-slide-changed.v1",
+      "presenter-output-blanked.v1",
+      "presenter-output-restored.v1"
+    ]);
+  });
+
+  it("rejects Presenter envelopes with mismatched tenant or aggregate scope", () => {
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "presentation_1",
+        eventType: "presentation.updated",
+        occurredAt: "2026-06-16T18:30:00.000Z",
+        payload: {
+          changeKind: "metadata-updated",
+          presentationId: "presentation_1",
+          tenantId: "tenant_other",
+          updatedAt: "2026-06-16T18:30:00.000Z"
+        },
+        requestId: "request_presenter",
+        schemaVersion: "presenter-presentation-updated.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow();
+
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "presentation_other",
+        eventType: "presenter.slideChanged",
+        occurredAt: "2026-06-16T18:30:00.000Z",
+        payload: {
+          activeSlideId: "slide_2",
+          changeSource: "next",
+          presentationId: "presentation_1",
+          previousSlideId: "slide_1",
+          tenantId: "tenant_1"
+        },
+        requestId: "request_presenter",
+        schemaVersion: "presenter-slide-changed.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow();
+  });
+
+  it("rejects OBS, stream, raw-media, and secret-like fields in Presenter payloads", () => {
+    expect(() =>
+      PresentationUpdatedEventPayloadSchema.parse({
+        changeKind: "slide-updated",
+        presentationId: "presentation_1",
+        rawMediaPayload: "base64-media",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-16T18:30:00.000Z"
+      })
+    ).toThrow();
+
+    expect(() =>
+      PresenterSlideChangedEventPayloadSchema.parse({
+        activeSlideId: "slide_2",
+        changeSource: "direct",
+        obsSceneName: "Live Slides",
+        presentationId: "presentation_1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow();
+
+    expect(() =>
+      PresenterOutputBlankedEventPayloadSchema.parse({
+        blankedAt: "2026-06-16T18:30:00.000Z",
+        presentationId: "presentation_1",
+        streamKey: "secret_stream_key",
+        tenantId: "tenant_1"
+      })
+    ).toThrow();
+
+    expect(() =>
+      PresenterOutputRestoredEventPayloadSchema.parse({
+        apiToken: "secret_token",
+        presentationId: "presentation_1",
+        restoredAt: "2026-06-16T18:30:00.000Z",
+        tenantId: "tenant_1"
+      })
+    ).toThrow();
+  });
+
+  it("records validated Presenter events through the in-memory publisher", async () => {
     const eventPublisher = createInMemoryEventPublisher();
 
     await eventPublisher.publishAfterCommit({
       aggregateId: "presentation_1",
       actorId: "actor_1",
-      eventType: "presentation.updated",
-      occurredAt: "2026-06-16T21:20:00.000Z",
-      payload: {
-        changeKind: "updated",
-        presentationId: "presentation_1",
-        serviceId: "service_1",
-        tenantId: "tenant_1",
-        updatedAt: "2026-06-16T21:20:00.000Z"
-      },
-      requestId: "request_presentation_update",
-      schemaVersion: "presenter-presentation-updated.v1",
-      tenantId: "tenant_1"
-    });
-    await eventPublisher.publishAfterCommit({
-      aggregateId: "presentation_1",
-      actorId: "actor_1",
-      eventType: "presenter.slideChanged",
-      occurredAt: "2026-06-16T21:21:00.000Z",
-      payload: {
-        activeSlideId: "slide_2",
-        presentationId: "presentation_1",
-        previousSlideId: "slide_1",
-        tenantId: "tenant_1"
-      },
-      requestId: "request_slide_changed",
-      schemaVersion: "presenter-slide-changed.v1",
-      tenantId: "tenant_1"
-    });
-    await eventPublisher.publishAfterCommit({
-      aggregateId: "presentation_1",
-      actorId: "actor_1",
       eventType: "presenter.outputBlanked",
-      occurredAt: "2026-06-16T21:22:00.000Z",
+      occurredAt: "2026-06-16T18:30:00.000Z",
       payload: {
+        blankedAt: "2026-06-16T18:30:00.000Z",
         outputTargetId: "output_main",
         presentationId: "presentation_1",
-        reason: "Prayer ministry",
+        reason: "Pastoral prayer",
         tenantId: "tenant_1"
       },
-      requestId: "request_output_blanked",
+      requestId: "request_blank",
       schemaVersion: "presenter-output-blanked.v1",
       tenantId: "tenant_1"
     });
-    await eventPublisher.publishAfterCommit({
-      aggregateId: "presentation_1",
-      actorId: "actor_1",
-      eventType: "presenter.outputRestored",
-      occurredAt: "2026-06-16T21:23:00.000Z",
-      payload: {
-        outputTargetId: "output_main",
-        presentationId: "presentation_1",
-        tenantId: "tenant_1"
-      },
-      requestId: "request_output_restored",
-      schemaVersion: "presenter-output-restored.v1",
-      tenantId: "tenant_1"
-    });
 
-    expect(
-      eventPublisher.readPublishedEvents().map((event) => ({
-        eventType: event.eventType,
-        schemaVersion: event.schemaVersion
-      }))
-    ).toEqual([
+    expect(eventPublisher.readPublishedEvents()).toMatchObject([
       {
-        eventType: "presentation.updated",
-        schemaVersion: "presenter-presentation-updated.v1"
-      },
-      {
-        eventType: "presenter.slideChanged",
-        schemaVersion: "presenter-slide-changed.v1"
-      },
-      {
-        eventType: "presenter.outputBlanked",
-        schemaVersion: "presenter-output-blanked.v1"
-      },
-      {
-        eventType: "presenter.outputRestored",
-        schemaVersion: "presenter-output-restored.v1"
-      }
-    ]);
-  });
-
-  it("rejects Presenter event tenant and aggregate mismatches", () => {
-    expect(() =>
-      validateApiEventEnvelope({
         aggregateId: "presentation_1",
-        actorId: "actor_1",
-        eventType: "presenter.slideChanged",
-        occurredAt: "2026-06-16T21:21:00.000Z",
+        eventType: "presenter.outputBlanked",
         payload: {
-          activeSlideId: "slide_2",
-          presentationId: "presentation_1",
-          tenantId: "tenant_2"
-        },
-        requestId: "request_slide_changed",
-        schemaVersion: "presenter-slide-changed.v1",
-        tenantId: "tenant_1"
-      })
-    ).toThrow("Presenter event tenant must match payload tenant.");
-
-    expect(() =>
-      validateApiEventEnvelope({
-        aggregateId: "presentation_2",
-        actorId: "actor_1",
-        eventType: "presenter.outputRestored",
-        occurredAt: "2026-06-16T21:23:00.000Z",
-        payload: {
+          outputTargetId: "output_main",
           presentationId: "presentation_1",
           tenantId: "tenant_1"
         },
-        requestId: "request_output_restored",
-        schemaVersion: "presenter-output-restored.v1",
+        schemaVersion: "presenter-output-blanked.v1",
         tenantId: "tenant_1"
-      })
-    ).toThrow("Presenter event aggregate must match presentation ID.");
-  });
-
-  it("rejects Presenter event payloads with OBS, stream, raw media, or secret fields", () => {
-    const baseEvent = {
-      aggregateId: "presentation_1",
-      actorId: "actor_1",
-      eventType: "presenter.outputBlanked" as const,
-      occurredAt: "2026-06-16T21:22:00.000Z",
-      payload: {
-        presentationId: "presentation_1",
-        tenantId: "tenant_1"
-      },
-      requestId: "request_output_blanked",
-      schemaVersion: "presenter-output-blanked.v1" as const,
-      tenantId: "tenant_1"
-    };
-
-    expect(() =>
-      validateApiEventEnvelope({
-        ...baseEvent,
-        payload: {
-          ...baseEvent.payload,
-          obsScene: "scene_main"
-        }
-      })
-    ).toThrow("Unrecognized key");
-
-    expect(() =>
-      validateApiEventEnvelope({
-        ...baseEvent,
-        payload: {
-          ...baseEvent.payload,
-          rawMediaPayload: "base64"
-        }
-      })
-    ).toThrow("Unrecognized key");
-
-    expect(() =>
-      validateApiEventEnvelope({
-        ...baseEvent,
-        payload: {
-          ...baseEvent.payload,
-          startStream: true
-        }
-      })
-    ).toThrow("Unrecognized key");
-
-    expect(() =>
-      validateApiEventEnvelope({
-        ...baseEvent,
-        payload: {
-          ...baseEvent.payload,
-          vendorToken: "secret"
-        }
-      })
-    ).toThrow("Unrecognized key");
+      }
+    ]);
   });
 });
+
+type PresenterEventType =
+  | "presentation.updated"
+  | "presenter.slideChanged"
+  | "presenter.outputBlanked"
+  | "presenter.outputRestored";
+
+const buildPresenterPayload = (eventType: PresenterEventType): Record<string, unknown> => {
+  switch (eventType) {
+    case "presentation.updated":
+      return {
+        changeKind: "metadata-updated",
+        presentationId: "presentation_1",
+        serviceId: "service_1",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-16T18:30:00.000Z"
+      };
+    case "presenter.slideChanged":
+      return {
+        activeSlideId: "slide_2",
+        changeSource: "next",
+        presentationId: "presentation_1",
+        previousSlideId: "slide_1",
+        tenantId: "tenant_1"
+      };
+    case "presenter.outputBlanked":
+      return {
+        blankedAt: "2026-06-16T18:30:00.000Z",
+        outputTargetId: "output_main",
+        presentationId: "presentation_1",
+        reason: "Prayer",
+        tenantId: "tenant_1"
+      };
+    case "presenter.outputRestored":
+      return {
+        outputTargetId: "output_main",
+        presentationId: "presentation_1",
+        restoredAt: "2026-06-16T18:30:00.000Z",
+        tenantId: "tenant_1"
+      };
+  }
+};
+
+const buildPresenterSchemaVersion = (eventType: PresenterEventType): string => {
+  switch (eventType) {
+    case "presentation.updated":
+      return "presenter-presentation-updated.v1";
+    case "presenter.slideChanged":
+      return "presenter-slide-changed.v1";
+    case "presenter.outputBlanked":
+      return "presenter-output-blanked.v1";
+    case "presenter.outputRestored":
+      return "presenter-output-restored.v1";
+  }
+};

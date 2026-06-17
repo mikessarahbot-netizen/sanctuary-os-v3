@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:21 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current Presenter domain/API/service/event contracts.
+- Added validated Presenter API event payload contracts for `presentation.updated`, `presenter.slideChanged`, `presenter.outputBlanked`, and `presenter.outputRestored`.
+- Added Presenter event schema versions, envelope validation, tenant consistency checks, aggregate/presentation consistency checks, and public API exports through the existing events module.
+- Kept the slice contract-only with no WebSocket server, event publishing from Presenter services, desktop event bus wiring, persistence adapters, DB migrations, UI, desktop output windows, Tauri commands, raw media storage, Bible API integration, OBS control, stream start/stop, vendor SDKs, Auth0 integration, AI prompt execution, deployment config, or checked-in secrets.
+- Added focused tests for Presenter event type names, schema versioning, payload schema validation, tenant/aggregate consistency, strict rejection of OBS/stream/raw-media/secret-like payload fields, and in-memory event publisher validation.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- src/events/index.test.ts src/index.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Completed active task handoff for the next Presenter slice.
+
+Next task:
+- Wire Presenter service mutations to emit validated events after durable in-memory state changes, or add Presenter persistence contracts first if event publication needs a persistence boundary.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:17 EDT · feature/presenter-domain-contracts
 
 Tasks completed:

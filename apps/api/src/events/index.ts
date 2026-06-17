@@ -46,7 +46,16 @@ export const AssignmentStatusChangedEventPayloadSchema = z
 
 export const PresentationUpdatedEventPayloadSchema = z
   .object({
-    changeKind: z.enum(["created", "updated"]),
+    changeKind: z.enum([
+      "created-from-service",
+      "metadata-updated",
+      "slide-added",
+      "slide-updated",
+      "slides-reordered",
+      "slide-removed",
+      "theme-applied",
+      "output-target-set"
+    ]),
     presentationId: z.string().min(1),
     serviceId: z.string().min(1).optional(),
     tenantId: z.string().min(1),
@@ -57,14 +66,16 @@ export const PresentationUpdatedEventPayloadSchema = z
 export const PresenterSlideChangedEventPayloadSchema = z
   .object({
     activeSlideId: z.string().min(1),
-    previousSlideId: z.string().min(1).optional(),
+    changeSource: z.enum(["load", "direct", "next", "previous"]),
     presentationId: z.string().min(1),
+    previousSlideId: z.string().min(1).optional(),
     tenantId: z.string().min(1)
   })
   .strict();
 
 export const PresenterOutputBlankedEventPayloadSchema = z
   .object({
+    blankedAt: z.string().datetime(),
     outputTargetId: z.string().min(1).optional(),
     presentationId: z.string().min(1),
     reason: z.string().min(1).optional(),
@@ -76,37 +87,10 @@ export const PresenterOutputRestoredEventPayloadSchema = z
   .object({
     outputTargetId: z.string().min(1).optional(),
     presentationId: z.string().min(1),
+    restoredAt: z.string().datetime(),
     tenantId: z.string().min(1)
   })
   .strict();
-
-const validatePresenterEventScope = (
-  event: {
-    readonly aggregateId: string;
-    readonly payload: {
-      readonly presentationId: string;
-      readonly tenantId: string;
-    };
-    readonly tenantId: string;
-  },
-  context: z.RefinementCtx
-): void => {
-  if (event.tenantId !== event.payload.tenantId) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Presenter event tenant must match payload tenant.",
-      path: ["payload", "tenantId"]
-    });
-  }
-
-  if (event.aggregateId !== event.payload.presentationId) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Presenter event aggregate must match presentation ID.",
-      path: ["aggregateId"]
-    });
-  }
-};
 
 const ValidatedApiEventEnvelopeBaseSchema = z.discriminatedUnion("eventType", [
   ApiEventEnvelopeSchema.extend({
@@ -149,12 +133,28 @@ const ValidatedApiEventEnvelopeBaseSchema = z.discriminatedUnion("eventType", [
 export const ValidatedApiEventEnvelopeSchema =
   ValidatedApiEventEnvelopeBaseSchema.superRefine((event, context) => {
     if (
-      event.eventType === "presentation.updated" ||
-      event.eventType === "presenter.slideChanged" ||
-      event.eventType === "presenter.outputBlanked" ||
-      event.eventType === "presenter.outputRestored"
+      event.eventType !== "presentation.updated" &&
+      event.eventType !== "presenter.slideChanged" &&
+      event.eventType !== "presenter.outputBlanked" &&
+      event.eventType !== "presenter.outputRestored"
     ) {
-      validatePresenterEventScope(event, context);
+      return;
+    }
+
+    if (event.payload.tenantId !== event.tenantId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Presenter event payload tenant must match envelope tenant.",
+        path: ["payload", "tenantId"]
+      });
+    }
+
+    if (event.payload.presentationId !== event.aggregateId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Presenter event aggregate must match payload presentation.",
+        path: ["aggregateId"]
+      });
     }
   });
 

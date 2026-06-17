@@ -22,8 +22,8 @@ Event publishing from Presenter services · WebSocket server wiring · desktop e
 - [x] Add Presenter event payload schemas
 - [x] Add focused Presenter event contract tests
 - [x] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Presenter has typed, tested event payload contracts for the planned WebSocket events; payloads are Zod-validated, tenant-scoped, versioned, and free of out-of-scope controls or secrets; default gates pass; the slice is committed, pushed, and documented in session handoff.
