@@ -17,6 +17,7 @@ export * from "./planning-rehearsal-tracking-sql-repository.js";
 export * from "./planning-repository-contracts.js";
 export * from "./play-migrations.js";
 export * from "./play-repository-contracts.js";
+export * from "./play-sql-repository.js";
 export * from "./presenter-migrations.js";
 export * from "./presenter-in-memory-repository.js";
 export * from "./presenter-local-sync-queue-composition.js";
