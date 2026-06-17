@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue SQLite adapter + release check
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `03-context/church-context-schema.md`, the Presenter module/local-sync/storage plans, the migration artifact release check, and the existing local sync queue repository contracts/migration.
+- Implemented `createPresenterLocalSyncQueueSqlRepository` in `packages/db/src/presenter-local-sync-queue-sql-repository.ts` against the existing `PresenterLocalSyncQueuePersistenceRepository` contract and the `presenter_local_sync_queue_entries` migration.
+- Covered enqueue, tenant-scoped get, replay-ready listing with conflict blocking, status transitions (replaying/synced/conflict/failed/requeue/cancel), and retention cleanup using single-statement SQLite-compatible mutations with `RETURNING` and a `status`-from guard.
+- Added canonical JSON serialization for stored operation/conflict payloads, row-to-contract mapping validated through the persistence schemas, an operation-column vs payload integrity check, and a tenant-mismatch guard.
+- Added 17 no-live-database adapter tests via a recording executor; exported the adapter from the package barrel.
+- Wrote `07-reviews/architecture/presenter-local-sync-queue-sql-adapter-release-check.md`. Result: pass with follow-ups. No blocking defects found.
+- Validation passed: `pnpm --filter @sanctuary-os/db test -- presenter-local-sync-queue-sql-repository.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed adapter commit `1e2c936` (`feat(presenter): add local sync queue SQLite repository adapter`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a concrete SQLite executor and opt-in live-database integration smoke for the Presenter local sync queue adapter.
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue migration artifact release check
 
 Tasks completed:
