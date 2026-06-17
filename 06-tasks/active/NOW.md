@@ -18,10 +18,10 @@ Wire API runtime composition to select Presenter persistence adapters.
 Live PostgreSQL integration · migration runner execution · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current API/DB composition patterns
-- [ ] Add Presenter persistence composition boundary
-- [ ] Add focused API composition tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current API/DB composition patterns
+- [x] Add Presenter persistence composition boundary
+- [x] Add focused API composition tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
