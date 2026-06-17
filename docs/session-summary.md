@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 20:39 EDT · feature/planning-readiness-domain
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, the Planning DB persistence release-check, and current API/DB persistence wiring.
+- Audited Planning production persistence wiring across API runtime composition, PostgreSQL executor behavior, strict config boundaries, transaction behavior, secret handling, tenant/audit continuity, adapter isolation, and live-DB-free tests.
+- Wrote `07-reviews/architecture/planning-production-persistence-wiring-release-check.md`.
+- Recorded a pass-with-follow-up result: no blocking defects found in the production persistence wiring.
+- Decided to add opt-in live PostgreSQL integration coverage with documented skip behavior before proceeding to the next product module.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `cfed591 docs(api): add planning persistence wiring release check`.
+
+Next task:
+- Add opt-in live PostgreSQL integration coverage for Planning persistence wiring with documented skip behavior and no checked-in secrets.
+
+Open questions:
+- None.
+
 ## 2026-06-16 19:48 EDT · feature/planning-readiness-domain
 
 Tasks completed:
