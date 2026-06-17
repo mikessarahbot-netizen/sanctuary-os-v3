@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:17 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current Presenter domain/API contracts.
+- Added `createInMemoryPresenterServicesAdapter` in `apps/api/src/services/presenter/in-memory.ts`.
+- Implemented in-memory Presenter query and command services behind the existing GraphQL resolver contracts.
+- Added service-owned role checks, tenant-scoped reads/writes, Zod validation, deterministic ID/clock injection for tests, default tenant theme creation, slide add/update/reorder/remove behavior, theme application, and output target storage.
+- Kept the slice persistence-adapter-free with no DB migrations, SQL adapters, UI, desktop windows, Tauri commands, raw media storage, Bible API, OBS control, stream start/stop, vendor SDKs, Auth0 integration, AI prompt execution, deployment config, or checked-in secrets.
+- Added focused tests for creation, tenant isolation, read-vs-write roles, slide mutation behavior, output target tenant validation, and GraphQL resolver composition through in-memory services.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- presenter`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `c2b5db5 feat(presenter): add in-memory service adapter`.
+
+Next task:
+- Add Presenter WebSocket event payload contracts for `presentation.updated`, `presenter.slideChanged`, `presenter.outputBlanked`, and `presenter.outputRestored`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:07 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
