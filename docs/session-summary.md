@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop sidecar process entry (env-driven)
+
+Tasks completed:
+- Added `startPresenterDesktopSidecarFromEnv` (`apps/desktop/src/sidecar-runtime-env.ts`): parses the sidecar config from an env record, opens a `node:sqlite` database (dynamic import, injectable), and starts the sidecar with `globalThis.fetch` (structurally assignable to `PresenterFetchLike` — no adapter needed).
+- Added `runPresenterDesktopSidecarMain` (`apps/desktop/src/sidecar-main.ts`): a thin runnable entry from `process.env` with `SIGINT`/`SIGTERM` → `stop()`, no auto-run on import.
+- Added a `node:sqlite` availability-guarded smoke (parse env → open SQLite → enqueue → replay → synced → stop). Exported both from the barrel.
+- Wrote `07-reviews/architecture/presenter-desktop-sidecar-process-entry-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (desktop 44).
+- Pushed implementation commit `afe4ed1` (`feat(desktop): add env-driven sidecar process entry`).
+
+Next task:
+- Make the desktop sidecar runnable (build + bin entry) and have the Tauri Rust shell spawn/supervise it (cargo-check verified).
+
+Open questions:
+- The sidecar↔webview status IPC and a desktop status UI remain (next slice); packaging/code-signing is a later deployment concern.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Presenter service conflict detection (typed errors)
 
 Tasks completed:
