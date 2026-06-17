@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 6: persistence-backed service
+
+Tasks completed:
+- Play slice 6 (delegated; parent verified gates): `apps/api/src/services/play/persistence.ts` (PlayQueryService/PlayCommandService over the slice-4 SQL repos; domain↔persistence mapping; tenant scope; typed errors; confirmation-gated removePlayCue) + `composition.ts` (in-memory vs sql selection + `migratePlaySqliteSchema` via the runner). Added an additive `getPlayArrangement` read to the db query repo (needed by resolvePlaySequence). +2 db, +19 api tests. Gates green: db 277 / api 387 + 2 skipped / desktop 54 / church-context 5. Committed `b7e52fb`.
+
+Next task:
+- Play slice 7: the Play offline-sync queue (contracts + SQLite/in-memory repo + queue migration), mirroring the Charts queue.
+
+Open questions / follow-ups: GraphQL enum mismatch (background task task_85338bf7); Play scope assumptions; UI awaits scaffold; live /goal hook forces continuation (building with safe commits/pushes).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 5: GraphQL + in-memory service
 
 Tasks completed:
