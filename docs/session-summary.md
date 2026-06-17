@@ -2,6 +2,20 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 6: persistence-backed service
+
+Tasks completed:
+- Built the persistence-backed Charts service (delegated to a sub-agent; parent independently re-ran gates before committing). Added `apps/api/src/services/charts/persistence.ts` (ChartsQueryService/ChartsCommandService over the slice-4 SQL repos; domain↔persistence mapping; tenant scope; role/owning-musician checks; typed errors) + `composition.ts` (in-memory vs SQL selection + `migrateChartsSqliteSchema` via the migration runner). Drop-in behind the existing GraphQL resolvers; in-memory service untouched.
+- Tests: +14 api (11 recording-executor + 3 node:sqlite integration). Gates green: lint clean, typecheck all 4 projects, tests db 166 / api 276 + 2 skipped / desktop 54 / church-context 5.
+- Committed `feat(api): add the persistence-backed Charts service over the SQLite repos` (`52cf763`). Wrote the release check + the slice-7 handoff note.
+
+Next task:
+- Charts slice 7: the Charts offline-sync queue (contracts + SQLite/in-memory repository), first increment mirroring the presenter local sync queue.
+
+Open questions:
+- Documented: persistence service raises CHART_NOT_FOUND for cross-tenant where in-memory raises AUTHORIZATION_FAILED (tenant-scoped reads can't see other tenants); both refuse with a typed error.
+- The live `/goal` Stop hook still forces continuation; re-issue `/goal` with the session-handoff wording (or `/clear`) for a true fresh-session handoff.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 5: GraphQL + in-memory service
 
 Tasks completed:
