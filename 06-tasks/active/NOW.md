@@ -1,31 +1,27 @@
 # NOW
 
 ## Task
-Wire the desktop packaging: build the sidecar as part of the Tauri build and pass the status port from the shell to both the sidecar and the webview.
+Record the desktop Node-runtime packaging ADR (how the sidecar is shipped for distribution), closing the Presenter desktop packaging thread.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/src/lib.rs`, and `apps/desktop/web/index.html`
-- Set the Tauri `build.beforeBuildCommand` (and `beforeDevCommand`) to run `pnpm build:sidecar` so the bundle exists before the app is built
-- Have the Rust shell pass `SANCTUARY_OS_PRESENTER_STATUS_PORT` (a default constant) to the spawned sidecar, and resolve the bundled sidecar path relative to the app resources when `SANCTUARY_OS_PRESENTER_SIDECAR_PATH` is unset
-- Make the webview status port configurable instead of hardcoded: inject it via a generated `web/config.js` written by `build:sidecar` (or a small build step) so the UI and the shell agree on the port
-- Verify `cargo check` still compiles and the bundle builds; keep the TS gates green
-- Out of scope: bundling a Node runtime / self-contained binary / code-signing (a deeper deployment task); document it as the remaining packaging step
+- Re-sync with `agents.md`, `docs/session-summary.md`, `08-decisions/` (ADR format), `apps/desktop/package.json` (`build:sidecar`), `apps/desktop/src-tauri/src/lib.rs`, and `tauri.conf.json`
+- Write an ADR in `08-decisions/` choosing the desktop sidecar distribution approach: ship the esbuild bundle and run it with a Node runtime that is bundled as a Tauri external binary / sidecar (Node SEA single-executable or a packed Node), resolving the path from the app resources — versus relying on a system `node` (dev only). Record context, decision, and consequences
+- Note the concrete follow-up wiring (add the sidecar binary to `bundle.resources`, resolve `SANCTUARY_OS_PRESENTER_SIDECAR_PATH` from resources, CI step to produce the binary) without implementing the binary packaging in this slice
+- Keep this slice the ADR only; no code changes
 
 ## Out of scope
-Node-runtime bundling / self-contained sidecar binary · code-signing / installers · CI release pipeline · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets · other modules
+Implementing the Node-runtime binary packaging / code-signing / CI release · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets · other modules
 
 ## Progress
-- [x] Re-sync with the desktop package, Tauri config, Rust shell, and web frontend
-- [x] Wire `build:sidecar` into the Tauri `beforeBuildCommand`/`beforeDevCommand`
-- [x] Pass the status port default (`7421`) from the Rust shell to the spawned sidecar (explicit env still wins)
-- [x] Make the webview status port configurable (reads `window.__SANCTUARY_OS_PRESENTER_STATUS_PORT__`, default 7421 matching the shell)
-- [x] Verify `cargo check` compiles and the TS gates pass
-- [ ] Commit and push the packaging-wiring slice
+- [ ] Re-sync with the packaging wiring and ADR format
+- [ ] Write the desktop Node-runtime packaging ADR in `08-decisions/`
+- [ ] Run lint, typecheck, and tests (docs-only; gates unaffected)
+- [ ] Commit and push the ADR
 - [ ] Session handoff
 
 ## Done when
-The Tauri build runs `build:sidecar`, the shell and webview agree on the status port via configuration (not a hardcoded constant), `cargo check` and the bundle build pass, the TS gates stay green, the slice is committed and pushed, and handoff documents identify the exact next task (a Node-runtime/self-contained packaging step, then the next module).
+The Node-runtime packaging ADR is recorded with context/decision/consequences and concrete follow-up wiring, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Decide and document the Node-runtime packaging approach (bundle Node / self-contained binary) for distribution; then begin the next module (re-sync its plan first). Address any packaging-wiring findings first.
+Begin the next module. Only Planning and Presenter have plans in `05-plans/`; Play, Charts, Community+, and OBS need a module plan authored first (from `00-product/vision.md` + `01-architecture/system-map.md`) before slice-by-slice implementation. Re-sync the chosen module's intent, author its plan, then build.

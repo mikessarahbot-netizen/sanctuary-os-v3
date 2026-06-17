@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop packaging wiring
+
+Tasks completed:
+- Set the Tauri `beforeBuildCommand`/`beforeDevCommand` to run `pnpm build:sidecar` so the sidecar bundle exists before the app builds.
+- The Rust shell defaults `SANCTUARY_OS_PRESENTER_STATUS_PORT` to 7421 when spawning the sidecar (explicit env still wins); the webview reads a configurable port (`window.__SANCTUARY_OS_PRESENTER_STATUS_PORT__`, default 7421) so the shell and UI agree.
+- Verified `cargo check` compiles and the TS gates stay green (db 143, api 230 + 2 skipped, desktop 54, church-context 5).
+- Wrote `07-reviews/architecture/presenter-desktop-packaging-wiring-release-check.md` (pass with follow-ups).
+- Pushed implementation commit `8b00413` (`feat(desktop): wire sidecar build into Tauri and align the status port`).
+- The Presenter offline-sync feature is now complete end to end as a self-wiring, launchable, conflict-resolving desktop app.
+
+Next task:
+- Record the desktop Node-runtime packaging ADR, then begin the next module (Play/Charts/Community+/OBS need a plan authored first; only Planning and Presenter have plans).
+
+Open questions:
+- Node-runtime bundling / self-contained sidecar binary for distribution is the remaining packaging step (ADR next).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop operator requeue/cancel actions
 
 Tasks completed:
