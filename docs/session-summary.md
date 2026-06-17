@@ -19,6 +19,24 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 22:17 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, product vision, system map, engineering rules, API plan, Presenter module plan, Presenter API/event/persistence release check, Presenter persistence composition release check, current API event contracts, and Presenter service event publication code.
+- Added an API event transport boundary in `apps/api/src/events/index.ts` that validates event envelopes, wraps them with tenant/aggregate/event-type routing metadata, and dispatches through an injected transport client.
+- Added an in-memory API event transport client for tests with tenant-, aggregate-, and event-type-scoped subscriptions, unsubscribe behavior, and ordered delivery recording.
+- Preserved `publishAfterCommit` validation semantics by adding `createApiEventTransportPublisher`, which rejects malformed Presenter envelopes before transport delivery.
+- Added focused tests for Presenter event dispatch ordering, tenant-scoped routing, aggregate-scoped subscriptions, malformed envelope rejection, route metadata mismatch rejection, and rejection of OBS/stream/raw-media/secret-like payloads.
+- Documented the event transport boundary in `apps/api/README.md`, including that default tests use in-memory transport only and do not start live WebSocket, desktop bus, OBS, or stream controls.
+- Rebased onto remote `a05a4ed fix(db): split presenter sql child writes`, reran validation, and pushed `7576912 feat(api): add presenter event transport`.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- events/index.test.ts presenter`, `pnpm --filter @sanctuary-os/api test:integration:postgres`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Run a focused Presenter event transport release check and record findings under `07-reviews/architecture/`.
+
+Open questions:
+- None.
+
 ## 2026-06-16 22:12 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
