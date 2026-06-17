@@ -17,9 +17,9 @@ Add a Presenter local sync queue persistence/storage plan.
 New production code · production queue runner · SQLite schema/migrations · local persistence adapter implementation · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs and release-check findings
-- [ ] Add local sync queue persistence/storage plan
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and release-check findings
+- [x] Add local sync queue persistence/storage plan
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push planning slice
 - [ ] Session handoff
 

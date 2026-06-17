@@ -99,6 +99,8 @@ The first implementation should add contracts before SQLite persistence. SQLite/
 - Avoid PostgreSQL-only semantics so local storage remains portable.
 - Include stale-data and sync-queue tests before desktop replay code depends on it.
 
+Storage-specific implementation slices should follow `05-plans/presenter-local-sync-queue-storage-plan.md` before adding SQLite migrations, local queue repository contracts, or desktop replay dependencies.
+
 ## Validation Expectations
 
 The contract slice that follows this plan should test:
