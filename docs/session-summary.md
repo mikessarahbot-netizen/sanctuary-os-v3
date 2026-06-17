@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:36 EDT · feature/presenter-persistence-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current Presenter domain/API/service/event contracts.
+- Created `feature/presenter-persistence-contracts` from the detached `feature/presenter-domain-contracts` tip because `feature/presenter-domain-contracts` was already checked out by another worktree.
+- Added adapter-free Presenter persistence contracts in `packages/db` for saved presentations, slides, slide blocks, scripture passages, media cues, themes, and output targets.
+- Defined Presenter persistence operation schemas and repository interfaces for presentation reads/writes, theme saves, output target writes, and current slide mutations: add, update, reorder, remove, and theme application.
+- Required tenant/request context for all operations and actor audit metadata for Presenter writes while preserving opaque IDs, Zod validation, strict record boundaries, and no raw media/vendor/secret payload fields.
+- Kept the slice contract-only with no SQL adapter, database migration, WebSocket server, desktop event bus, UI, desktop output windows, Tauri commands, OBS automation, stream start/stop, vendor SDKs, Auth0 integration, AI execution, deployment config, or checked-in secrets.
+- Added focused tests for operation validation, tenant/audit metadata requirements, tenant mismatch rejection, duplicate slide-order rejection, raw-media/vendor/secret field rejection, and repository interface compatibility with current in-memory service needs.
+- Ran and passed `pnpm --filter @sanctuary-os/db test -- presenter-repository-contracts.test.ts`, `pnpm --filter @sanctuary-os/db lint`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Add in-memory Presenter persistence repository adapters or run a Presenter API/event/persistence release-check before SQL adapter work.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:29 EDT · feature/presenter-domain-contracts
 
 Tasks completed:

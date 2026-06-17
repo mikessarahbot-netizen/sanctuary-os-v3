@@ -7,6 +7,7 @@ export * from "./planning-query-sql-repository.js";
 export * from "./planning-readiness-sql-repository.js";
 export * from "./planning-rehearsal-tracking-sql-repository.js";
 export * from "./planning-repository-contracts.js";
+export * from "./presenter-repository-contracts.js";
 export * from "./postgresql-planning-executor.js";
 export * from "./repository-contracts.js";
 export * from "./tenant-scope.js";
