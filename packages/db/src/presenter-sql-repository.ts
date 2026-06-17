@@ -1041,7 +1041,22 @@ WHERE tenant_id = $1
           transaction
         });
         await dependencies.executor.query({
-          name: "presenter.slide_blocks.replace",
+          name: "presenter.slide_blocks.delete_for_slide",
+          parameters: [
+            operation.options.context.tenantId,
+            operation.input.presentationId,
+            operation.input.slide.slideId
+          ],
+          sql: `
+DELETE FROM presenter_slide_blocks
+WHERE tenant_id = $1
+  AND presentation_id = $2
+  AND slide_id = $3
+`.trim(),
+          transaction
+        });
+        await dependencies.executor.query({
+          name: "presenter.slide_blocks.insert_for_slide",
           parameters: [
             operation.options.context.tenantId,
             operation.input.presentationId,
@@ -1049,10 +1064,6 @@ WHERE tenant_id = $1
             jsonParameter(operation.input.slide.blocks)
           ],
           sql: `
-DELETE FROM presenter_slide_blocks
-WHERE tenant_id = $1
-  AND presentation_id = $2
-  AND slide_id = $3;
 
 INSERT INTO presenter_slide_blocks (
   tenant_id,
@@ -1142,15 +1153,29 @@ const replacePresentationChildren = async (
   now: string
 ): Promise<void> => {
   await dependencies.executor.query({
-    name: "presenter.presentations.replace_children",
+    name: "presenter.media_cues.delete_for_presentation",
     parameters: [presentation.tenantId, presentation.presentationId],
     sql: `
 DELETE FROM presenter_media_cues
 WHERE tenant_id = $1
-  AND presentation_id = $2;
+  AND presentation_id = $2
+`.trim(),
+    transaction
+  });
+  await dependencies.executor.query({
+    name: "presenter.slide_blocks.delete_for_presentation",
+    parameters: [presentation.tenantId, presentation.presentationId],
+    sql: `
 DELETE FROM presenter_slide_blocks
 WHERE tenant_id = $1
-  AND presentation_id = $2;
+  AND presentation_id = $2
+`.trim(),
+    transaction
+  });
+  await dependencies.executor.query({
+    name: "presenter.slides.delete_for_presentation",
+    parameters: [presentation.tenantId, presentation.presentationId],
+    sql: `
 DELETE FROM presenter_slides
 WHERE tenant_id = $1
   AND presentation_id = $2

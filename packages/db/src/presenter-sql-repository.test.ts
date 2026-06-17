@@ -68,12 +68,15 @@ const createRecordingExecutor = (
 
 const nonReturningStatementNames = new Set([
   "presenter.audit.insert",
+  "presenter.media_cues.delete_for_presentation",
   "presenter.media_cues.insert_saved",
   "presenter.output_targets.upsert",
-  "presenter.presentations.replace_children",
   "presenter.presentations.upsert",
+  "presenter.slide_blocks.delete_for_presentation",
+  "presenter.slide_blocks.delete_for_slide",
+  "presenter.slide_blocks.insert_for_slide",
   "presenter.slide_blocks.insert_saved",
-  "presenter.slide_blocks.replace",
+  "presenter.slides.delete_for_presentation",
   "presenter.slides.insert_saved",
   "presenter.slides.remove",
   "presenter.slides.update",
@@ -393,7 +396,9 @@ describe("Presenter SQL command repository", () => {
     expect(executor.statements.map((statement) => statement.name)).toEqual([
       "presenter.themes.upsert",
       "presenter.presentations.upsert",
-      "presenter.presentations.replace_children",
+      "presenter.media_cues.delete_for_presentation",
+      "presenter.slide_blocks.delete_for_presentation",
+      "presenter.slides.delete_for_presentation",
       "presenter.slides.insert_saved",
       "presenter.slide_blocks.insert_saved",
       "presenter.slides.insert_saved",
@@ -403,7 +408,7 @@ describe("Presenter SQL command repository", () => {
     ]);
 
     const presentationUpsert = statementAt(executor, 1);
-    const auditInsert = statementAt(executor, 8);
+    const auditInsert = statementAt(executor, 10);
     expectSqlContains(presentationUpsert, "INSERT INTO presenter_presentations");
     expectSqlContains(presentationUpsert, "ON CONFLICT (tenant_id, presentation_id)");
     expect(auditInsert.transaction).toEqual({ transactionId: "tx_1" });
@@ -507,7 +512,7 @@ describe("Presenter SQL command repository", () => {
     const addStatement = statementAt(executor, 0);
     const reorderStatement = statementAt(executor, 2);
     const updateStatement = statementAt(executor, 4);
-    const removeStatement = statementAt(executor, 7);
+    const removeStatement = statementAt(executor, 8);
     expectSqlContains(addStatement, "WHERE tenant_id = $1");
     expectSqlContains(addStatement, "jsonb_array_elements($11::jsonb)");
     expectSqlContains(reorderStatement, "FROM unnest($3::text[]) WITH ORDINALITY");
