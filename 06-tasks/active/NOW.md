@@ -16,11 +16,11 @@ Wire the desktop packaging: build the sidecar as part of the Tauri build and pas
 Node-runtime bundling / self-contained sidecar binary · code-signing / installers · CI release pipeline · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets · other modules
 
 ## Progress
-- [ ] Re-sync with the desktop package, Tauri config, Rust shell, and web frontend
-- [ ] Wire `build:sidecar` into the Tauri before-build/dev commands
-- [ ] Pass the status port + resolve the sidecar path from the Rust shell
-- [ ] Make the webview status port configurable (generated config)
-- [ ] Verify `cargo check`, the bundle build, and the TS gates
+- [x] Re-sync with the desktop package, Tauri config, Rust shell, and web frontend
+- [x] Wire `build:sidecar` into the Tauri `beforeBuildCommand`/`beforeDevCommand`
+- [x] Pass the status port default (`7421`) from the Rust shell to the spawned sidecar (explicit env still wins)
+- [x] Make the webview status port configurable (reads `window.__SANCTUARY_OS_PRESENTER_STATUS_PORT__`, default 7421 matching the shell)
+- [x] Verify `cargo check` compiles and the TS gates pass
 - [ ] Commit and push the packaging-wiring slice
 - [ ] Session handoff
 

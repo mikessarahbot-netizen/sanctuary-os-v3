@@ -113,7 +113,9 @@
       </div>
     </main>
     <script>
-      const STATUS_PORT = "7421";
+      // The Tauri shell defaults the sidecar status port to 7421; a generated
+      // config may override it by setting window.__SANCTUARY_OS_PRESENTER_STATUS_PORT__.
+      const STATUS_PORT = String(window.__SANCTUARY_OS_PRESENTER_STATUS_PORT__ ?? "7421");
       const STATUS_URL = `http://127.0.0.1:${STATUS_PORT}/status`;
       const fields = ["total", "pending", "synced", "needsAttention"];
 

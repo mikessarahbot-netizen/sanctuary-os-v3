@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "identifier": "os.sanctuary.presenter",
   "build": {
+    "beforeBuildCommand": "pnpm build:sidecar",
+    "beforeDevCommand": "pnpm build:sidecar",
     "frontendDist": "../web"
   },
   "app": {

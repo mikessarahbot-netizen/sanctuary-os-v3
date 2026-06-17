@@ -3,6 +3,10 @@ use std::sync::Mutex;
 
 use tauri::{Manager, RunEvent};
 
+/// Default localhost port for the sidecar status/action server. The webview
+/// status UI uses the same default, so the shell and the UI agree out of the box.
+const DEFAULT_STATUS_PORT: &str = "7421";
+
 /// Holds the spawned Presenter replay sidecar process so it can be terminated
 /// when the app exits.
 struct PresenterSidecarProcess(Mutex<Option<Child>>);
@@ -21,7 +25,15 @@ fn spawn_presenter_sidecar() -> Option<Child> {
 
     let sidecar_path = std::env::var("SANCTUARY_OS_PRESENTER_SIDECAR_PATH").ok()?;
 
-    match Command::new("node").arg(&sidecar_path).spawn() {
+    let mut command = Command::new("node");
+    command.arg(&sidecar_path);
+    // Default the status port so the sidecar's status/action server and the
+    // webview agree; an explicit env value still wins.
+    if std::env::var("SANCTUARY_OS_PRESENTER_STATUS_PORT").is_err() {
+        command.env("SANCTUARY_OS_PRESENTER_STATUS_PORT", DEFAULT_STATUS_PORT);
+    }
+
+    match command.spawn() {
         Ok(child) => {
             log::info!("Spawned Presenter replay sidecar: {sidecar_path}");
             Some(child)
