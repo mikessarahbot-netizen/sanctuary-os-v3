@@ -2,6 +2,21 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 7b: replay decision + coordinator (CHARTS BACKEND COMPLETE)
+
+Tasks completed:
+- Built the Charts offline-sync replay layer (delegated to a sub-agent; parent independently re-ran gates before committing): `packages/db/src/charts-local-sync-queue-replay.ts` (pure decision: exponential backoff + attempt limits over an injected clock), `charts-local-sync-queue-status.ts` + `countByStatus` on both queue repos, and `apps/api/src/services/charts/local-sync-queue-replay-coordinator.ts` (queued op → ChartsCommandService; retryable-vs-terminal typed-error classification; status transitions).
+- Tests: +16 db, +8 api. Gates green: lint clean, typecheck all 4, tests db 235 / api 284 + 2 skipped / desktop 54 / church-context 5.
+- Committed `feat: add the Charts offline-sync replay decision, status, and coordinator` (`e9acfa6`). Wrote the release check.
+- MILESTONE: Charts backend is complete end-to-end (slices 1–7b).
+
+Next task:
+- Author `05-plans/play-module-plan.md`, then begin Play backend slice 1 (backend-first; mirrors the Charts rhythm).
+
+Open questions / decisions:
+- Charts mobile UI (slice 8) DEFERRED: `apps/mobile` is bare; the Expo/RN scaffold is a larger architectural step (several shaping sub-decisions, hard to verify autonomously) — flagged for the user. Default: continue backend-first (Play → Community+ → OBS), return to mobile UIs once the scaffold is decided.
+- The live `/goal` Stop hook still forces continuation; this session built Charts slices 4–7b under it with safe commits + pushes at every breakpoint. Re-issue `/goal` (or `/clear`) for a true fresh-session handoff.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 7: offline-sync queue (contracts + repo)
 
 Tasks completed:

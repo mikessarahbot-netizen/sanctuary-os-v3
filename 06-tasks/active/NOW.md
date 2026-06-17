@@ -1,36 +1,34 @@
 # NOW
 
 ## Task
-Charts module, slice 7b: the Charts offline-sync replay decision (backoff/attempt limits) + coordinator (queued op → online command) + status summary — building on the slice-7 queue, mirroring the presenter replay slices.
+Author the Play module plan (`05-plans/play-module-plan.md`), then begin Play backend slice 1 — mirroring the Charts/Presenter plan format and build rhythm.
+
+## Milestone + why this task
+Charts BACKEND is complete end-to-end (slices 1–7b: ChordPro core, persistence contracts, migration, SQLite adapter, GraphQL + in-memory service, persistence-backed service, offline-sync queue, replay decision/status/coordinator — all green and pushed).
+
+The remaining Charts work — **slice 8, the Charts mobile UI** — is DEFERRED: `apps/mobile` is a bare workspace, and scaffolding the Expo/React-Native app (navigation, GraphQL client, local-queue integration, RN test setup) is a larger architectural step with several shaping sub-decisions and is hard to verify autonomously. It is flagged for a decision with the user. To keep making verifiable progress meanwhile, advance the next backend module (Play), which is well-served by the established slice-by-slice + gate-green pattern.
 
 ## Session protocol (in force)
-Keep context small: at clean breakpoints commit + push all work, write the handoff, then hand off to a fresh session. See `agents.md` › "Session continuity protocol". Charts slices 1–7 are DONE and green (through the offline-sync queue contracts + repository).
+See `agents.md` › "Session continuity protocol": commit + push at clean breakpoints, write the handoff, hand off to a fresh session.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Mirror the presenter replay slices for style/shape:
-  - `packages/db/src/presenter-local-sync-queue-replay.ts` (the replay decision: which entries are ready, backoff/attempt-limit logic)
-  - `packages/db/src/presenter-local-sync-queue-status.ts` (status summary / countByStatus)
-  - the presenter replay coordinator + network executor on the consumer side: `apps/desktop/src/replay-*.ts` (e.g. replay-pass, replay-scheduler, replay-error-classifier, network-command-service) and `apps/api/src/services/presenter/local-sync-queue-replay-coordinator.ts`
-  - the slice-7 queue: `packages/db/src/charts-local-sync-queue-repository-contracts.ts`, `charts-local-sync-queue-sql-repository.ts`, `charts-local-sync-queue-in-memory-repository.ts`
-- Build the Charts replay decision (pure function over a queue entry + clock → replay/backoff/give-up), a `countByStatus`-style status summary on the queue repositories, and a coordinator that maps a queued Charts op → the corresponding Charts command service call (reuse the slice-5/6 `ChartsCommandService`), classifying success / retryable failure / terminal failure and updating queue status accordingly
-- Keep the network/transport boundary injected (like presenter), so it is unit-testable without a live server
-- Tests: pure replay-decision tests, status-summary tests, and coordinator tests (success → synced; retryable → requeue with backoff; terminal → failed) with a fake command service
+- Read `00-product/vision.md`, `01-architecture/system-map.md`, and `05-plans/charts-module-plan.md` (+ any presenter plan) as the format reference
+- Author `05-plans/play-module-plan.md`: the Play module domain objects, offline-first storage model, pure render/transform rules, GraphQL surface, service + persistence + offline-sync shape, and a slice-by-slice breakdown — mirroring the Charts plan's structure and rigor
+- Then build Play backend slice 1 (the first domain/pure-logic slice per the new plan), with tests + gates green, committed + pushed, and the usual slice ceremony
 
 ## Out of scope
-A Charts conflict round-trip UI · the desktop runtime wiring/composition root for Charts replay (can be a later slice) · Charts mobile UI · Play/Community+/OBS
+The Charts mobile UI / `apps/mobile` scaffold (deferred — needs a user decision) · Community+ / OBS modules (after Play)
 
 ## Progress
-- [ ] Re-sync with the presenter replay decision / status / coordinator and the slice-7 queue
-- [ ] Charts replay decision (pure) + status summary on the queue repositories
-- [ ] Charts replay coordinator (queued op → ChartsCommandService) with status updates
-- [ ] Replay-decision + status + coordinator tests
-- [ ] Run lint, typecheck, test green
+- [ ] Read vision + system map + the Charts plan (format reference)
+- [ ] Author `05-plans/play-module-plan.md`
+- [ ] Play backend slice 1 (domain/pure-logic) + tests + gates green
 - [ ] Release check + handoff + session-summary + NOW.md advance
-- [ ] Commit + push the slice
+- [ ] Commit + push
 
 ## Done when
-The Charts replay decision + status summary + coordinator exist (queued op → command service, with backoff/attempt-limit handling and status transitions), covered by pure-decision + coordinator tests, default gates green, committed and pushed.
+`05-plans/play-module-plan.md` exists with a clear slice breakdown, and Play backend slice 1 is implemented, gate-green, committed, and pushed.
 
-## Next task after this
-Charts slice 8: the Charts mobile UI (offline-first editor/list over the GraphQL surface + local queue). After Charts: author and build the Play module (plan from vision + system map, then slice-by-slice), then Community+, then OBS.
+## Decision flagged for the user
+Charts mobile UI (slice 8) needs the bare `apps/mobile` Expo/React-Native workspace scaffolded — a larger architectural step. Decide whether to (a) scaffold the mobile app now and build the Charts mobile UI, or (b) continue backend-first through Play → Community+ → OBS and return to mobile UIs later. Proceeding with (b) by default.
