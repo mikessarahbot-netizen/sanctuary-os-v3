@@ -17,10 +17,10 @@ Run a Presenter event transport release check.
 New production code · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs and current event transport code
-- [ ] Audit Presenter event transport readiness
-- [ ] Write release-check findings to `07-reviews/architecture/`
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current event transport code
+- [x] Audit Presenter event transport readiness
+- [x] Write release-check findings to `07-reviews/architecture/`
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
