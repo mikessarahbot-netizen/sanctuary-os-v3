@@ -2,6 +2,20 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 5: GraphQL + in-memory service
+
+Tasks completed:
+- Built the API-side Charts surface (delegated to a sub-agent to keep the main context lean; parent independently re-ran gates before committing). Added `apps/api/src/domain/charts/contracts.ts` + `errors.ts` (ChartsDomainError + codes), `apps/api/src/services/charts/in-memory.ts` (tenant-scoped, Zod-validated, 13 operations, per-musician scope), `apps/api/src/graphql/charts.ts` (SDL: 6 queries + 7 mutations), merged into the executable schema (`presenter-schema.ts`) with `ChartsDomainError → extensions.code` mapping in `transport.ts`. In-memory only (SQL adapter is slice 6).
+- Tests: +23 api (14 service + 9 graphql). Gates green: lint clean, typecheck all 4 projects, tests db 166 / api 262 + 2 skipped / desktop 54 / church-context 5.
+- Committed `feat(api): add the Charts GraphQL surface and in-memory service` (`ed0138b`). Wrote `07-reviews/architecture/charts-graphql-service-release-check.md` + the slice-6 handoff note.
+
+Next task:
+- Charts slice 6: a persistence-backed Charts service over the slice-4 SQLite adapter + a Charts migration-runner usage (replace the in-memory store behind the same interface).
+
+Open questions:
+- Minor: Charts operation schemas live in `domain/charts/contracts.ts` (importing `AuthenticatedActorSchema` from auth); presenter splits records vs operations. Optional later cleanup (noted in the release check).
+- The live `/goal` Stop hook still forces continuation; re-issue `/goal` with the session-handoff wording (or `/clear`) to enable a true fresh-session handoff.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 4 COMPLETE: SQLite adapter
 
 Tasks completed:
