@@ -24,6 +24,16 @@ export const PresenterInitialMigrationIndexNames = [
   "presenter_audit_log_tenant_request_idx"
 ] as const;
 
+export const PresenterLocalSyncQueueMigrationTableNames = [
+  "presenter_local_sync_queue_entries"
+] as const;
+
+export const PresenterLocalSyncQueueMigrationIndexNames = [
+  "presenter_local_sync_queue_replay_idx",
+  "presenter_local_sync_queue_status_idx",
+  "presenter_local_sync_queue_request_idx"
+] as const;
+
 const upSql = `
 CREATE TABLE presenter_themes (
   tenant_id TEXT NOT NULL,
@@ -204,4 +214,94 @@ export const PresenterInitialSchemaMigration = defineSqlMigrationArtifact({
   upSql
 });
 
-export const PresenterSqlMigrations = [PresenterInitialSchemaMigration] as const;
+const localSyncQueueUpSql = `
+CREATE TABLE presenter_local_sync_queue_entries (
+  tenant_id TEXT NOT NULL,
+  queue_entry_id TEXT NOT NULL,
+  presentation_id TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  base_revision TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  conflict_json TEXT,
+  safe_error_message TEXT,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  queued_at TEXT NOT NULL,
+  last_attempted_at TEXT,
+  schema_version TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, queue_entry_id),
+  CHECK (attempt_count >= 0),
+  CHECK (payload_json <> ''),
+  CHECK (schema_version = 'presenter-local-sync-queue.v1'),
+  CHECK (operation IN (
+    'updatePresentation',
+    'addSlide',
+    'updateSlide',
+    'reorderSlides',
+    'applyPresenterTheme',
+    'setOutputTarget'
+  )),
+  CHECK (status IN (
+    'queued',
+    'replaying',
+    'synced',
+    'conflict',
+    'failed',
+    'cancelled'
+  )),
+  CHECK (
+    (status = 'conflict' AND conflict_json IS NOT NULL)
+    OR (status <> 'conflict' AND conflict_json IS NULL)
+  ),
+  CHECK (
+    (status = 'failed' AND safe_error_message IS NOT NULL)
+    OR (status <> 'failed' AND safe_error_message IS NULL)
+  ),
+  CHECK (
+    last_attempted_at IS NULL
+    OR attempt_count > 0
+  )
+);
+
+CREATE INDEX presenter_local_sync_queue_replay_idx
+  ON presenter_local_sync_queue_entries (
+    tenant_id,
+    presentation_id,
+    status,
+    queued_at,
+    queue_entry_id
+  );
+CREATE INDEX presenter_local_sync_queue_status_idx
+  ON presenter_local_sync_queue_entries (tenant_id, status, updated_at);
+CREATE INDEX presenter_local_sync_queue_request_idx
+  ON presenter_local_sync_queue_entries (tenant_id, request_id);
+`.trim();
+
+const localSyncQueueDownSql = `
+DROP INDEX IF EXISTS presenter_local_sync_queue_request_idx;
+DROP INDEX IF EXISTS presenter_local_sync_queue_status_idx;
+DROP INDEX IF EXISTS presenter_local_sync_queue_replay_idx;
+DROP TABLE IF EXISTS presenter_local_sync_queue_entries;
+`.trim();
+
+export const PresenterLocalSyncQueueMigration = defineSqlMigrationArtifact({
+  auditTables: [],
+  description:
+    "Create the tenant-scoped Presenter local sync queue storage table and replay indexes.",
+  downSql: localSyncQueueDownSql,
+  migrationId: "202606170002_presenter_local_sync_queue",
+  requiredIndexes: [...PresenterLocalSyncQueueMigrationIndexNames],
+  requiredTables: [...PresenterLocalSyncQueueMigrationTableNames],
+  tenantScopedTables: [...PresenterLocalSyncQueueMigrationTableNames],
+  transactional: true,
+  upSql: localSyncQueueUpSql
+});
+
+export const PresenterSqlMigrations = [
+  PresenterInitialSchemaMigration,
+  PresenterLocalSyncQueueMigration
+] as const;
