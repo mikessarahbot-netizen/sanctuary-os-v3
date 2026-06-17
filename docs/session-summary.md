@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue SQLite executor + integration smoke
+
+Tasks completed:
+- Re-synced with `agents.md`, the Presenter local sync queue plans, the engineering rules, the adapter release check, and the existing `postgresql-planning-executor` injection pattern.
+- Added `createSqliteExecutor` in `packages/db/src/sqlite-executor.ts`: a dependency-free adapter from an injected `SqliteDatabaseClient` (satisfiable by `node:sqlite` `DatabaseSync` or `better-sqlite3`) to the `PlanningSqlExecutor.query` boundary used by the local sync queue repository.
+- Routed `SELECT`/`RETURNING` statements through `all()` and other writes through `run()`; normalized boolean params to integers and `bigint` row values to numbers; rejected array binds; wrapped engine failures with the statement name and cause.
+- Added 7 fake-client executor unit tests (no engine) and a real-engine integration smoke that runs the full queue lifecycle (enqueue/get/list/replay/conflict/requeue/sync/cleanup) against a `node:sqlite` `:memory:` database, auto-skipping when the engine is absent.
+- Exported the executor from the package barrel and wrote `07-reviews/architecture/presenter-local-sync-queue-sqlite-executor-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm --filter @sanctuary-os/db test -- sqlite-executor.test.ts presenter-local-sync-queue-sqlite-integration.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (db 121 tests).
+- Pushed implementation commit `19e0a1e` (`feat(db): add SQLite executor and local sync queue integration smoke`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a Presenter local sync queue desktop-local persistence selection factory that wires the SQLite executor and queue adapter from a validated runtime config.
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue SQLite adapter + release check
 
 Tasks completed:
