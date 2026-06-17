@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:47 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, current Presenter domain/API/service/event contracts, and Presenter persistence contracts/adapters.
+- Audited Presenter domain contracts, GraphQL/service contracts, in-memory service adapter, event contracts/publication, persistence contracts, and in-memory persistence repository adapters against the Presenter plan and engineering rules.
+- Verified tenant scope, actor/request audit metadata, Zod validation boundaries, event publication after successful state changes, adapter isolation, no raw media payload storage, no OBS/stream automation, and no checked-in secrets.
+- Wrote `07-reviews/architecture/presenter-api-event-persistence-release-check.md`.
+- Recorded a pass-with-follow-up result: no blocking defects found; Presenter SQL adapters, migrations, runtime persistence composition, WebSocket server wiring, desktop event bus wiring, desktop output windows, and UI remain future slices.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `0ef3094 docs(presenter): add api event persistence release check`.
+
+Next task:
+- Add Presenter PostgreSQL persistence migrations and repository adapters.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:44 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
