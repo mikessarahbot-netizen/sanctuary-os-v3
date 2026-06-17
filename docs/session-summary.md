@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop network replay executor + error classifier
+
+Tasks completed:
+- Re-synced with the GraphQL presenter mutations (`apps/api/src/graphql/presenter.ts`), the `PresenterCommandService` contract, and the replay error-classifier contract; confirmed the API has no HTTP server transport yet and that GraphQL mutation result types are truncated projections.
+- Added a narrower `PresenterReplayCommandExecutor` (api) returning `Promise<unknown>` — both the in-process service and a network client satisfy it — and refactored `replay-pass.ts`/`replay-runtime.ts` to depend on it (existing tests unchanged and green).
+- Added `createPresenterNetworkReplayCommandExecutor` (`apps/desktop/src/network-command-service.ts`): issues the existing GraphQL mutations over an injected transport with `Authorization: Bearer` + `x-request-id` idempotency headers, selects a minimal confirmation field, and throws a typed `PresenterNetworkReplayError` (carrying `extensions.code`).
+- Added `createPresenterReplayErrorClassifier` (`apps/desktop/src/replay-error-classifier.ts`): maps known GraphQL error codes to conflict kinds with redacted safe messages; everything else stays retryable `failed`.
+- Added 9 fake-transport/unit tests; exported both from the desktop barrel.
+- Wrote `07-reviews/architecture/presenter-desktop-network-replay-executor-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (desktop 27 tests).
+- Pushed implementation commit `a3e4e0b` (`feat(desktop): add network replay command executor and error classifier`).
+
+Next task:
+- Bootstrap the desktop Presenter replay runtime: a fetch GraphQL transport, the SQLite-execution-model ADR (Node + `node:sqlite` sidecar), and a Node entry wiring every adapter into `createPresenterDesktopReplayRuntime`.
+
+Open questions:
+- The API HTTP/GraphQL server transport is not built; the network executor assumes bearer auth + `x-request-id` + `extensions.code` conflict codes, which the server must honor when built.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop Tauri shell scaffold (toolchain installed)
 
 Tasks completed:

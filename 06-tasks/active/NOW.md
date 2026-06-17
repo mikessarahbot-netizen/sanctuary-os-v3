@@ -1,33 +1,32 @@
 # NOW
 
 ## Task
-Add a production network `PresenterCommandService` and a concrete replay error classifier (pure TypeScript) that the desktop shell injects into the replay runtime.
+Bootstrap the desktop Presenter replay runtime: a concrete fetch GraphQL transport, the SQLite-execution-model ADR, and a Node entry that wires every adapter and runs `createPresenterDesktopReplayRuntime`.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, the GraphQL presenter mutations under `apps/api/src/graphql/presenter`, the `PresenterCommandService` contract in `apps/api/src/services/presenter/contracts.ts`, and the replay error-classifier contract in `apps/desktop/src/replay-pass.ts`
-- Add a network-backed `PresenterCommandService` (an injected `fetch`-style transport issuing the existing GraphQL Presenter mutations) that maps each command to its mutation and parses the typed result
-- Add a concrete `PresenterDesktopReplayErrorClassifier` that maps transport/GraphQL error shapes to `conflict` (stale revision, validation, authorization, tenant mismatch) vs retryable `failed`, with safe, redacted messages
-- Add focused unit tests using a fake transport for success, conflict, and retryable-failure paths, with no live network, database, Tauri, or event bus
-- Keep the slice pure TypeScript and testable; do not start a live transport, scheduler loop, or Tauri runtime
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `07-reviews/architecture/presenter-desktop-network-replay-executor-release-check.md`, and the desktop runtime/adapters (`apps/desktop/src/replay-runtime.ts`, `network-command-service.ts`, `replay-error-classifier.ts`, `local-sync-queue-store.ts`)
+- Record an ADR in `08-decisions/` for the desktop SQLite execution model: run the runtime in a Node context using `node:sqlite` (reusing the synchronous `SqliteMigrationDatabaseClient`), with the Tauri shell spawning it as a sidecar — chosen over an async Tauri-SQL-plugin client (which would force a sync→async client refactor)
+- Add a concrete `fetch`-based `PresenterGraphqlTransport` (injected `fetch` + endpoint URL) that POSTs the GraphQL request and parses `{ data, errors }`, with fake-`fetch` unit tests
+- Add a Node runtime bootstrap factory that builds the `node:sqlite`-backed migration client, the fetch transport + network executor, the error classifier, and the interval/connectivity/clock adapters, then calls `createPresenterDesktopReplayRuntime`
+- Add default unit tests (no live engine/network) plus a `node:sqlite` availability-guarded smoke proving the bootstrap migrates and exposes a scheduler
+- Keep this slice runtime-bootstrap-only; do not add the Tauri sidecar spawn, desktop UI, or a live network endpoint
 
 ## Out of scope
-SQLite client bridge / runtime bootstrap (separate slice, pending the SQLite-execution-model ADR) · Tauri commands beyond the existing shell · running scheduler loop · desktop UI framework · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets
+Tauri sidecar process wiring · desktop UI screens · live network endpoint/secrets · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · API GraphQL server transport
 
 ## Progress
-- [x] Re-sync with the GraphQL presenter mutations and command/classifier contracts
-- [x] Add the network replay executor over an injected transport (narrower `PresenterReplayCommandExecutor`, since GraphQL results are truncated projections)
-- [x] Add the concrete replay error classifier
-- [x] Add focused unit tests (success / conflict / retryable failure)
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the network command service slice
+- [ ] Re-sync with the runtime, adapters, and executor release check
+- [ ] Record the SQLite execution-model ADR in `08-decisions/`
+- [ ] Add the concrete fetch GraphQL transport with fake-fetch tests
+- [ ] Add the Node runtime bootstrap factory
+- [ ] Add default tests and a `node:sqlite` availability-guarded smoke
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the bootstrap slice
 - [ ] Session handoff
 
 ## Done when
-A network `PresenterCommandService` issues the existing Presenter GraphQL mutations over an injected transport, a concrete error classifier maps errors to conflict vs retryable failure, both are covered by fake-transport unit tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
-
-## Parallel decision to capture (ADR)
-Desktop SQLite execution model: the runtime's `SqliteMigrationDatabaseClient` is synchronous (`node:sqlite`/`better-sqlite3`), which cannot run in a Tauri webview. Choose between a Node sidecar (keeps the synchronous client) and an async SQLite client backed by the Tauri SQL plugin (a client-interface refactor). Record the choice in `08-decisions/` before wiring the runtime bootstrap.
+The SQLite execution-model ADR is recorded, a fetch GraphQL transport and a Node bootstrap factory wire every adapter and call `createPresenterDesktopReplayRuntime`, default tests pass without a live engine/network plus a `node:sqlite` smoke proves migrate + scheduler, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Capture the SQLite-execution-model ADR, then bootstrap the desktop runtime: construct the chosen SQLite client, the network command service, the classifier, and the browser interval/connectivity/clock adapters, and call `createPresenterDesktopReplayRuntime` from the shell frontend.
+Wire the Tauri shell to spawn the Node runtime bootstrap as a sidecar (per the ADR) and surface queue/replay status in a minimal desktop UI — or address any bootstrap findings first.
