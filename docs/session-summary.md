@@ -1118,6 +1118,17 @@ Next task:
 
 Open questions:
 - None.
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue contracts
+
+- Added strict Presenter local sync queue contracts in `apps/api/src/domain/presenter/contracts.ts`.
+- Added schemas/types/parser helpers for local queue entry IDs, approved queued operations, queue entries, conflict details, status transitions, and replay ordering.
+- Covered approved non-destructive operations from `05-plans/presenter-local-sync-queue-plan.md`: `updatePresentation`, `addSlide`, `updateSlide`, `reorderSlides`, `applyPresenterTheme`, and `setOutputTarget`.
+- Added focused tests for valid queue entries, tenant/presentation/actor/request metadata, conflict and failure metadata, status transition validation, replay ordering, and rejection of destructive operations, local run-mode actions, OBS/stream controls, raw media payloads, vendor tokens, secrets, and unknown fields.
+- Kept the slice contract-only with no production queue runner, SQLite schema/migrations, local persistence adapter, desktop UI, Tauri command, desktop event bus, production WebSocket/SSE adapter, raw media storage, OBS/stream automation, vendor SDK, Auth0 integration, AI execution, deployment config, or checked-in secrets.
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- src/domain/presenter/contracts.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed implementation commit `d8d8ea9` (`feat(presenter): add local sync queue contracts`) to `feature/presenter-domain-contracts`.
+- Next task: run a focused release check for Presenter local sync queue contracts.
+
 ## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue plan
 
 - Added `05-plans/presenter-local-sync-queue-plan.md`.
