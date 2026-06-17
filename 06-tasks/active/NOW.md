@@ -18,10 +18,10 @@ Add Presenter local sync queue contracts.
 Production queue runner · SQLite schema/migrations · local persistence adapter · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter contracts
-- [ ] Implement local sync queue schemas/types/parser helpers
-- [ ] Add focused queue contract tests
-- [ ] Run validation
+- [x] Re-sync with required docs and current Presenter contracts
+- [x] Implement local sync queue schemas/types/parser helpers
+- [x] Add focused queue contract tests
+- [x] Run validation
 - [ ] Commit and push slice
 - [ ] Session handoff
 

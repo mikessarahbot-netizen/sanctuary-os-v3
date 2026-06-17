@@ -18,6 +18,8 @@ export const PresenterOutputTargetIdSchema =
   NonEmptyStringSchema.brand<"PresenterOutputTargetId">();
 export const PresenterOutputWindowIdSchema =
   NonEmptyStringSchema.brand<"PresenterOutputWindowId">();
+export const PresenterLocalSyncQueueEntryIdSchema =
+  NonEmptyStringSchema.brand<"PresenterLocalSyncQueueEntryId">();
 export const PresenterThemeIdSchema = NonEmptyStringSchema.brand<"PresenterThemeId">();
 export const PresenterServiceIdSchema = NonEmptyStringSchema.brand<"PresenterServiceId">();
 export const PresenterServiceItemIdSchema =
@@ -545,6 +547,267 @@ export const PresenterOutputWindowRenderContextSchema = z
     }
   });
 
+export const QueuedUpdatePresentationOperationSchema = z
+  .object({
+    operation: z.literal("updatePresentation"),
+    payload: z
+      .object({
+        presentationId: PresenterPresentationIdSchema,
+        serviceId: PresenterServiceIdSchema.optional(),
+        title: NonEmptyStringSchema.optional()
+      })
+      .strict()
+  })
+  .strict();
+
+export const QueuedAddPresenterSlideOperationSchema = z
+  .object({
+    operation: z.literal("addSlide"),
+    payload: z
+      .object({
+        afterSlideId: PresenterSlideIdSchema.optional(),
+        presentationId: PresenterPresentationIdSchema,
+        slide: SlideSchema.omit({
+          order: true,
+          presentationId: true,
+          slideId: true,
+          tenantId: true
+        }).strict()
+      })
+      .strict()
+  })
+  .strict();
+
+export const QueuedUpdatePresenterSlideOperationSchema = z
+  .object({
+    operation: z.literal("updateSlide"),
+    payload: z
+      .object({
+        presentationId: PresenterPresentationIdSchema,
+        slide: SlideSchema
+      })
+      .strict()
+  })
+  .strict();
+
+export const QueuedReorderPresenterSlidesOperationSchema = z
+  .object({
+    operation: z.literal("reorderSlides"),
+    payload: z
+      .object({
+        orderedSlideIds: z.array(PresenterSlideIdSchema).min(1),
+        presentationId: PresenterPresentationIdSchema
+      })
+      .strict()
+      .superRefine((payload, context) => {
+        if (new Set(payload.orderedSlideIds).size !== payload.orderedSlideIds.length) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Queued slide order cannot contain duplicate slide IDs.",
+            path: ["orderedSlideIds"]
+          });
+        }
+      })
+  })
+  .strict();
+
+export const QueuedApplyPresenterThemeOperationSchema = z
+  .object({
+    operation: z.literal("applyPresenterTheme"),
+    payload: z
+      .object({
+        presentationId: PresenterPresentationIdSchema,
+        themeId: PresenterThemeIdSchema
+      })
+      .strict()
+  })
+  .strict();
+
+export const QueuedSetPresenterOutputTargetOperationSchema = z
+  .object({
+    operation: z.literal("setOutputTarget"),
+    payload: z
+      .object({
+        outputTarget: OutputTargetSchema,
+        presentationId: PresenterPresentationIdSchema
+      })
+      .strict()
+  })
+  .strict();
+
+export const PresenterLocalSyncQueuedOperationSchema = z.discriminatedUnion(
+  "operation",
+  [
+    QueuedUpdatePresentationOperationSchema,
+    QueuedAddPresenterSlideOperationSchema,
+    QueuedUpdatePresenterSlideOperationSchema,
+    QueuedReorderPresenterSlidesOperationSchema,
+    QueuedApplyPresenterThemeOperationSchema,
+    QueuedSetPresenterOutputTargetOperationSchema
+  ]
+);
+
+export const PresenterLocalSyncConflictDetailSchema = z
+  .object({
+    conflictKind: z.enum([
+      "stale-presentation",
+      "missing-slide",
+      "theme-mismatch",
+      "output-target-mismatch",
+      "validation-failed",
+      "authorization-failed"
+    ]),
+    localBaseRevision: NonEmptyStringSchema,
+    safeMessage: NonEmptyStringSchema,
+    serverRevision: NonEmptyStringSchema
+  })
+  .strict();
+
+export const PresenterLocalSyncQueueStatusSchema = z.enum([
+  "queued",
+  "replaying",
+  "synced",
+  "conflict",
+  "failed",
+  "cancelled"
+]);
+
+export const PresenterLocalSyncQueueEntrySchema = z
+  .object({
+    actorId: NonEmptyStringSchema,
+    attemptCount: NonNegativeIntegerSchema,
+    baseRevision: NonEmptyStringSchema,
+    conflict: PresenterLocalSyncConflictDetailSchema.optional(),
+    lastAttemptedAt: IsoDateTimeStringSchema.optional(),
+    operation: PresenterLocalSyncQueuedOperationSchema,
+    presentationId: PresenterPresentationIdSchema,
+    queuedAt: IsoDateTimeStringSchema,
+    queueEntryId: PresenterLocalSyncQueueEntryIdSchema,
+    requestId: NonEmptyStringSchema,
+    safeErrorMessage: NonEmptyStringSchema.optional(),
+    status: PresenterLocalSyncQueueStatusSchema,
+    tenantId: PresenterTenantIdSchema
+  })
+  .strict()
+  .superRefine((entry, context) => {
+    if (entry.operation.payload.presentationId !== entry.presentationId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Queued operation presentation must match queue entry presentation.",
+        path: ["operation", "payload", "presentationId"]
+      });
+    }
+
+    if (
+      entry.operation.operation === "updateSlide" &&
+      entry.operation.payload.slide.presentationId !== entry.presentationId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Queued slide update must target the queued presentation.",
+        path: ["operation", "payload", "slide", "presentationId"]
+      });
+    }
+
+    if (
+      entry.operation.operation === "updateSlide" &&
+      entry.operation.payload.slide.tenantId !== entry.tenantId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Queued slide tenant must match queue entry tenant.",
+        path: ["operation", "payload", "slide", "tenantId"]
+      });
+    }
+
+    if (
+      entry.operation.operation === "setOutputTarget" &&
+      entry.operation.payload.outputTarget.tenantId !== entry.tenantId
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Queued output target tenant must match queue entry tenant.",
+        path: ["operation", "payload", "outputTarget", "tenantId"]
+      });
+    }
+
+    if (entry.status === "conflict" && entry.conflict === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Conflicted queue entries must include conflict details.",
+        path: ["conflict"]
+      });
+    }
+
+    if (entry.status !== "conflict" && entry.conflict !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only conflicted queue entries can include conflict details.",
+        path: ["conflict"]
+      });
+    }
+
+    if (entry.status === "failed" && entry.safeErrorMessage === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Failed queue entries must include a safe error message.",
+        path: ["safeErrorMessage"]
+      });
+    }
+
+    if (entry.status !== "failed" && entry.safeErrorMessage !== undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only failed queue entries can include a safe error message.",
+        path: ["safeErrorMessage"]
+      });
+    }
+
+    if (entry.lastAttemptedAt !== undefined && entry.attemptCount === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Queue entries with a replay attempt timestamp must record an attempt.",
+        path: ["attemptCount"]
+      });
+    }
+  });
+
+export const PresenterLocalSyncQueueStatusTransitionSchema = z
+  .object({
+    from: PresenterLocalSyncQueueStatusSchema,
+    safeReason: NonEmptyStringSchema.optional(),
+    to: PresenterLocalSyncQueueStatusSchema,
+    transitionedAt: IsoDateTimeStringSchema
+  })
+  .strict()
+  .superRefine((transition, context) => {
+    if (!isPresenterLocalSyncQueueStatusTransitionAllowed(transition.from, transition.to)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Presenter local sync queue status transition is not allowed.",
+        path: ["to"]
+      });
+    }
+  });
+
+const presenterLocalSyncQueueAllowedTransitions: ReadonlyMap<
+  z.infer<typeof PresenterLocalSyncQueueStatusSchema>,
+  readonly z.infer<typeof PresenterLocalSyncQueueStatusSchema>[]
+> = new Map([
+  ["queued", ["replaying", "conflict", "failed", "cancelled"]],
+  ["replaying", ["queued", "synced", "conflict", "failed"]],
+  ["conflict", ["queued", "cancelled"]],
+  ["failed", ["queued", "cancelled"]],
+  ["synced", []],
+  ["cancelled", []]
+]);
+
+const isPresenterLocalSyncQueueStatusTransitionAllowed = (
+  from: z.infer<typeof PresenterLocalSyncQueueStatusSchema>,
+  to: z.infer<typeof PresenterLocalSyncQueueStatusSchema>
+): boolean =>
+  presenterLocalSyncQueueAllowedTransitions.get(from)?.includes(to) ?? false;
+
 export type PresenterTenantId = z.infer<typeof PresenterTenantIdSchema>;
 export type PresenterPresentationId = z.infer<typeof PresenterPresentationIdSchema>;
 export type PresenterSlideId = z.infer<typeof PresenterSlideIdSchema>;
@@ -555,6 +818,9 @@ export type PresenterScripturePassageId = z.infer<
 export type PresenterMediaCueId = z.infer<typeof PresenterMediaCueIdSchema>;
 export type PresenterOutputTargetId = z.infer<typeof PresenterOutputTargetIdSchema>;
 export type PresenterOutputWindowId = z.infer<typeof PresenterOutputWindowIdSchema>;
+export type PresenterLocalSyncQueueEntryId = z.infer<
+  typeof PresenterLocalSyncQueueEntryIdSchema
+>;
 export type PresenterThemeId = z.infer<typeof PresenterThemeIdSchema>;
 export type PresenterServiceId = z.infer<typeof PresenterServiceIdSchema>;
 export type PresenterServiceItemId = z.infer<typeof PresenterServiceItemIdSchema>;
@@ -586,6 +852,21 @@ export type PresenterDesktopRunModeStatus = z.infer<
 export type PresenterOutputWindowRenderContext = z.infer<
   typeof PresenterOutputWindowRenderContextSchema
 >;
+export type PresenterLocalSyncQueuedOperation = z.infer<
+  typeof PresenterLocalSyncQueuedOperationSchema
+>;
+export type PresenterLocalSyncConflictDetail = z.infer<
+  typeof PresenterLocalSyncConflictDetailSchema
+>;
+export type PresenterLocalSyncQueueStatus = z.infer<
+  typeof PresenterLocalSyncQueueStatusSchema
+>;
+export type PresenterLocalSyncQueueEntry = z.infer<
+  typeof PresenterLocalSyncQueueEntrySchema
+>;
+export type PresenterLocalSyncQueueStatusTransition = z.infer<
+  typeof PresenterLocalSyncQueueStatusTransitionSchema
+>;
 
 export const parsePresentation = (rawInput: unknown): Presentation =>
   PresentationSchema.parse(rawInput);
@@ -609,3 +890,35 @@ export const parsePresenterOutputWindowRenderContext = (
   rawInput: unknown
 ): PresenterOutputWindowRenderContext =>
   PresenterOutputWindowRenderContextSchema.parse(rawInput);
+
+export const parsePresenterLocalSyncQueuedOperation = (
+  rawInput: unknown
+): PresenterLocalSyncQueuedOperation =>
+  PresenterLocalSyncQueuedOperationSchema.parse(rawInput);
+
+export const parsePresenterLocalSyncQueueEntry = (
+  rawInput: unknown
+): PresenterLocalSyncQueueEntry => PresenterLocalSyncQueueEntrySchema.parse(rawInput);
+
+export const parsePresenterLocalSyncQueueStatusTransition = (
+  rawInput: unknown
+): PresenterLocalSyncQueueStatusTransition =>
+  PresenterLocalSyncQueueStatusTransitionSchema.parse(rawInput);
+
+export const sortPresenterLocalSyncQueueEntriesForReplay = (
+  rawEntries: readonly unknown[]
+): readonly PresenterLocalSyncQueueEntry[] =>
+  z
+    .array(PresenterLocalSyncQueueEntrySchema)
+    .parse(rawEntries)
+    .filter((entry) => entry.status === "queued")
+    .sort(comparePresenterLocalSyncQueueEntriesForReplay);
+
+const comparePresenterLocalSyncQueueEntriesForReplay = (
+  left: PresenterLocalSyncQueueEntry,
+  right: PresenterLocalSyncQueueEntry
+): number =>
+  left.tenantId.localeCompare(right.tenantId) ||
+  left.presentationId.localeCompare(right.presentationId) ||
+  left.queuedAt.localeCompare(right.queuedAt) ||
+  left.queueEntryId.localeCompare(right.queueEntryId);

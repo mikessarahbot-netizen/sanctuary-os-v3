@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  parsePresenterLocalSyncQueuedOperation,
+  parsePresenterLocalSyncQueueEntry,
+  parsePresenterLocalSyncQueueStatusTransition,
   parsePresenterDesktopOutputWindow,
   parsePresenterDesktopRunModeStatus,
   parsePresentation,
   parsePresenterLoadedRunModeState,
   parsePresenterOutputWindowRenderContext,
-  parsePresenterRunModeAction
+  parsePresenterRunModeAction,
+  sortPresenterLocalSyncQueueEntriesForReplay
 } from "./contracts.js";
 
 const timestamp = "2026-06-16T20:55:00.000Z";
@@ -173,6 +177,43 @@ const localRunModeStatus = {
   offlineSince: "2026-06-16T20:56:00.000Z",
   pendingSyncQueueSize: 1,
   syncState: "queued"
+};
+
+const queuedUpdatePresentationOperation = {
+  operation: "updatePresentation",
+  payload: {
+    presentationId: "presentation_1",
+    title: "Updated Sunday Worship"
+  }
+};
+
+const queuedUpdateSlideOperation = {
+  operation: "updateSlide",
+  payload: {
+    presentationId: "presentation_1",
+    slide: scriptureSlide
+  }
+};
+
+const queuedSetOutputTargetOperation = {
+  operation: "setOutputTarget",
+  payload: {
+    outputTarget: mainOutputTarget,
+    presentationId: "presentation_1"
+  }
+};
+
+const baseQueueEntry = {
+  actorId: "actor_1",
+  attemptCount: 0,
+  baseRevision: "event_10",
+  operation: queuedUpdatePresentationOperation,
+  presentationId: "presentation_1",
+  queuedAt: "2026-06-16T20:57:00.000Z",
+  queueEntryId: "queue_1",
+  requestId: "request_queue_1",
+  status: "queued",
+  tenantId: "tenant_1"
 };
 
 describe("Presenter domain contracts", () => {
@@ -498,6 +539,276 @@ describe("Presenter domain contracts", () => {
         theme: baseTheme,
         vendorToken: "secret",
         window: mainOutputWindow
+      })
+    ).toThrow("Unrecognized key");
+  });
+
+  it("validates approved local sync queued operations", () => {
+    expect(parsePresenterLocalSyncQueuedOperation(queuedUpdatePresentationOperation))
+      .toMatchObject({ operation: "updatePresentation" });
+
+    expect(
+      parsePresenterLocalSyncQueuedOperation({
+        operation: "addSlide",
+        payload: {
+          afterSlideId: "slide_1",
+          presentationId: "presentation_1",
+          slide: {
+            blocks: [
+              {
+                alignment: "center",
+                blockId: "block_added",
+                kind: "text",
+                text: "Offering",
+                textStyle: "heading"
+              }
+            ],
+            layout: "title"
+          }
+        }
+      })
+    ).toMatchObject({ operation: "addSlide" });
+
+    expect(parsePresenterLocalSyncQueuedOperation(queuedUpdateSlideOperation))
+      .toMatchObject({ operation: "updateSlide" });
+    expect(
+      parsePresenterLocalSyncQueuedOperation({
+        operation: "reorderSlides",
+        payload: {
+          orderedSlideIds: ["slide_2", "slide_1", "slide_3"],
+          presentationId: "presentation_1"
+        }
+      })
+    ).toMatchObject({ operation: "reorderSlides" });
+    expect(
+      parsePresenterLocalSyncQueuedOperation({
+        operation: "applyPresenterTheme",
+        payload: {
+          presentationId: "presentation_1",
+          themeId: "theme_1"
+        }
+      })
+    ).toMatchObject({ operation: "applyPresenterTheme" });
+    expect(parsePresenterLocalSyncQueuedOperation(queuedSetOutputTargetOperation))
+      .toMatchObject({ operation: "setOutputTarget" });
+  });
+
+  it("validates queue entries with tenant, presentation, actor, and request metadata", () => {
+    expect(parsePresenterLocalSyncQueueEntry(baseQueueEntry)).toMatchObject({
+      actorId: "actor_1",
+      presentationId: "presentation_1",
+      requestId: "request_queue_1",
+      status: "queued",
+      tenantId: "tenant_1"
+    });
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        operation: {
+          ...queuedUpdatePresentationOperation,
+          payload: {
+            ...queuedUpdatePresentationOperation.payload,
+            presentationId: "presentation_2"
+          }
+        }
+      })
+    ).toThrow("Queued operation presentation must match queue entry presentation.");
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        operation: {
+          ...queuedUpdateSlideOperation,
+          payload: {
+            ...queuedUpdateSlideOperation.payload,
+            slide: { ...scriptureSlide, tenantId: "tenant_2" }
+          }
+        }
+      })
+    ).toThrow("Queued slide tenant must match queue entry tenant.");
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        operation: {
+          ...queuedSetOutputTargetOperation,
+          payload: {
+            ...queuedSetOutputTargetOperation.payload,
+            outputTarget: { ...mainOutputTarget, tenantId: "tenant_2" }
+          }
+        }
+      })
+    ).toThrow("Queued output target tenant must match queue entry tenant.");
+  });
+
+  it("validates queue conflict details and failure metadata", () => {
+    expect(
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        conflict: {
+          conflictKind: "stale-presentation",
+          localBaseRevision: "event_10",
+          safeMessage: "Presentation changed on another device.",
+          serverRevision: "event_12"
+        },
+        status: "conflict"
+      })
+    ).toMatchObject({ status: "conflict" });
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        status: "conflict"
+      })
+    ).toThrow("Conflicted queue entries must include conflict details.");
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        conflict: {
+          conflictKind: "stale-presentation",
+          localBaseRevision: "event_10",
+          safeMessage: "Presentation changed on another device.",
+          serverRevision: "event_12"
+        }
+      })
+    ).toThrow("Only conflicted queue entries can include conflict details.");
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        status: "failed"
+      })
+    ).toThrow("Failed queue entries must include a safe error message.");
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        lastAttemptedAt: "2026-06-16T21:00:00.000Z"
+      })
+    ).toThrow("Queue entries with a replay attempt timestamp must record an attempt.");
+  });
+
+  it("validates local sync queue status transitions", () => {
+    expect(
+      parsePresenterLocalSyncQueueStatusTransition({
+        from: "queued",
+        to: "replaying",
+        transitionedAt: "2026-06-16T20:58:00.000Z"
+      })
+    ).toMatchObject({ from: "queued", to: "replaying" });
+
+    expect(
+      parsePresenterLocalSyncQueueStatusTransition({
+        from: "replaying",
+        safeReason: "Network unavailable, retry later.",
+        to: "queued",
+        transitionedAt: "2026-06-16T20:59:00.000Z"
+      })
+    ).toMatchObject({ from: "replaying", to: "queued" });
+
+    expect(() =>
+      parsePresenterLocalSyncQueueStatusTransition({
+        from: "synced",
+        to: "queued",
+        transitionedAt: "2026-06-16T21:00:00.000Z"
+      })
+    ).toThrow("Presenter local sync queue status transition is not allowed.");
+
+    expect(() =>
+      parsePresenterLocalSyncQueueStatusTransition({
+        from: "queued",
+        to: "queued",
+        transitionedAt: "2026-06-16T21:00:00.000Z"
+      })
+    ).toThrow("Presenter local sync queue status transition is not allowed.");
+  });
+
+  it("sorts queued entries for replay by tenant, presentation, and queued time", () => {
+    expect(
+      sortPresenterLocalSyncQueueEntriesForReplay([
+        {
+          ...baseQueueEntry,
+          queueEntryId: "queue_3",
+          queuedAt: "2026-06-16T20:59:00.000Z"
+        },
+        {
+          ...baseQueueEntry,
+          presentationId: "presentation_2",
+          queueEntryId: "queue_4",
+          queuedAt: "2026-06-16T20:56:00.000Z",
+          operation: {
+            ...queuedUpdatePresentationOperation,
+            payload: {
+              ...queuedUpdatePresentationOperation.payload,
+              presentationId: "presentation_2"
+            }
+          }
+        },
+        {
+          ...baseQueueEntry,
+          queueEntryId: "queue_synced",
+          status: "synced"
+        },
+        {
+          ...baseQueueEntry,
+          queueEntryId: "queue_2",
+          queuedAt: "2026-06-16T20:58:00.000Z"
+        },
+        baseQueueEntry
+      ]).map((entry) => entry.queueEntryId)
+    ).toEqual(["queue_1", "queue_2", "queue_3", "queue_4"]);
+  });
+
+  it("rejects destructive, local run-mode, OBS, stream, raw media, and secret queued payloads", () => {
+    expect(() =>
+      parsePresenterLocalSyncQueuedOperation({
+        operation: "removeSlide",
+        payload: {
+          confirmationIntent: {
+            confirmed: true,
+            reason: "Remove duplicate slide"
+          },
+          presentationId: "presentation_1",
+          slideId: "slide_3"
+        }
+      })
+    ).toThrow();
+
+    expect(() =>
+      parsePresenterLocalSyncQueuedOperation({
+        action: "goToSlide",
+        slideId: "slide_2",
+        tenantId: "tenant_1"
+      })
+    ).toThrow();
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        operation: {
+          ...queuedUpdatePresentationOperation,
+          payload: {
+            ...queuedUpdatePresentationOperation.payload,
+            obsScene: "scene_main"
+          }
+        }
+      })
+    ).toThrow("Unrecognized key");
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        rawMediaPayload: "base64"
+      })
+    ).toThrow("Unrecognized key");
+
+    expect(() =>
+      parsePresenterLocalSyncQueueEntry({
+        ...baseQueueEntry,
+        startStream: true,
+        vendorToken: "secret"
       })
     ).toThrow("Unrecognized key");
   });
