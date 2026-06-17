@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type {
+  PresenterLocalSyncConflictDetailPersistence,
   PresenterLocalSyncQueueEntryPersistenceRecord,
   PresenterLocalSyncQueuePersistenceRepository
 } from "@sanctuary-os/db";
@@ -45,6 +46,7 @@ const queuedEntry = (
 });
 
 interface RecordedTransition {
+  readonly conflict?: PresenterLocalSyncConflictDetailPersistence;
   readonly method: string;
   readonly queueEntryId: string;
   readonly safeErrorMessage?: string;
@@ -84,7 +86,16 @@ const createFakeRepository = (
       enqueue: unexpected,
       getById: unexpected,
       listReadyForReplay: () => Promise.resolve(ready),
-      markConflict: unexpected,
+      markConflict: (operation) => {
+        transitions.push({
+          conflict: operation.input.conflict,
+          method: "markConflict",
+          queueEntryId: operation.input.queueEntryId,
+          to: operation.input.transition.to
+        });
+
+        return mutation(operation.input.queueEntryId);
+      },
       markFailed: (operation) => {
         transitions.push({
           method: "markFailed",
@@ -239,8 +250,55 @@ describe("runPresenterDesktopReplayPass", () => {
       repository: repository.repository
     });
 
-    expect(result).toEqual({ exhausted: [], failed: [], synced: [] });
+    expect(result).toEqual({ conflicted: [], exhausted: [], failed: [], synced: [] });
     expect(commandService.calls).toEqual([]);
     expect(repository.transitions).toEqual([]);
+  });
+
+  it("records a conflict when the injected classifier returns one", async () => {
+    const repository = createFakeRepository([queuedEntry()]);
+    const commandService = createFakeCommandService("updatePresentation");
+    const conflict: PresenterLocalSyncConflictDetailPersistence = {
+      conflictKind: "stale-presentation",
+      localBaseRevision: "revision_1",
+      safeMessage: "The presentation changed on the server.",
+      serverRevision: "revision_9"
+    };
+
+    const result = await runPresenterDesktopReplayPass({
+      actor,
+      commandService: commandService.service,
+      errorClassifier: () => ({ conflict, kind: "conflict" }),
+      now: "2026-06-17T05:01:00.000Z",
+      policy,
+      repository: repository.repository
+    });
+
+    expect(result.conflicted).toEqual(["queue_entry_1"]);
+    expect(result.failed).toEqual([]);
+    expect(repository.transitions[1]).toEqual({
+      conflict,
+      method: "markConflict",
+      queueEntryId: "queue_entry_1",
+      to: "conflict"
+    });
+  });
+
+  it("uses a classifier-supplied safe message for a retryable failure", async () => {
+    const repository = createFakeRepository([queuedEntry()]);
+    const commandService = createFakeCommandService("updatePresentation");
+
+    const result = await runPresenterDesktopReplayPass({
+      actor,
+      commandService: commandService.service,
+      errorClassifier: () => ({ kind: "failed", safeErrorMessage: "Network was unavailable." }),
+      now: "2026-06-17T05:01:00.000Z",
+      policy,
+      repository: repository.repository
+    });
+
+    expect(result.failed).toEqual(["queue_entry_1"]);
+    expect(result.conflicted).toEqual([]);
+    expect(repository.transitions[1]?.safeErrorMessage).toBe("Network was unavailable.");
   });
 });

@@ -1,5 +1,7 @@
 import {
   decidePresenterLocalSyncQueueReplay,
+  type PresenterLocalSyncConflictDetailPersistence,
+  type PresenterLocalSyncQueueEntryPersistenceRecord,
   type PresenterLocalSyncQueuePersistenceRepository,
   type PresenterLocalSyncQueueReplayPolicyInput,
   type PresenterPersistenceReadOptions,
@@ -22,13 +24,28 @@ import {
  * marked `failed`. This is a single pass with no timer loop, no transport of its
  * own (the command service is injected), and no offline/online detection.
  *
- * Note: any command-service error currently marks the entry `failed` (which
- * stops that presentation safely). Distinguishing genuine conflicts (stale
- * revision, validation, authorization) from transient failures is a follow-up.
+ * A command-service error is routed through an injected classifier: a genuine
+ * conflict (stale revision, validation, authorization, tenant mismatch) is
+ * recorded as `conflict` with details for operator review, while a transient
+ * error stays a retryable `failed`. The default classifier treats every error
+ * as `failed`, which safely stops that presentation.
  */
+export type PresenterDesktopReplayErrorClassification =
+  | {
+      readonly conflict: PresenterLocalSyncConflictDetailPersistence;
+      readonly kind: "conflict";
+    }
+  | { readonly kind: "failed"; readonly safeErrorMessage: string };
+
+export type PresenterDesktopReplayErrorClassifier = (
+  error: unknown,
+  entry: PresenterLocalSyncQueueEntryPersistenceRecord
+) => PresenterDesktopReplayErrorClassification;
+
 export interface PresenterDesktopReplayPassDependencies {
   readonly actor: AuthenticatedActor;
   readonly commandService: PresenterCommandService;
+  readonly errorClassifier?: PresenterDesktopReplayErrorClassifier;
   readonly now: string;
   readonly policy: PresenterLocalSyncQueueReplayPolicyInput;
   readonly repository: PresenterLocalSyncQueuePersistenceRepository;
@@ -36,6 +53,7 @@ export interface PresenterDesktopReplayPassDependencies {
 }
 
 export interface PresenterDesktopReplayPassResult {
+  readonly conflicted: readonly string[];
   readonly exhausted: readonly string[];
   readonly failed: readonly string[];
   readonly synced: readonly string[];
@@ -74,6 +92,8 @@ export const runPresenterDesktopReplayPass = async (
   const safeErrorMessage =
     dependencies.safeErrorMessage ??
     "This edit could not be synced yet and will need another attempt.";
+  const errorClassifier: PresenterDesktopReplayErrorClassifier =
+    dependencies.errorClassifier ?? (() => ({ kind: "failed", safeErrorMessage }));
 
   const writeOptionsFor = (requestId: string): PresenterPersistenceWriteOptions => ({
     context: { actorId: actor.actorId, requestId, tenantId: actor.tenantId },
@@ -92,6 +112,7 @@ export const runPresenterDesktopReplayPass = async (
 
   const synced: string[] = [];
   const failed: string[] = [];
+  const conflicted: string[] = [];
   const exhausted: string[] = [];
 
   for (const entry of decision.exhausted) {
@@ -128,18 +149,32 @@ export const runPresenterDesktopReplayPass = async (
         options
       });
       synced.push(entry.queueEntryId);
-    } catch {
-      await repository.markFailed({
-        input: {
-          queueEntryId: entry.queueEntryId,
-          safeErrorMessage,
-          transition: { from: "replaying", to: "failed", transitionedAt: now }
-        },
-        options
-      });
-      failed.push(entry.queueEntryId);
+    } catch (error) {
+      const classification = errorClassifier(error, entry);
+
+      if (classification.kind === "conflict") {
+        await repository.markConflict({
+          input: {
+            conflict: classification.conflict,
+            queueEntryId: entry.queueEntryId,
+            transition: { from: "replaying", to: "conflict", transitionedAt: now }
+          },
+          options
+        });
+        conflicted.push(entry.queueEntryId);
+      } else {
+        await repository.markFailed({
+          input: {
+            queueEntryId: entry.queueEntryId,
+            safeErrorMessage: classification.safeErrorMessage,
+            transition: { from: "replaying", to: "failed", transitionedAt: now }
+          },
+          options
+        });
+        failed.push(entry.queueEntryId);
+      }
     }
   }
 
-  return { exhausted, failed, synced };
+  return { conflicted, exhausted, failed, synced };
 };

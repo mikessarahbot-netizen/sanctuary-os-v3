@@ -16,10 +16,10 @@ Add injected conflict-vs-failure classification to the desktop replay pass so st
 Timer/interval scheduler loop · offline/online detection · Tauri/Rust shell · real desktop windows · real network command service · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
 
 ## Progress
-- [ ] Re-sync with the replay pass and the conflict-detail contract
-- [ ] Add the classification result, classifier dependency, and conflict branch
-- [ ] Add focused classification tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the replay pass and the conflict-detail contract
+- [x] Add the classification result, classifier dependency, and conflict branch
+- [x] Add focused classification tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the classification slice
 - [ ] Session handoff
 
