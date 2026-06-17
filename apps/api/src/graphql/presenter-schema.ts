@@ -1,20 +1,27 @@
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { GraphQLScalarType, Kind, valueFromASTUntyped, type GraphQLSchema } from "graphql";
 import {
+  chartsGraphqlTypeDefs,
+  createChartsGraphqlResolvers,
+  type ChartsGraphqlResolverDependencies
+} from "./charts.js";
+import {
   createPresenterGraphqlResolvers,
   presenterGraphqlTypeDefs,
   type PresenterGraphqlResolverDependencies
 } from "./presenter.js";
 
 /**
- * Assemble the executable Presenter GraphQL schema.
+ * Assemble the executable API GraphQL schema.
  *
  * The Presenter SDL only `extend`s `Query`/`Mutation` and declares `scalar
  * DateTime` while using `JSON` for opaque inputs, so the base type defs supply
  * the root `Query`/`Mutation` and the `JSON` scalar. Both scalars are
  * pass-through: variables arrive already parsed, literals are converted with
- * graphql's untyped AST reader. Planning is not wired here yet; this schema is
- * the Presenter surface the desktop replay transport executes.
+ * graphql's untyped AST reader. The Charts SDL also `extend`s the roots and
+ * reuses the `DateTime` scalar the Presenter SDL declares, so it is only merged
+ * in when Charts dependencies are supplied. Planning is not wired here yet; this
+ * schema is the surface the desktop replay transport executes.
  */
 const baseTypeDefs = `
   scalar JSON
@@ -42,18 +49,36 @@ const JsonScalar = new GraphQLScalarType({
   serialize: (value) => value
 });
 
+export interface ApiGraphqlSchemaDependencies extends PresenterGraphqlResolverDependencies {
+  readonly charts?: ChartsGraphqlResolverDependencies;
+}
+
 export const createPresenterGraphqlSchema = (
-  dependencies: PresenterGraphqlResolverDependencies
+  dependencies: ApiGraphqlSchemaDependencies
 ): GraphQLSchema => {
-  const resolvers = createPresenterGraphqlResolvers(dependencies);
+  const presenterResolvers = createPresenterGraphqlResolvers(dependencies);
+  const chartsResolvers =
+    dependencies.charts !== undefined
+      ? createChartsGraphqlResolvers(dependencies.charts)
+      : undefined;
 
   return makeExecutableSchema({
     resolvers: {
       DateTime: DateTimeScalar,
       JSON: JsonScalar,
-      Mutation: resolvers.Mutation,
-      Query: resolvers.Query
+      Mutation: {
+        ...presenterResolvers.Mutation,
+        ...(chartsResolvers !== undefined ? chartsResolvers.Mutation : {})
+      },
+      Query: {
+        ...presenterResolvers.Query,
+        ...(chartsResolvers !== undefined ? chartsResolvers.Query : {})
+      }
     },
-    typeDefs: [baseTypeDefs, presenterGraphqlTypeDefs]
+    typeDefs: [
+      baseTypeDefs,
+      presenterGraphqlTypeDefs,
+      ...(chartsResolvers !== undefined ? [chartsGraphqlTypeDefs] : [])
+    ]
   });
 };

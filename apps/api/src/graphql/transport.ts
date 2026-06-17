@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { graphql, type GraphQLError, type GraphQLSchema } from "graphql";
 import type { AuthBoundary } from "../auth/index.js";
+import { isChartsDomainError } from "../domain/charts/index.js";
 import { isPresenterDomainError } from "../domain/presenter/index.js";
 
 /**
@@ -63,6 +64,13 @@ const extractErrorCode = (error: GraphQLError): string | undefined => {
 const formatError = (error: GraphQLError): PresenterGraphqlResponseError => {
   // Typed domain errors carry a stable conflict code and a pre-redacted message.
   if (isPresenterDomainError(error.originalError)) {
+    return {
+      extensions: { code: error.originalError.code },
+      message: error.originalError.safeMessage
+    };
+  }
+
+  if (isChartsDomainError(error.originalError)) {
     return {
       extensions: { code: error.originalError.code },
       message: error.originalError.safeMessage

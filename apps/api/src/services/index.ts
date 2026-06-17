@@ -12,5 +12,6 @@ export interface ApiServiceRegistry {
   readonly dependencies: ApiServiceDependencies;
 }
 
+export * from "./charts/index.js";
 export * from "./planning/index.js";
 export * from "./presenter/index.js";

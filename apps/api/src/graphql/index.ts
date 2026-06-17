@@ -9,7 +9,13 @@ export const plannedGraphqlQueries = [
   "presentation",
   "presentationForService",
   "presenterThemes",
-  "outputTargets"
+  "outputTargets",
+  "charts",
+  "chart",
+  "chartsForSong",
+  "chartArrangements",
+  "musicianChartPreference",
+  "chartAnnotations"
 ] as const;
 
 export const plannedGraphqlMutations = [
@@ -30,7 +36,14 @@ export const plannedGraphqlMutations = [
   "reorderSlides",
   "removeSlide",
   "applyPresenterTheme",
-  "setOutputTarget"
+  "setOutputTarget",
+  "saveChart",
+  "updateChartSource",
+  "saveChartArrangement",
+  "setMusicianChartPreference",
+  "addChartAnnotation",
+  "updateChartAnnotation",
+  "removeChartAnnotation"
 ] as const;
 
 export type PlannedGraphqlQuery = (typeof plannedGraphqlQueries)[number];
@@ -41,6 +54,7 @@ export interface GraphqlSurface {
   readonly mutations: readonly PlannedGraphqlMutation[];
 }
 
+export * from "./charts.js";
 export * from "./http-server.js";
 export * from "./planning.js";
 export * from "./presenter.js";
