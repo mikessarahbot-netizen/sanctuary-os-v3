@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 20:47 EDT · feature/planning-live-postgres-integration
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Planning plan, DB plan, Planning persistence release-checks, and current API/DB persistence wiring.
+- Added opt-in live PostgreSQL integration coverage for Planning runtime composition in `apps/api/src/services/planning/postgresql-integration.test.ts`.
+- The smoke test is skipped by default unless `SANCTUARY_OS_PLANNING_POSTGRES_URL` is set, creates/recreates an isolated schema, applies the Planning initial migration, and exercises SQL-backed Planning command/query/CCLI/rehearsal/readiness repositories through API runtime composition.
+- Added API package `test:integration:postgres` plus `pg` / `@types/pg` dev dependencies for the opt-in harness.
+- Documented the integration environment variables, local command, schema behavior, and no-secrets rule in `apps/api/README.md`, with DB README pointing to the API-owned runtime composition smoke test.
+- Normalized `Date` values returned by PostgreSQL clients to ISO strings in the DB PostgreSQL executor, with regression coverage, so repository row schemas can safely parse real `pg` timestamp results.
+- Verified default validation remains live-DB-free: `pnpm --filter @sanctuary-os/api test:integration:postgres` skipped the live test without a database URL; `pnpm lint`, `pnpm typecheck`, and `pnpm test` passed.
+- Committed and pushed `0294e4e test(api): add planning postgres integration smoke` to `origin/feature/planning-live-postgres-integration`.
+
+Next task:
+- Create the next product module plan, likely Presenter, so implementation can proceed beyond Planning persistence with a documented active slice.
+
+Open questions:
+- None.
+
 ## 2026-06-16 20:39 EDT · feature/planning-readiness-domain
 
 Tasks completed:
