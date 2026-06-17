@@ -17,10 +17,10 @@ Run a Presenter API/event/persistence release-check before SQL adapter work.
 PostgreSQL Presenter adapters · database migrations · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter implementation
-- [ ] Audit Presenter API/event/persistence readiness
-- [ ] Write release-check findings to `07-reviews/architecture/`
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current Presenter implementation
+- [x] Audit Presenter API/event/persistence readiness
+- [x] Write release-check findings to `07-reviews/architecture/`
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
