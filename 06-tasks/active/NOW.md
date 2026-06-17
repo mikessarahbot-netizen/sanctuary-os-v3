@@ -19,13 +19,13 @@ Add in-memory Presenter services/repositories for GraphQL contract tests and dev
 PostgreSQL Presenter adapters · database migrations · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter contracts
-- [ ] Add in-memory Presenter repository/service adapters
-- [ ] Add local development composition helpers if needed
-- [ ] Add focused Presenter service/composition tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs and current Presenter contracts
+- [x] Add in-memory Presenter repository/service adapters
+- [x] Add local development composition helpers if needed
+- [x] Add focused Presenter service/composition tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Presenter GraphQL resolver shells can be composed with in-memory Presenter services for local tests/development; services validate inputs, enforce tenant/role boundaries, and keep all out-of-scope integrations absent; default gates pass; the slice is committed, pushed, and documented in session handoff.

@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:16 EDT · feature/presenter-in-memory-services
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current Presenter domain/API contracts.
+- Created `feature/presenter-in-memory-services` from the `feature/presenter-domain-contracts` tip because this worktree was detached and that branch was checked out by another worktree.
+- Added in-memory Presenter query/command service composition in `apps/api/src/services/presenter/composition.ts`, with Zod parsing at service boundaries, tenant-scoped reads/writes, write-role enforcement, operation recording, deterministic clock/ID injection for tests, seeded presentations/themes/output targets, and GraphQL-ready service exports.
+- Implemented local Presenter mutation behavior for service-based presentation creation, presentation metadata updates, slide add/update/reorder/remove, theme application, and output target storage while keeping Planning mutation, OBS, stream control, raw media storage, AI, vendor SDKs, and persistence adapters out of scope.
+- Added focused tests for tenant scoping, role enforcement, create-from-service behavior, slide mutation/reordering/removal, output target tenant mismatch rejection, and GraphQL resolver composition through the real in-memory services.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- presenter composition`, `pnpm typecheck`, `pnpm lint`, and `pnpm test`.
+
+Next task:
+- Add Presenter persistence contracts or WebSocket event payload contracts, depending on the smallest safe continuation.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:07 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
