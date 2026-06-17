@@ -14,6 +14,7 @@ import {
   type PresenterTheme,
   type Slide
 } from "../../domain/presenter/index.js";
+import { createInMemoryEventPublisher } from "../../events/index.js";
 import { createPresenterGraphqlResolvers } from "../../graphql/presenter.js";
 import { createInMemoryPresenterServicesAdapter } from "./in-memory.js";
 
@@ -399,5 +400,197 @@ describe("createInMemoryPresenterServicesAdapter", () => {
         themeId: "theme_2"
       }
     });
+  });
+
+  it("publishes validated presentation and slide events after successful mutations", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryPresenterServicesAdapter({
+      clock: () => "2026-06-21T14:10:00.000Z",
+      eventPublisher,
+      ids: {
+        slideId: () => "slide_3"
+      },
+      seed: {
+        presentations: [presentation],
+        themes: [theme]
+      }
+    });
+
+    await adapter.commandService.updatePresentation({
+      actor: worshipLeader,
+      input: {
+        presentationId: "presentation_1",
+        title: "Updated Sunday Worship"
+      },
+      requestId: "request_update_presentation"
+    });
+    await adapter.commandService.addSlide({
+      actor: worshipLeader,
+      input: {
+        afterSlideId: "slide_1",
+        presentationId: "presentation_1",
+        slide: {
+          blocks: [
+            {
+              alignment: "center",
+              blockId: PresenterSlideBlockIdSchema.parse("block_3"),
+              kind: "text",
+              text: "Sending",
+              textStyle: "heading"
+            }
+          ],
+          layout: "content",
+          title: "Sending"
+        }
+      },
+      requestId: "request_add_slide"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        aggregateId: event.aggregateId,
+        actorId: event.actorId,
+        eventType: event.eventType,
+        payload: event.payload,
+        requestId: event.requestId,
+        schemaVersion: event.schemaVersion,
+        tenantId: event.tenantId
+      }))
+    ).toEqual([
+      {
+        aggregateId: "presentation_1",
+        actorId: "actor_worship_leader",
+        eventType: "presentation.updated",
+        payload: {
+          changeKind: "updated",
+          presentationId: "presentation_1",
+          serviceId: "service_1",
+          tenantId: "tenant_1",
+          updatedAt: "2026-06-21T14:10:00.000Z"
+        },
+        requestId: "request_update_presentation",
+        schemaVersion: "presenter-presentation-updated.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "presentation_1",
+        actorId: "actor_worship_leader",
+        eventType: "presentation.updated",
+        payload: {
+          changeKind: "updated",
+          presentationId: "presentation_1",
+          serviceId: "service_1",
+          tenantId: "tenant_1",
+          updatedAt: "2026-06-21T14:10:00.000Z"
+        },
+        requestId: "request_add_slide",
+        schemaVersion: "presenter-presentation-updated.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "presentation_1",
+        actorId: "actor_worship_leader",
+        eventType: "presenter.slideChanged",
+        payload: {
+          activeSlideId: "slide_3",
+          presentationId: "presentation_1",
+          previousSlideId: "slide_1",
+          tenantId: "tenant_1"
+        },
+        requestId: "request_add_slide",
+        schemaVersion: "presenter-slide-changed.v1",
+        tenantId: "tenant_1"
+      }
+    ]);
+  });
+
+  it("publishes output blanked and restored events from output target mutations", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryPresenterServicesAdapter({
+      clock: () => "2026-06-21T14:15:00.000Z",
+      eventPublisher,
+      seed: {
+        outputTargets: [outputTarget],
+        presentations: [presentation],
+        themes: [theme]
+      }
+    });
+
+    await adapter.commandService.setOutputTarget({
+      actor: worshipLeader,
+      input: {
+        outputTarget: {
+          ...outputTarget,
+          safeBlanked: true
+        },
+        presentationId: "presentation_1"
+      },
+      requestId: "request_blank"
+    });
+    await adapter.commandService.setOutputTarget({
+      actor: worshipLeader,
+      input: {
+        outputTarget: {
+          ...outputTarget,
+          safeBlanked: false
+        },
+        presentationId: "presentation_1"
+      },
+      requestId: "request_restore"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        eventType: event.eventType,
+        occurredAt: event.occurredAt,
+        payload: event.payload,
+        requestId: event.requestId
+      }))
+    ).toEqual([
+      {
+        eventType: "presenter.outputBlanked",
+        occurredAt: "2026-06-21T14:15:00.000Z",
+        payload: {
+          outputTargetId: "output_1",
+          presentationId: "presentation_1",
+          tenantId: "tenant_1"
+        },
+        requestId: "request_blank"
+      },
+      {
+        eventType: "presenter.outputRestored",
+        occurredAt: "2026-06-21T14:15:00.000Z",
+        payload: {
+          outputTargetId: "output_1",
+          presentationId: "presentation_1",
+          tenantId: "tenant_1"
+        },
+        requestId: "request_restore"
+      }
+    ]);
+  });
+
+  it("does not publish events when mutations are rejected before state changes", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryPresenterServicesAdapter({
+      eventPublisher,
+      seed: {
+        presentations: [presentation],
+        themes: [theme]
+      }
+    });
+
+    await expect(
+      adapter.commandService.reorderSlides({
+        actor: worshipLeader,
+        input: {
+          orderedSlideIds: ["slide_1"],
+          presentationId: "presentation_1"
+        },
+        requestId: "request_bad_order"
+      })
+    ).rejects.toThrow("Presenter slide order must include every slide exactly once.");
+
+    expect(eventPublisher.readPublishedEvents()).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
 import type { AuthenticatedActor } from "../../auth/index.js";
+import type { ApiEventEnvelope, EventPublisher } from "../../events/index.js";
 import {
   OutputTargetSchema,
   PresentationSchema,
@@ -58,6 +59,7 @@ export interface InMemoryPresenterServiceIds {
 
 export interface InMemoryPresenterServiceDependencies {
   readonly clock?: () => string;
+  readonly eventPublisher?: EventPublisher;
   readonly ids?: Partial<InMemoryPresenterServiceIds>;
   readonly seed?: InMemoryPresenterServiceSeed;
 }
@@ -74,6 +76,7 @@ export const createInMemoryPresenterServicesAdapter = (
   dependencies: InMemoryPresenterServiceDependencies = {}
 ): InMemoryPresenterServicesAdapter => {
   const clock = dependencies.clock ?? (() => new Date().toISOString());
+  const eventPublisher = dependencies.eventPublisher;
   const ids = createPresenterIds(dependencies.ids);
   const presentations = new Map<string, Presentation>();
   const themes = new Map<string, PresenterTheme>();
@@ -126,7 +129,7 @@ export const createInMemoryPresenterServicesAdapter = (
   };
 
   const commandService: PresenterCommandService = {
-    addSlide: (rawCommand): Promise<Slide> => runPresenterOperation((): Slide => {
+    addSlide: (rawCommand): Promise<Slide> => runPresenterOperation(async (): Promise<Slide> => {
       const command = AddPresenterSlideCommandSchema.parse(rawCommand);
       assertPresenterCommandRole(command.actor);
       const presentation = findTenantPresentation(
@@ -157,17 +160,35 @@ export const createInMemoryPresenterServicesAdapter = (
         ...presentation.slides.slice(insertAfterIndex + 1)
       ].map((candidate, order): Slide => SlideSchema.parse({ ...candidate, order }));
 
-      savePresentation({
+      const updatedPresentation = savePresentation({
         ...presentation,
         slides,
         updatedAt: clock()
       });
 
+      await publishPresenterEvents(eventPublisher, [
+        createPresentationUpdatedEvent({
+          actor: command.actor,
+          changeKind: "updated",
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          requestId: command.requestId
+        }),
+        createPresenterSlideChangedEvent({
+          activeSlideId: slide.slideId,
+          actor: command.actor,
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          previousSlideId: presentation.slides[insertAfterIndex]?.slideId,
+          requestId: command.requestId
+        })
+      ]);
+
       return slide;
     }),
 
     applyPresenterTheme: (rawCommand): Promise<Presentation> =>
-      runPresenterOperation((): Presentation => {
+      runPresenterOperation(async (): Promise<Presentation> => {
       const command = ApplyPresenterThemeCommandSchema.parse(rawCommand);
       assertPresenterCommandRole(command.actor);
       const presentation = findTenantPresentation(
@@ -176,15 +197,27 @@ export const createInMemoryPresenterServicesAdapter = (
       );
       const theme = ensureTenantTheme(command.input.themeId, command.actor);
 
-      return savePresentation({
+      const updatedPresentation = savePresentation({
         ...presentation,
         theme,
         updatedAt: clock()
       });
+
+      await publishPresenterEvents(eventPublisher, [
+        createPresentationUpdatedEvent({
+          actor: command.actor,
+          changeKind: "updated",
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          requestId: command.requestId
+        })
+      ]);
+
+      return updatedPresentation;
     }),
 
     createPresentationFromService: (rawCommand): Promise<Presentation> =>
-      runPresenterOperation((): Presentation => {
+      runPresenterOperation(async (): Promise<Presentation> => {
       const command = CreatePresentationFromServiceCommandSchema.parse(rawCommand);
       assertPresenterCommandRole(command.actor);
       const now = clock();
@@ -219,11 +252,23 @@ export const createInMemoryPresenterServicesAdapter = (
         updatedAt: now
       });
 
-      return savePresentation(presentation);
+      const savedPresentation = savePresentation(presentation);
+
+      await publishPresenterEvents(eventPublisher, [
+        createPresentationUpdatedEvent({
+          actor: command.actor,
+          changeKind: "created",
+          occurredAt: savedPresentation.updatedAt,
+          presentation: savedPresentation,
+          requestId: command.requestId
+        })
+      ]);
+
+      return savedPresentation;
     }),
 
     removeSlide: (rawCommand): Promise<Presentation> =>
-      runPresenterOperation((): Presentation => {
+      runPresenterOperation(async (): Promise<Presentation> => {
       const command = RemovePresenterSlideCommandSchema.parse(rawCommand);
       assertPresenterCommandRole(command.actor);
       const presentation = findTenantPresentation(
@@ -243,7 +288,7 @@ export const createInMemoryPresenterServicesAdapter = (
         throw new Error("Presenter slide not found for tenant.");
       }
 
-      return savePresentation({
+      const updatedPresentation = savePresentation({
         ...presentation,
         mediaCues: presentation.mediaCues.filter(
           (cue) => cue.slideId !== command.input.slideId
@@ -253,10 +298,30 @@ export const createInMemoryPresenterServicesAdapter = (
         ),
         updatedAt: clock()
       });
+
+      await publishPresenterEvents(eventPublisher, [
+        createPresentationUpdatedEvent({
+          actor: command.actor,
+          changeKind: "updated",
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          requestId: command.requestId
+        }),
+        createPresenterSlideChangedEvent({
+          activeSlideId: updatedPresentation.slides[0]?.slideId ?? command.input.slideId,
+          actor: command.actor,
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          previousSlideId: command.input.slideId,
+          requestId: command.requestId
+        })
+      ]);
+
+      return updatedPresentation;
     }),
 
     reorderSlides: (rawCommand): Promise<readonly Slide[]> =>
-      runPresenterOperation((): readonly Slide[] => {
+      runPresenterOperation(async (): Promise<readonly Slide[]> => {
       const command = ReorderPresenterSlidesCommandSchema.parse(rawCommand);
       assertPresenterCommandRole(command.actor);
       const presentation = findTenantPresentation(
@@ -282,20 +347,46 @@ export const createInMemoryPresenterServicesAdapter = (
         }
       );
 
-      savePresentation({
+      const updatedPresentation = savePresentation({
         ...presentation,
         slides: reorderedSlides,
         updatedAt: clock()
       });
+      const activeSlideId = reorderedSlides[0]?.slideId;
+
+      if (activeSlideId === undefined) {
+        throw new Error("Presenter slide order must include an active slide.");
+      }
+
+      await publishPresenterEvents(eventPublisher, [
+        createPresentationUpdatedEvent({
+          actor: command.actor,
+          changeKind: "updated",
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          requestId: command.requestId
+        }),
+        createPresenterSlideChangedEvent({
+          activeSlideId,
+          actor: command.actor,
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          previousSlideId: presentation.slides[0]?.slideId,
+          requestId: command.requestId
+        })
+      ]);
 
       return reorderedSlides;
     }),
 
     setOutputTarget: (rawCommand): Promise<OutputTarget> =>
-      runPresenterOperation((): OutputTarget => {
+      runPresenterOperation(async (): Promise<OutputTarget> => {
       const command = SetPresenterOutputTargetCommandSchema.parse(rawCommand);
       assertPresenterCommandRole(command.actor);
-      findTenantPresentation(command.input.presentationId, command.actor);
+      const presentation = findTenantPresentation(
+        command.input.presentationId,
+        command.actor
+      );
 
       if (command.input.outputTarget.tenantId !== command.actor.tenantId) {
         throw new Error("Presenter output target tenant must match actor tenant.");
@@ -304,11 +395,29 @@ export const createInMemoryPresenterServicesAdapter = (
       const outputTarget = OutputTargetSchema.parse(command.input.outputTarget);
       outputTargets.set(outputTarget.outputTargetId, outputTarget);
 
+      await publishPresenterEvents(eventPublisher, [
+        outputTarget.safeBlanked
+          ? createPresenterOutputBlankedEvent({
+              actor: command.actor,
+              occurredAt: clock(),
+              outputTarget,
+              presentation,
+              requestId: command.requestId
+            })
+          : createPresenterOutputRestoredEvent({
+              actor: command.actor,
+              occurredAt: clock(),
+              outputTarget,
+              presentation,
+              requestId: command.requestId
+            })
+      ]);
+
       return outputTarget;
     }),
 
     updatePresentation: (rawCommand): Promise<Presentation> =>
-      runPresenterOperation((): Presentation => {
+      runPresenterOperation(async (): Promise<Presentation> => {
       const command = UpdatePresentationCommandSchema.parse(rawCommand);
       assertPresenterCommandRole(command.actor);
       const presentation = findTenantPresentation(
@@ -316,7 +425,7 @@ export const createInMemoryPresenterServicesAdapter = (
         command.actor
       );
 
-      return savePresentation({
+      const updatedPresentation = savePresentation({
         ...presentation,
         ...(command.input.serviceId !== undefined
           ? { serviceId: command.input.serviceId }
@@ -324,9 +433,21 @@ export const createInMemoryPresenterServicesAdapter = (
         ...(command.input.title !== undefined ? { title: command.input.title } : {}),
         updatedAt: clock()
       });
+
+      await publishPresenterEvents(eventPublisher, [
+        createPresentationUpdatedEvent({
+          actor: command.actor,
+          changeKind: "updated",
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          requestId: command.requestId
+        })
+      ]);
+
+      return updatedPresentation;
     }),
 
-    updateSlide: (rawCommand): Promise<Slide> => runPresenterOperation((): Slide => {
+    updateSlide: (rawCommand): Promise<Slide> => runPresenterOperation(async (): Promise<Slide> => {
       const command = UpdatePresenterSlideCommandSchema.parse(rawCommand);
       assertPresenterCommandRole(command.actor);
       const presentation = findTenantPresentation(
@@ -353,11 +474,29 @@ export const createInMemoryPresenterServicesAdapter = (
         slide.slideId === updatedSlide.slideId ? updatedSlide : slide
       );
 
-      savePresentation({
+      const updatedPresentation = savePresentation({
         ...presentation,
         slides,
         updatedAt: clock()
       });
+
+      await publishPresenterEvents(eventPublisher, [
+        createPresentationUpdatedEvent({
+          actor: command.actor,
+          changeKind: "updated",
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          requestId: command.requestId
+        }),
+        createPresenterSlideChangedEvent({
+          activeSlideId: updatedSlide.slideId,
+          actor: command.actor,
+          occurredAt: updatedPresentation.updatedAt,
+          presentation: updatedPresentation,
+          previousSlideId: existingSlide.slideId,
+          requestId: command.requestId
+        })
+      ]);
 
       return updatedSlide;
     })
@@ -527,8 +666,115 @@ const hasAllowedRole = (
   allowedRoles: readonly string[]
 ): boolean => actor.roles.some((role) => allowedRoles.includes(role));
 
+const publishPresenterEvents = (
+  eventPublisher: EventPublisher | undefined,
+  events: readonly ApiEventEnvelope[]
+): Promise<void> => {
+  if (eventPublisher === undefined) {
+    return Promise.resolve();
+  }
+
+  return events.reduce(
+    (previousPublish, event) =>
+      previousPublish.then(() => eventPublisher.publishAfterCommit(event)),
+    Promise.resolve()
+  );
+};
+
+const createPresentationUpdatedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly changeKind: "created" | "updated";
+  readonly occurredAt: string;
+  readonly presentation: Presentation;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.presentation.presentationId,
+  actorId: input.actor.actorId,
+  eventType: "presentation.updated",
+  occurredAt: input.occurredAt,
+  payload: {
+    changeKind: input.changeKind,
+    presentationId: input.presentation.presentationId,
+    ...(input.presentation.serviceId !== undefined
+      ? { serviceId: input.presentation.serviceId }
+      : {}),
+    tenantId: input.presentation.tenantId,
+    updatedAt: input.presentation.updatedAt
+  },
+  requestId: input.requestId,
+  schemaVersion: "presenter-presentation-updated.v1",
+  tenantId: input.presentation.tenantId
+});
+
+const createPresenterSlideChangedEvent = (input: {
+  readonly activeSlideId: string;
+  readonly actor: AuthenticatedActor;
+  readonly occurredAt: string;
+  readonly presentation: Presentation;
+  readonly previousSlideId?: string | undefined;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.presentation.presentationId,
+  actorId: input.actor.actorId,
+  eventType: "presenter.slideChanged",
+  occurredAt: input.occurredAt,
+  payload: {
+    activeSlideId: input.activeSlideId,
+    presentationId: input.presentation.presentationId,
+    ...(input.previousSlideId !== undefined
+      ? { previousSlideId: input.previousSlideId }
+      : {}),
+    tenantId: input.presentation.tenantId
+  },
+  requestId: input.requestId,
+  schemaVersion: "presenter-slide-changed.v1",
+  tenantId: input.presentation.tenantId
+});
+
+const createPresenterOutputBlankedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly occurredAt: string;
+  readonly outputTarget: OutputTarget;
+  readonly presentation: Presentation;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.presentation.presentationId,
+  actorId: input.actor.actorId,
+  eventType: "presenter.outputBlanked",
+  occurredAt: input.occurredAt,
+  payload: {
+    outputTargetId: input.outputTarget.outputTargetId,
+    presentationId: input.presentation.presentationId,
+    tenantId: input.presentation.tenantId
+  },
+  requestId: input.requestId,
+  schemaVersion: "presenter-output-blanked.v1",
+  tenantId: input.presentation.tenantId
+});
+
+const createPresenterOutputRestoredEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly occurredAt: string;
+  readonly outputTarget: OutputTarget;
+  readonly presentation: Presentation;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.presentation.presentationId,
+  actorId: input.actor.actorId,
+  eventType: "presenter.outputRestored",
+  occurredAt: input.occurredAt,
+  payload: {
+    outputTargetId: input.outputTarget.outputTargetId,
+    presentationId: input.presentation.presentationId,
+    tenantId: input.presentation.tenantId
+  },
+  requestId: input.requestId,
+  schemaVersion: "presenter-output-restored.v1",
+  tenantId: input.presentation.tenantId
+});
+
 const runPresenterOperation = <TResult>(
-  operation: () => TResult
+  operation: () => TResult | Promise<TResult>
 ): Promise<TResult> => {
   try {
     return Promise.resolve(operation());
