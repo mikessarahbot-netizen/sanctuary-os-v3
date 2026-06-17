@@ -18,10 +18,10 @@ Add Presenter persistence contracts for saved presentations and output targets.
 PostgreSQL Presenter adapters · database migrations · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter contracts
-- [ ] Add Presenter persistence operation schemas and repository interfaces
-- [ ] Add focused Presenter persistence contract tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current Presenter contracts
+- [x] Add Presenter persistence operation schemas and repository interfaces
+- [x] Add focused Presenter persistence contract tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
