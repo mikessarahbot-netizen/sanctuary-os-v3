@@ -2,6 +2,21 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play module started: plan + slice 1 (domain + pure logic)
+
+Tasks completed:
+- User answered the milestone decision with "act at your own discretion" → proceeding backend-first on the Play module (mobile/desktop UI scaffolds still deferred).
+- Authored `05-plans/play-module-plan.md` (delegated): 6 domain objects (TrackSet, PlayArrangement, PlaySection, PlayCue, PadLayer, PlaybackState), SQLite-compatible persistence model with CHECKs, GraphQL surface, service + offline-sync shape, 12-slice breakdown (1–10 backend / 11–12 UI). Sensible flagged assumptions (v1 = durable model + offline fail-safe transport; audio engine/MIDI/media storage deferred). Committed `b627895`.
+- Play slice 1 (delegated): `apps/api/src/domain/play/` — six strict Zod records + 5 enums with superRefine invariants, pure `sequence.ts` (resolution + cue timeline, flagged-unresolved) + `timing.ts` (beat↔time + key transpose reusing Charts policy). Records in `schemas.ts` (contracts.ts reserved for slice-5 service layer). +55 api tests. Gates green: db 235 / api 339 + 2 skipped / desktop 54 / church-context 5. Committed `4d4fc73` + release check.
+
+Next task:
+- Play slice 2: persistence contracts (`packages/db/src/play-repository-contracts.ts`), mirroring the Charts persistence contracts. Then slices 3–10 per the plan.
+
+Open questions / decisions:
+- Play plan assumptions to confirm with the user (scope split: defer audio engine/MIDI/media storage; PlaybackState as coarse resumable snapshot; cue actions as intent; confirmation-gate trigger set). Non-blocking for backend slices 1–10.
+- Mobile + desktop Play UI (slices 11–12) await the scaffold decision (same as Charts mobile UI).
+- The live `/goal` Stop hook still forces continuation; built under it with safe commits + pushes at every breakpoint. Re-issue `/goal` (or `/clear`) for a true fresh-session handoff.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 7b: replay decision + coordinator (CHARTS BACKEND COMPLETE)
 
 Tasks completed:

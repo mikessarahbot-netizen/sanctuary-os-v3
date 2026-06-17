@@ -1,36 +1,35 @@
 # NOW
 
 ## Task
-Play module, slice 1: the Play domain + pure logic — strict Zod schemas for the six records + enums, and the pure `sequence.ts`/`timing.ts` (arrangement sequence resolution, cue resolution, beat↔time transform, optional key transpose). Backend, no persistence/I/O.
+Play module, slice 2: the Play persistence contracts (`packages/db/src/play-repository-contracts.ts`) — tenant-scoped Zod persistence records + per-operation input schemas + read/write option guards + `PlayQueryPersistenceRepository` / `PlayCommandPersistenceRepository` interfaces, mirroring the Charts persistence contracts. (Slice 1 — Play domain + pure logic — is DONE and green at `4d4fc73`.)
 
 ## Module
-Building the Play module from `05-plans/play-module-plan.md` (just authored). Play = the desktop playback surface: track sets, arrangements, sections, cues, pad layers, and a durable resumable PlaybackState; offline-first; references opaque media IDs (no raw audio in v1; audio engine/MIDI deferred). Backend slices 1–10 are verifiable now; UI slices 11–12 await a scaffold decision.
+Building Play from `05-plans/play-module-plan.md` (authoritative; full slice breakdown 1–10 backend, 11–12 UI). Backend-first per granted discretion; mobile/desktop UI slices await a scaffold decision.
 
 ## Session protocol (in force)
-See `agents.md` › "Session continuity protocol": commit + push at clean breakpoints, write the handoff, hand off to a fresh session. Charts backend (slices 1–7b) is complete + pushed.
+See `agents.md` › "Session continuity protocol": commit + push at clean breakpoints; the Play plan + this NOW.md + `docs/session-summary.md` are the handoff (a fresh session resumes from them).
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `05-plans/play-module-plan.md` (the authoritative plan) and the Charts domain slice as the pattern: `apps/api/src/domain/charts/chordpro.ts` + `chordpro.test.ts` + `index.ts`
-- Add `apps/api/src/domain/play/`: strict Zod `.strict()` schemas (branded IDs, tenant-scoped) for TrackSet, PlayArrangement, PlaySection, PlayCue, PadLayer, PlaybackState + the enums (PlaySectionKind, PlayCueAction, PlayCueFireMode, TransportStatus, TrackRole), with the superRefine invariants from the plan (tempoBpm>0, jump⇒targetSectionRef, pad-change⇒padLayerRef, 0≤gain≤1, etc.)
-- Add the pure logic: `sequence.ts` (arrangement sequence resolution + cue resolution; flag unresolved entries, don't throw) and `timing.ts` (beat/bar↔time over tempoBpm + meter; deterministic), plus optional key transpose reusing the Charts sharp-enharmonic policy. All pure, no I/O, no Date.now.
-- Export via `apps/api/src/domain/play/index.ts` and the domain barrel if there is one
-- Unit tests: schema validity/invariants, sequence/cue resolution (including flagged-unresolved), timing determinism/round-trip
+- Mirror `packages/db/src/charts-repository-contracts.ts` exactly in shape
+- Add `packages/db/src/play-repository-contracts.ts`: `PlayPersistenceReadOptions`/`PlayPersistenceWriteOptions` (reuse `RepositoryReadOptions`/`WriteOptions` + require `actorId` via superRefine); one `*PersistenceRecordSchema` per object (TrackSet, PlayArrangement, PlaySection, PlayCue, PadLayer, PlaybackState — the durable persistence shapes from the plan's persistence-model section, snake_case-mappable, JSON for `trackRefs`/`sectionOrder`); per-operation `*PersistenceInputSchema`; `readOperation`/`writeOperation` wrappers; `PlayQueryPersistenceRepository` + `PlayCommandPersistenceRepository` interfaces (list/get per object, save/upsert, update, remove cue, setPlaybackState)
+- Export from the db barrel
+- Contract tests (round-trip parse, `.strict()` rejection, actor-id requirement, key invariants) mirroring `charts-repository-contracts.test.ts`
 
 ## Out of scope
-Persistence/contracts (slice 2+) · GraphQL/service · offline-sync · the desktop/mobile UI (slices 11–12, await scaffold decision) · the actual audio engine/MIDI
+Migration (slice 3) · SQLite adapter (slice 4) · GraphQL/service · offline-sync · UI
 
 ## Progress
-- [ ] Re-sync with the Play plan + the Charts domain slice pattern
-- [ ] Play record schemas + enums (with invariants)
-- [ ] Pure `sequence.ts` + `timing.ts` (+ optional transpose)
-- [ ] Unit tests
+- [ ] Re-sync with the Charts persistence contracts + the Play plan persistence-model section
+- [ ] `play-repository-contracts.ts` (records + inputs + options + repo interfaces)
+- [ ] Barrel export
+- [ ] Contract tests
 - [ ] Run lint, typecheck, test green
-- [ ] Release check + handoff + session-summary + NOW.md advance
+- [ ] Release check + session-summary + NOW.md advance
 - [ ] Commit + push
 
 ## Done when
-The Play domain records + enums + pure logic exist with invariants and tests, default gates green, committed and pushed.
+The Play persistence contracts exist (records + per-operation inputs + option guards + query/command repository interfaces) with contract tests, default gates green, committed and pushed.
 
 ## Next task after this
-Play slice 2: the Play persistence contracts (`packages/db/src/play-repository-contracts.ts`), mirroring the Charts persistence contracts. Then slices 3–10 per `05-plans/play-module-plan.md` (migration → adapter → GraphQL+service → persistence service → offline queue → replay → events → desktop replay runtime). UI slices 11–12 await the scaffold decision.
+Play slice 3: the Play migration artifact (`packages/db/src/play-migrations.ts`, `PlayInitialSchemaMigration` — six tables + indexes + CHECKs), then slices 4–10 per `05-plans/play-module-plan.md` (SQLite adapter → GraphQL+service → persistence service → offline queue → replay → events → desktop replay runtime). UI slices 11–12 await the scaffold decision.
