@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop local sync composition root
+
+Tasks completed:
+- Re-synced with the desktop scaffold and the `@sanctuary-os/db` building blocks (migration runner, persistence selection, queue migration).
+- Added `createPresenterDesktopLocalSyncQueueStore` in `apps/desktop/src/local-sync-queue-store.ts`: given an injected migration-capable SQLite client and a clock, it applies `PresenterLocalSyncQueueMigration` and returns the local sync queue repository from the shared persistence selection, with one client backing both the migration runner and the query path.
+- Added an availability-guarded `node:sqlite` smoke that migrates, round-trips enqueue/getById, and proves a second composition is idempotent (migration skipped). Re-exported from the desktop barrel.
+- Wrote `07-reviews/architecture/presenter-desktop-local-sync-composition-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm --filter @sanctuary-os/desktop typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (desktop 5 tests).
+- Pushed implementation commit `462537c` (`feat(desktop): add local sync queue composition root`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add the desktop Presenter local sync queue replay pass that drives an injected command service from the queue, marking outcomes.
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop workspace scaffold
 
 Tasks completed:
