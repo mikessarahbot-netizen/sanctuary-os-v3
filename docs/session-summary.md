@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop workspace scaffold
+
+Tasks completed:
+- Re-synced with the root `package.json`/`pnpm-workspace.yaml`/`tsconfig.base.json` and the `apps/api`/`packages/church-context` workspace wiring.
+- Scaffolded `apps/desktop` as a minimal `@sanctuary-os/desktop` TypeScript workspace: `package.json` (lint/typecheck/test scripts, `@sanctuary-os/db` workspace dependency), `tsconfig.json` extending the base, and a typed `src/index.ts` placeholder (`describePresenterDesktopLocalSyncRuntime`) plus `src/index.test.ts`.
+- Confirmed `pnpm install` now reports 5 workspace projects and the root lint glob, `pnpm -r typecheck`, and `pnpm -r test` all pick up `apps/desktop` (3 tests).
+- Wrote `07-reviews/architecture/desktop-workspace-scaffold-release-check.md` (pass with follow-ups).
+- Kept the slice infrastructure-only: no Tauri/Rust shell, desktop windows, replay loop, or UI.
+- Validation passed: `pnpm install`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (desktop 3, api 212, db 140, church-context 5).
+- Pushed implementation commit `253bb99` (`chore(desktop): scaffold apps/desktop workspace`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a desktop-local Presenter sync composition root in `apps/desktop` that migrates the SQLite store and exposes the local sync queue repository from an injected client.
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue replay coordinator
 
 Tasks completed:
