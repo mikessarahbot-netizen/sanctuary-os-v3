@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:36 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, current Presenter service contracts, and existing DB repository contract patterns.
+- Added Presenter persistence contract schemas and repository interfaces in `packages/db` for saved presentations, themes, output targets, and slide mutations.
+- Required tenant/request/actor scope on Presenter persistence operations through shared repository options, with Presenter-specific actor validation.
+- Preserved opaque IDs, strict Zod validation, tenant consistency checks, adapter isolation, and no raw media payload/vendor secret storage.
+- Added focused tests covering operation validation, tenant/audit metadata requirements, aggregate consistency, slide mutation operation shapes, output target/theme contracts, and rejection of raw media/OBS/vendor/secret-like fields.
+- Kept the slice contract-only with no SQL adapter, database migration, WebSocket server, desktop event bus wiring, UI, OBS automation, stream start/stop, vendor SDKs, AI execution, deployment config, or checked-in secrets.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `832e4fc feat(db): add presenter persistence contracts`.
+
+Next task:
+- Add in-memory Presenter persistence repository adapters for the new contracts.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:29 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
