@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - API Presenter GraphQL schema + HTTP transport handler
+
+Tasks completed:
+- Discovered the API had GraphQL SDL + resolvers but no execution engine; added `graphql` + `@graphql-tools/schema` to `apps/api`.
+- Added `createPresenterGraphqlSchema` (`apps/api/src/graphql/presenter-schema.ts`): base root `Query`/`Mutation` + `JSON` scalar merged with the presenter SDL (which supplies `DateTime`), pass-through scalar resolvers, presenter resolvers via `makeExecutableSchema`.
+- Added `createPresenterGraphqlRequestHandler` (`apps/api/src/graphql/transport.ts`): a transport-agnostic `{ headers, body } → { status, body }` handler resolving the actor via the injected `AuthBoundary`, conveying `requestId` from `x-request-id` (generating one if absent), executing the schema, and redacting resolver error text while preserving `extensions.code`.
+- Added 5 transport tests (mutation, query, request-id passthrough, generated id, two 401 cases); added `apps/api/vitest.config.mts` to dedupe/inline `graphql` (fixing the CJS/ESM "another module or realm" failure), named `.mts` to stay out of the lint/typecheck globs.
+- Wrote `07-reviews/architecture/presenter-api-graphql-transport-release-check.md` (pass with follow-ups). Deferred the conflict-code mapping (needs typed domain errors).
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- transport.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (api 217 + 2 skipped).
+- Pushed implementation commit `4db0fb8` (`feat(api): add executable Presenter GraphQL schema and HTTP transport handler`).
+
+Next task:
+- Add typed Presenter domain errors and map them to GraphQL `extensions.code` conflict codes, completing the offline replay conflict round-trip.
+
+Open questions:
+- None blocking; binding a concrete Node `http` listener and the desktop tail remain.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop replay sidecar config + entry
 
 Tasks completed:

@@ -1,31 +1,31 @@
 # NOW
 
 ## Task
-Build the API HTTP/GraphQL server transport: an injected-`fetch`-style request handler that resolves the actor from the auth header, conveys `requestId`, executes the GraphQL schema, and maps service errors to `extensions.code` conflict codes.
+Add typed Presenter domain errors and map them to GraphQL `extensions.code` conflict codes, completing the offline replay conflict round-trip.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/api/src/graphql/index.ts`, `apps/api/src/graphql/presenter.ts`, `apps/api/src/auth/index.ts`, and the desktop network executor's assumed conventions (bearer auth, `x-request-id`, `extensions.code`)
-- Add a transport-agnostic GraphQL request handler (`{ headers, body }` → `{ status, body }`) that parses the request, resolves the `AuthenticatedActor` via an injected `AuthBoundary.resolveActor` from the `Authorization` header, derives `requestId` from the `x-request-id` header (or a generated fallback), builds the GraphQL context, executes the schema, and serializes `{ data, errors }`
-- Map domain/service errors to GraphQL `errors[].extensions.code` using the conflict codes the desktop classifier expects (`STALE_PRESENTATION`, `MISSING_SLIDE`, `THEME_MISMATCH`, `OUTPUT_TARGET_MISMATCH`, `VALIDATION_FAILED`, `AUTHORIZATION_FAILED`); redact internal error text
-- Add focused unit tests (fake auth boundary + in-memory services) covering a successful mutation, an unauthenticated request, an idempotency-key passthrough, and a conflict-code mapping, with no live HTTP server, network, or secret
-- Keep this slice the request-handler contract only; do not bind a concrete Node `http`/framework listener, add deployment config, or change desktop code
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/api/src/services/presenter/in-memory.ts` and `contracts.ts`, `apps/api/src/graphql/transport.ts`, and the desktop classifier's expected codes in `apps/desktop/src/replay-error-classifier.ts`
+- Add a typed Presenter domain error type (a discriminated error carrying a stable `code`: `STALE_PRESENTATION`, `MISSING_SLIDE`, `THEME_MISMATCH`, `OUTPUT_TARGET_MISMATCH`, `VALIDATION_FAILED`, `AUTHORIZATION_FAILED`) and have the Presenter service/command layer throw it for the corresponding conditions (start with the in-memory service so it is gate-testable)
+- Surface the typed error's `code` through the GraphQL layer as `errors[].extensions.code` (resolvers attach the code; the transport handler already preserves it) while keeping the user-facing message redacted
+- Add focused unit tests proving each condition yields the right `extensions.code` through the transport handler, with no live HTTP/network
+- Keep this slice the typed-error + mapping only; do not bind a concrete `http` listener, change the desktop, or alter unrelated services
 
 ## Out of scope
-Concrete Node `http`/framework server binding · deployment/runtime config · desktop process main / Tauri spawn / UI · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
+Concrete Node `http`/framework server binding · desktop process main / Tauri spawn / UI · planning schema wiring · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [x] Re-sync with the GraphQL schema, context, auth boundary, and desktop conventions
-- [x] Add the executable Presenter GraphQL schema (base root + DateTime/JSON scalars + makeExecutableSchema)
-- [x] Add the transport-agnostic GraphQL request handler with actor/requestId resolution
-- [~] Service-error → `extensions.code` conflict mapping — deferred: the handler preserves `extensions.code` and redacts resolver text, but the services lack typed domain errors to emit codes; that needs a domain-error slice
-- [x] Add focused unit tests (mutation / query / idempotency passthrough / generated id / unauthenticated x2)
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the API transport slice
+- [ ] Re-sync with the Presenter services, transport handler, and desktop classifier codes
+- [ ] Add the typed Presenter domain error with stable codes
+- [ ] Throw it from the in-memory Presenter service for each conflict condition
+- [ ] Surface the code as `extensions.code` through the GraphQL resolvers
+- [ ] Add focused tests proving each code via the transport handler
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the typed-error slice
 - [ ] Session handoff
 
 ## Done when
-A transport-agnostic GraphQL request handler resolves the actor and `requestId`, executes the schema, and maps service errors to the conflict codes the desktop expects, covered by fake-boundary unit tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+The Presenter service throws a typed domain error with a stable `code`, the GraphQL transport surfaces it as `extensions.code` with a redacted message, each conflict condition is covered by a transport-level test, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Bind the request handler to a concrete Node `http` listener (separate slice), then return to the desktop tail: the process `main`, the Tauri sidecar spawn/supervision, and a minimal status UI.
+Bind the GraphQL request handler to a concrete Node `http` listener (a thin slice), then return to the desktop tail (process `main`, Tauri sidecar spawn, minimal status UI). Address any typed-error findings first.
