@@ -16,10 +16,10 @@ Charts module, slice 3: the Charts SQLite migration artifact + migration tests (
 SQLite repository adapter · GraphQL/API surface · service layer · offline sync · mobile UI
 
 ## Progress
-- [ ] Re-sync with the Charts contracts and presenter migration style
-- [ ] Add the Charts SQLite migration artifact (tables/indexes/constraints/rollback)
-- [ ] Add migration tests (shape, constraints, indexes, rollback, checksum)
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the Charts contracts and presenter migration style
+- [x] Add the Charts SQLite migration artifact (4 tables, 3 indexes, schema-version/kind/instrument/bool CHECKs, rollback)
+- [x] Add 7 migration tests (shape, constraints, indexes, rollback, checksum) + a `node:sqlite` smoke proving constraints + rollback
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the Charts migration slice
 - [ ] Session handoff
 

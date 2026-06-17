@@ -1,3 +1,4 @@
+export * from "./charts-migrations.js";
 export * from "./charts-repository-contracts.js";
 export * from "./config.js";
 export * from "./migrations.js";
