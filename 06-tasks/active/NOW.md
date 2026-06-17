@@ -17,11 +17,11 @@ Charts module, slice 2: the Charts persistence contracts in `packages/db` (Chart
 SQLite adapter/migration · GraphQL/API surface · service layer · offline sync · mobile UI · CCLI/catalog · AI suggestions
 
 ## Progress
-- [ ] Re-sync with the Charts plan and presenter persistence contract style
-- [ ] Add the Charts persistence record schemas (chart/arrangement/annotation/preference)
-- [ ] Add read/write option + operation schemas and the query/command repository interfaces
-- [ ] Add focused schema tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the Charts plan and presenter persistence contract style
+- [x] Add the Charts persistence record schemas (chart/arrangement/annotation/preference) with tenant scope + note refinement
+- [x] Add read/write option + operation schemas and the query/command repository interfaces
+- [x] Add 6 focused schema tests (valid record, unknown field, schema version, note refinement, negative transpose, actor requirement)
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the Charts persistence contracts slice
 - [ ] Session handoff
 
