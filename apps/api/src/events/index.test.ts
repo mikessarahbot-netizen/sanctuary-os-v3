@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { createInMemoryEventPublisher, validateApiEventEnvelope } from "./index.js";
+import {
+  ApiEventTransportMessageSchema,
+  createApiEventTransportPublisher,
+  createInMemoryApiEventTransportClient,
+  createInMemoryEventPublisher,
+  validateApiEventEnvelope,
+  type ApiEventEnvelope
+} from "./index.js";
 
 describe("createInMemoryEventPublisher", () => {
   it("validates and records published events in order", async () => {
@@ -305,5 +312,181 @@ describe("createInMemoryEventPublisher", () => {
         }
       })
     ).toThrow("Unrecognized key");
+  });
+});
+
+describe("API event transport", () => {
+  const presentationUpdatedEvent: ApiEventEnvelope = {
+    aggregateId: "presentation_1",
+    actorId: "actor_1",
+    eventType: "presentation.updated",
+    occurredAt: "2026-06-16T21:20:00.000Z",
+    payload: {
+      changeKind: "updated",
+      presentationId: "presentation_1",
+      serviceId: "service_1",
+      tenantId: "tenant_1",
+      updatedAt: "2026-06-16T21:20:00.000Z"
+    },
+    requestId: "request_presentation_update",
+    schemaVersion: "presenter-presentation-updated.v1",
+    tenantId: "tenant_1"
+  };
+  const slideChangedEvent: ApiEventEnvelope = {
+    aggregateId: "presentation_1",
+    actorId: "actor_1",
+    eventType: "presenter.slideChanged",
+    occurredAt: "2026-06-16T21:21:00.000Z",
+    payload: {
+      activeSlideId: "slide_2",
+      presentationId: "presentation_1",
+      previousSlideId: "slide_1",
+      tenantId: "tenant_1"
+    },
+    requestId: "request_slide_changed",
+    schemaVersion: "presenter-slide-changed.v1",
+    tenantId: "tenant_1"
+  };
+
+  it("dispatches validated Presenter events to tenant-scoped subscriptions in order", async () => {
+    const client = createInMemoryApiEventTransportClient();
+    const publisher = createApiEventTransportPublisher(client);
+
+    client.subscribe({
+      eventTypes: ["presentation.updated", "presenter.slideChanged"],
+      subscriptionId: "subscription_presenter_1",
+      tenantId: "tenant_1"
+    });
+    client.subscribe({
+      eventTypes: ["presenter.slideChanged"],
+      subscriptionId: "subscription_other_tenant",
+      tenantId: "tenant_2"
+    });
+
+    await publisher.publishAfterCommit(presentationUpdatedEvent);
+    await publisher.publishAfterCommit(slideChangedEvent);
+
+    expect(
+      client.readDeliveries().map((delivery) => ({
+        eventType: delivery.message.event.eventType,
+        route: delivery.message.route,
+        subscriptionId: delivery.subscriptionId
+      }))
+    ).toEqual([
+      {
+        eventType: "presentation.updated",
+        route: {
+          aggregateId: "presentation_1",
+          eventType: "presentation.updated",
+          tenantId: "tenant_1"
+        },
+        subscriptionId: "subscription_presenter_1"
+      },
+      {
+        eventType: "presenter.slideChanged",
+        route: {
+          aggregateId: "presentation_1",
+          eventType: "presenter.slideChanged",
+          tenantId: "tenant_1"
+        },
+        subscriptionId: "subscription_presenter_1"
+      }
+    ]);
+  });
+
+  it("supports aggregate-scoped subscriptions and unsubscribe behavior", async () => {
+    const client = createInMemoryApiEventTransportClient();
+    const publisher = createApiEventTransportPublisher(client);
+
+    client.subscribe({
+      aggregateId: "presentation_1",
+      eventTypes: ["presenter.slideChanged"],
+      subscriptionId: "subscription_presentation_1",
+      tenantId: "tenant_1"
+    });
+    client.subscribe({
+      aggregateId: "presentation_2",
+      eventTypes: ["presenter.slideChanged"],
+      subscriptionId: "subscription_presentation_2",
+      tenantId: "tenant_1"
+    });
+
+    await publisher.publishAfterCommit(slideChangedEvent);
+    expect(client.readDeliveries()).toHaveLength(1);
+    expect(client.readDeliveries()[0]?.subscriptionId).toBe(
+      "subscription_presentation_1"
+    );
+    expect(client.unsubscribe("subscription_presentation_1")).toBe(true);
+
+    await publisher.publishAfterCommit(slideChangedEvent);
+    expect(client.readDeliveries()).toHaveLength(1);
+  });
+
+  it("rejects malformed Presenter envelopes before transport delivery", async () => {
+    const client = createInMemoryApiEventTransportClient();
+    const publisher = createApiEventTransportPublisher(client);
+
+    client.subscribe({
+      subscriptionId: "subscription_presenter_1",
+      tenantId: "tenant_1"
+    });
+
+    await expect(
+      publisher.publishAfterCommit({
+        ...slideChangedEvent,
+        payload: {
+          activeSlideId: "slide_2",
+          presentationId: "presentation_2",
+          tenantId: "tenant_1"
+        }
+      })
+    ).rejects.toThrow("Presenter event aggregate must match presentation ID.");
+    expect(client.readDeliveries()).toEqual([]);
+  });
+
+  it("rejects transport messages whose route metadata does not match the event", () => {
+    expect(() =>
+      ApiEventTransportMessageSchema.parse({
+        event: validateApiEventEnvelope(slideChangedEvent),
+        messageType: "api.event",
+        route: {
+          aggregateId: "presentation_1",
+          eventType: "presenter.outputBlanked",
+          tenantId: "tenant_1"
+        }
+      })
+    ).toThrow("API event transport type route must match event type.");
+  });
+
+  it("does not transport Presenter payloads with OBS, stream, raw media, or secret fields", async () => {
+    const client = createInMemoryApiEventTransportClient();
+    const publisher = createApiEventTransportPublisher(client);
+
+    client.subscribe({
+      eventTypes: ["presenter.outputBlanked"],
+      subscriptionId: "subscription_presenter_1",
+      tenantId: "tenant_1"
+    });
+
+    await expect(
+      publisher.publishAfterCommit({
+        aggregateId: "presentation_1",
+        actorId: "actor_1",
+        eventType: "presenter.outputBlanked",
+        occurredAt: "2026-06-16T21:22:00.000Z",
+        payload: {
+          obsScene: "scene_main",
+          presentationId: "presentation_1",
+          rawMediaPayload: "base64",
+          startStream: true,
+          tenantId: "tenant_1",
+          vendorToken: "secret"
+        },
+        requestId: "request_output_blanked",
+        schemaVersion: "presenter-output-blanked.v1",
+        tenantId: "tenant_1"
+      })
+    ).rejects.toThrow("Unrecognized key");
+    expect(client.readDeliveries()).toEqual([]);
   });
 });

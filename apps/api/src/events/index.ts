@@ -188,9 +188,84 @@ export interface InMemoryEventPublisher extends EventPublisher {
   readonly clear: () => void;
 }
 
+export const ApiEventTransportRouteSchema = z
+  .object({
+    aggregateId: z.string().min(1),
+    eventType: ApiEventTypeSchema,
+    tenantId: z.string().min(1)
+  })
+  .strict();
+
+export const ApiEventTransportMessageSchema = z
+  .object({
+    event: ValidatedApiEventEnvelopeSchema,
+    messageType: z.literal("api.event"),
+    route: ApiEventTransportRouteSchema
+  })
+  .strict()
+  .superRefine((message, context) => {
+    if (message.route.tenantId !== message.event.tenantId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "API event transport tenant route must match event tenant.",
+        path: ["route", "tenantId"]
+      });
+    }
+
+    if (message.route.aggregateId !== message.event.aggregateId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "API event transport aggregate route must match event aggregate.",
+        path: ["route", "aggregateId"]
+      });
+    }
+
+    if (message.route.eventType !== message.event.eventType) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "API event transport type route must match event type.",
+        path: ["route", "eventType"]
+      });
+    }
+  });
+
+export const ApiEventTransportSubscriptionSchema = z
+  .object({
+    aggregateId: z.string().min(1).optional(),
+    eventTypes: z.array(ApiEventTypeSchema).min(1).optional(),
+    subscriptionId: z.string().min(1),
+    tenantId: z.string().min(1)
+  })
+  .strict();
+
 export const validateApiEventEnvelope = (
   rawEvent: ApiEventEnvelope
 ): ValidatedApiEventEnvelope => ValidatedApiEventEnvelopeSchema.parse(rawEvent);
+
+export type ApiEventTransportRoute = z.infer<typeof ApiEventTransportRouteSchema>;
+export type ApiEventTransportMessage = z.infer<typeof ApiEventTransportMessageSchema>;
+export type ApiEventTransportSubscription = z.infer<
+  typeof ApiEventTransportSubscriptionSchema
+>;
+
+export interface ApiEventTransportClient {
+  readonly send: (message: ApiEventTransportMessage) => Promise<void>;
+}
+
+export interface ApiEventTransportDelivery {
+  readonly message: ApiEventTransportMessage;
+  readonly subscriptionId: string;
+}
+
+export interface InMemoryApiEventTransportClient extends ApiEventTransportClient {
+  readonly clear: () => void;
+  readonly readDeliveries: () => readonly ApiEventTransportDelivery[];
+  readonly readSubscriptions: () => readonly ApiEventTransportSubscription[];
+  readonly subscribe: (
+    subscription: ApiEventTransportSubscription
+  ) => ApiEventTransportSubscription;
+  readonly unsubscribe: (subscriptionId: string) => boolean;
+}
 
 export const createInMemoryEventPublisher = (): InMemoryEventPublisher => {
   const publishedEvents: ValidatedApiEventEnvelope[] = [];
@@ -211,6 +286,93 @@ export const createInMemoryEventPublisher = (): InMemoryEventPublisher => {
     readPublishedEvents: (): readonly ValidatedApiEventEnvelope[] => [...publishedEvents]
   };
 };
+
+export const createApiEventTransportPublisher = (
+  client: ApiEventTransportClient
+): EventPublisher => ({
+  publishAfterCommit: (event: ApiEventEnvelope): Promise<void> => {
+    try {
+      const validatedEvent = validateApiEventEnvelope(event);
+
+      return client.send(
+        ApiEventTransportMessageSchema.parse({
+          event: validatedEvent,
+          messageType: "api.event",
+          route: {
+            aggregateId: validatedEvent.aggregateId,
+            eventType: validatedEvent.eventType,
+            tenantId: validatedEvent.tenantId
+          }
+        })
+      );
+    } catch (error: unknown) {
+      return Promise.reject(toEventPublisherError(error));
+    }
+  }
+});
+
+export const createInMemoryApiEventTransportClient =
+  (): InMemoryApiEventTransportClient => {
+    const subscriptions = new Map<string, ApiEventTransportSubscription>();
+    const deliveries: ApiEventTransportDelivery[] = [];
+
+    return {
+      clear: (): void => {
+        deliveries.length = 0;
+        subscriptions.clear();
+      },
+      readDeliveries: (): readonly ApiEventTransportDelivery[] =>
+        deliveries.map((delivery) => ({
+          message: delivery.message,
+          subscriptionId: delivery.subscriptionId
+        })),
+      readSubscriptions: (): readonly ApiEventTransportSubscription[] => [
+        ...subscriptions.values()
+      ],
+      send: (rawMessage: ApiEventTransportMessage): Promise<void> => {
+        try {
+          const message = ApiEventTransportMessageSchema.parse(rawMessage);
+
+          for (const subscription of subscriptions.values()) {
+            if (matchesSubscription(message, subscription)) {
+              deliveries.push({
+                message,
+                subscriptionId: subscription.subscriptionId
+              });
+            }
+          }
+
+          return Promise.resolve();
+        } catch (error: unknown) {
+          return Promise.reject(toEventPublisherError(error));
+        }
+      },
+      subscribe: (
+        subscription: ApiEventTransportSubscription
+      ): ApiEventTransportSubscription => {
+        const parsedSubscription =
+          ApiEventTransportSubscriptionSchema.parse(subscription);
+        subscriptions.set(
+          parsedSubscription.subscriptionId,
+          parsedSubscription
+        );
+
+        return parsedSubscription;
+      },
+      unsubscribe: (subscriptionId: string): boolean =>
+        subscriptions.delete(subscriptionId)
+    };
+  };
+
+const matchesSubscription = (
+  message: ApiEventTransportMessage,
+  subscription: ApiEventTransportSubscription
+): boolean =>
+  subscription.tenantId === message.route.tenantId &&
+  (subscription.aggregateId === undefined ||
+    subscription.aggregateId === message.route.aggregateId) &&
+  (subscription.eventTypes === undefined ||
+    subscription.eventTypes.includes(message.route.eventType));
 
 const toEventPublisherError = (error: unknown): Error =>
   error instanceof Error ? error : new Error("Invalid API event envelope.");

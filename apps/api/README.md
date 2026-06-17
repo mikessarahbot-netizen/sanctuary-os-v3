@@ -21,6 +21,14 @@ Planning command services depend on the DB package
 adapter notes live in
 [`packages/db/docs/planning-production-adapter-contract.md`](../../packages/db/docs/planning-production-adapter-contract.md).
 
+## Event transport boundary
+
+API events are validated before dispatch. `events/` exposes an injected transport
+client boundary that wraps validated envelopes with tenant, aggregate, and event
+type route metadata. Default tests use the in-memory transport client only; no
+live WebSocket server, desktop event bus, OBS automation, or stream controls are
+started by the API event transport boundary.
+
 ## Opt-in PostgreSQL integration tests
 
 Default tests are live-DB-free. The Planning and Presenter PostgreSQL integration

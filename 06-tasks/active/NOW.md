@@ -19,10 +19,10 @@ Add API WebSocket/event transport wiring for validated Presenter events.
 Desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs and current event contracts
-- [ ] Add API event transport boundary for Presenter events
-- [ ] Add focused event transport tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current event contracts
+- [x] Add API event transport boundary for Presenter events
+- [x] Add focused event transport tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
