@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 2: persistence contracts
+
+Tasks completed:
+- Community+ slice 2 (delegated; parent verified gates): `packages/db/src/community-repository-contracts.ts` — tenant-scoped persistence records for the 8 objects (no raw PII columns; opaque contact channel refs + consent; PII-free EngagementSummary, tests reject phone/email/address keys), per-op inputs, actor-required option guards, query/command repo interfaces (incl. confirmation-gated comms write). +20 db tests. Gates green: db 367 / api 499 + 2 skipped / desktop 89 / church-context 5. Committed `bc8fc8f`.
+
+Next task:
+- Community+ slice 3: migration artifact (`packages/db/src/community-migrations.ts`). Then slices 4–10 per the plan.
+
+Open questions / follow-ups: Community+ open questions; standing follow-ups (network-executor JSON gap; enum mismatch task_85338bf7; UI surface decision; live /goal hook).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 1: domain + pure logic
 
 Tasks completed:
