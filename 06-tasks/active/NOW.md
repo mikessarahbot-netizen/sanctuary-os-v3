@@ -15,11 +15,11 @@ Add a Presenter local sync queue status summary: a repository count-by-status ca
 Sidecar↔webview IPC channel · desktop status UI · Tauri commands · packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the queue repository contract and SQLite adapter
-- [ ] Add the count-by-status capability to the contract + SQLite adapter
-- [ ] Add adapter tests (recording executor + `node:sqlite` smoke)
-- [ ] Add the pure `summarizePresenterLocalSyncQueue` helper with tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the queue repository contract and SQLite adapter
+- [x] Add `countByStatus` to the contract + SQLite adapter (tenant-scoped GROUP BY, absent statuses default to 0)
+- [x] Add a recording-executor adapter test; updated two interface fakes for the new method
+- [x] Add the pure `summarizePresenterLocalSyncQueue` helper with tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the status-summary slice
 - [ ] Session handoff
 

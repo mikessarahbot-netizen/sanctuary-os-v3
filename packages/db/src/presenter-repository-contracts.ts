@@ -728,6 +728,21 @@ export const CleanupPresenterLocalSyncQueueEntriesPersistenceResultSchema = z
   })
   .strict();
 
+export const PresenterLocalSyncQueueStatusCountsSchema = z
+  .object({
+    cancelled: NonNegativeIntegerSchema,
+    conflict: NonNegativeIntegerSchema,
+    failed: NonNegativeIntegerSchema,
+    queued: NonNegativeIntegerSchema,
+    replaying: NonNegativeIntegerSchema,
+    synced: NonNegativeIntegerSchema
+  })
+  .strict();
+
+export const CountPresenterLocalSyncQueueEntriesByStatusPersistenceInputSchema = z
+  .object({})
+  .strict();
+
 export const ListPresenterPresentationsPersistenceOperationSchema = z
   .object({
     input: ListPresenterPresentationsPersistenceInputSchema,
@@ -862,6 +877,13 @@ export const CleanupPresenterLocalSyncQueueEntriesPersistenceOperationSchema = z
   })
   .strict();
 
+export const CountPresenterLocalSyncQueueEntriesByStatusPersistenceOperationSchema = z
+  .object({
+    input: CountPresenterLocalSyncQueueEntriesByStatusPersistenceInputSchema,
+    options: PresenterPersistenceReadOptionsSchema
+  })
+  .strict();
+
 export type PresenterPersistenceReadOptions = z.infer<
   typeof PresenterPersistenceReadOptionsSchema
 >;
@@ -958,6 +980,12 @@ export type CleanupPresenterLocalSyncQueueEntriesPersistenceInput = z.infer<
 export type CleanupPresenterLocalSyncQueueEntriesPersistenceResult = z.infer<
   typeof CleanupPresenterLocalSyncQueueEntriesPersistenceResultSchema
 >;
+export type PresenterLocalSyncQueueStatusCounts = z.infer<
+  typeof PresenterLocalSyncQueueStatusCountsSchema
+>;
+export type CountPresenterLocalSyncQueueEntriesByStatusPersistenceInput = z.infer<
+  typeof CountPresenterLocalSyncQueueEntriesByStatusPersistenceInputSchema
+>;
 
 export interface PresenterPersistenceOperation<TInput> {
   readonly input: TInput;
@@ -1007,6 +1035,8 @@ export type MarkPresenterLocalSyncQueueEntryFailedPersistenceOperation =
   PresenterPersistenceOperation<MarkPresenterLocalSyncQueueEntryFailedPersistenceInput>;
 export type CleanupPresenterLocalSyncQueueEntriesPersistenceOperation =
   PresenterPersistenceOperation<CleanupPresenterLocalSyncQueueEntriesPersistenceInput>;
+export type CountPresenterLocalSyncQueueEntriesByStatusPersistenceOperation =
+  PresenterReadPersistenceOperation<CountPresenterLocalSyncQueueEntriesByStatusPersistenceInput>;
 
 export const listPresenterLocalSyncQueueEntriesReadyForReplay = (
   rawEntries: readonly unknown[],
@@ -1122,4 +1152,7 @@ export interface PresenterLocalSyncQueuePersistenceRepository {
   readonly cleanupSyncedAndCancelled: (
     operation: CleanupPresenterLocalSyncQueueEntriesPersistenceOperation
   ) => Promise<CleanupPresenterLocalSyncQueueEntriesPersistenceResult>;
+  readonly countByStatus: (
+    operation: CountPresenterLocalSyncQueueEntriesByStatusPersistenceOperation
+  ) => Promise<PresenterLocalSyncQueueStatusCounts>;
 }

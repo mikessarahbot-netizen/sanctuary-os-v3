@@ -560,4 +560,31 @@ describe("Presenter local sync queue SQL repository", () => {
     expectSqlContains(statement, "updated_at < ?");
     expect(statement.parameters).toEqual([tenantId, transitionedAt]);
   });
+
+  it("counts entries by status with tenant scope, defaulting absent statuses to zero", async () => {
+    const executor = createRecordingExecutor([
+      [
+        { count: 4, status: "queued" },
+        { count: 2, status: "conflict" }
+      ]
+    ]);
+    const repository = createPresenterLocalSyncQueueSqlRepository({ executor });
+
+    await expect(
+      repository.countByStatus({ input: {}, options: readContext })
+    ).resolves.toEqual({
+      cancelled: 0,
+      conflict: 2,
+      failed: 0,
+      queued: 4,
+      replaying: 0,
+      synced: 0
+    });
+
+    const statement = statementAt(executor, 0);
+    expectSqlContains(statement, "from presenter_local_sync_queue_entries");
+    expectSqlContains(statement, "where tenant_id = ?");
+    expectSqlContains(statement, "group by status");
+    expect(statement.parameters).toEqual([tenantId]);
+  });
 });

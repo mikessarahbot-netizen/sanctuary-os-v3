@@ -599,6 +599,15 @@ describe("Presenter repository contracts", () => {
           })
         ),
       cleanupSyncedAndCancelled: () => Promise.resolve({ removedCount: 0 }),
+      countByStatus: () =>
+        Promise.resolve({
+          cancelled: 0,
+          conflict: 0,
+          failed: 0,
+          queued: 0,
+          replaying: 0,
+          synced: 0
+        }),
       enqueue: (operation) => Promise.resolve({ entry: operation.input.entry }),
       getById: (operation) =>
         Promise.resolve(

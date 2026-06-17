@@ -7,6 +7,7 @@ import type {
 import {
   CleanupPresenterLocalSyncQueueEntriesPersistenceOperationSchema,
   CleanupPresenterLocalSyncQueueEntriesPersistenceResultSchema,
+  CountPresenterLocalSyncQueueEntriesByStatusPersistenceOperationSchema,
   EnqueuePresenterLocalSyncQueueEntryPersistenceOperationSchema,
   GetPresenterLocalSyncQueueEntryPersistenceOperationSchema,
   ListPresenterLocalSyncQueueEntriesReadyForReplayPersistenceOperationSchema,
@@ -14,10 +15,13 @@ import {
   MarkPresenterLocalSyncQueueEntryFailedPersistenceOperationSchema,
   PresenterLocalSyncQueueEntryMutationResultSchema,
   PresenterLocalSyncQueueEntryPersistenceRecordSchema,
+  PresenterLocalSyncQueueStatusCountsSchema,
+  PresenterLocalSyncQueueStatusPersistenceSchema,
   TransitionPresenterLocalSyncQueueEntryPersistenceOperationSchema,
   listPresenterLocalSyncQueueEntriesReadyForReplay,
   type CleanupPresenterLocalSyncQueueEntriesPersistenceOperation,
   type CleanupPresenterLocalSyncQueueEntriesPersistenceResult,
+  type CountPresenterLocalSyncQueueEntriesByStatusPersistenceOperation,
   type EnqueuePresenterLocalSyncQueueEntryPersistenceOperation,
   type GetPresenterLocalSyncQueueEntryPersistenceOperation,
   type ListPresenterLocalSyncQueueEntriesReadyForReplayPersistenceOperation,
@@ -26,6 +30,8 @@ import {
   type PresenterLocalSyncQueueEntryMutationResult,
   type PresenterLocalSyncQueueEntryPersistenceRecord,
   type PresenterLocalSyncQueuePersistenceRepository,
+  type PresenterLocalSyncQueueStatusCounts,
+  type PresenterLocalSyncQueueStatusPersistence,
   type TransitionPresenterLocalSyncQueueEntryPersistenceOperation
 } from "./presenter-repository-contracts.js";
 import type { TransactionHandle } from "./transactions.js";
@@ -206,6 +212,13 @@ const requireMutatedEntryRow = (
     entry: mapEntryRow(expectedTenantId, row)
   });
 };
+
+const PresenterLocalSyncQueueStatusCountRowSchema = z
+  .object({
+    count: z.number().int().nonnegative(),
+    status: PresenterLocalSyncQueueStatusPersistenceSchema
+  })
+  .strict();
 
 export const createPresenterLocalSyncQueueSqlRepository = (
   dependencies: PresenterLocalSyncQueueSqlRepositoryDependencies
@@ -534,5 +547,38 @@ RETURNING queue_entry_id
     return CleanupPresenterLocalSyncQueueEntriesPersistenceResultSchema.parse({
       removedCount: result.rows.length
     });
+  },
+
+  countByStatus: async (
+    rawOperation: CountPresenterLocalSyncQueueEntriesByStatusPersistenceOperation
+  ): Promise<PresenterLocalSyncQueueStatusCounts> => {
+    const operation =
+      CountPresenterLocalSyncQueueEntriesByStatusPersistenceOperationSchema.parse(rawOperation);
+    const result = await dependencies.executor.query({
+      name: "presenter.local_sync_queue.count_by_status",
+      parameters: [operation.options.context.tenantId],
+      sql: `
+SELECT status, COUNT(*) AS count
+FROM presenter_local_sync_queue_entries
+WHERE tenant_id = ?
+GROUP BY status
+`.trim(),
+      ...optionalTransaction(operation.options.transaction)
+    });
+    const counts: Record<PresenterLocalSyncQueueStatusPersistence, number> = {
+      cancelled: 0,
+      conflict: 0,
+      failed: 0,
+      queued: 0,
+      replaying: 0,
+      synced: 0
+    };
+
+    for (const row of result.rows) {
+      const parsedRow = PresenterLocalSyncQueueStatusCountRowSchema.parse(row);
+      counts[parsedRow.status] = parsedRow.count;
+    }
+
+    return PresenterLocalSyncQueueStatusCountsSchema.parse(counts);
   }
 });

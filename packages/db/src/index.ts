@@ -12,6 +12,7 @@ export * from "./presenter-in-memory-repository.js";
 export * from "./presenter-local-sync-queue-composition.js";
 export * from "./presenter-local-sync-queue-replay.js";
 export * from "./presenter-local-sync-queue-sql-repository.js";
+export * from "./presenter-local-sync-queue-status.js";
 export * from "./presenter-repository-contracts.js";
 export * from "./presenter-sql-repository.js";
 export * from "./postgresql-planning-executor.js";

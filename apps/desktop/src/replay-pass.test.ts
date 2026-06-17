@@ -83,6 +83,7 @@ const createFakeRepository = (
     repository: {
       cancel: unexpected,
       cleanupSyncedAndCancelled: unexpected,
+      countByStatus: unexpected,
       enqueue: unexpected,
       getById: unexpected,
       listReadyForReplay: () => Promise.resolve(ready),
