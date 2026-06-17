@@ -259,4 +259,41 @@ describe("Charts local sync queue in-memory repository", () => {
       tenantId
     });
   });
+
+  it("counts entries by status scoped to the tenant", async () => {
+    const adapter = createInMemoryChartsLocalSyncQueueRepositoryAdapter({
+      entries: [
+        makeEntry("queue_entry_pending_1"),
+        makeEntry("queue_entry_pending_2"),
+        makeEntry("queue_entry_in_flight", {
+          attemptCount: 1,
+          lastAttemptedAt: transitionedAt,
+          status: "in-flight"
+        }),
+        makeEntry("queue_entry_failed", {
+          attemptCount: 1,
+          lastAttemptedAt: transitionedAt,
+          safeErrorMessage: "Network was unavailable.",
+          status: "failed"
+        }),
+        makeEntry("queue_entry_synced", { status: "synced" }),
+        makeEntry("queue_entry_other_tenant", {
+          status: "synced",
+          tenantId: "tenant_other"
+        })
+      ]
+    });
+
+    await expect(
+      adapter.repository.countByStatus({ input: {}, options: readOptions })
+    ).resolves.toEqual({ failed: 1, inFlight: 1, pending: 2, synced: 1 });
+  });
+
+  it("counts an empty queue as all zeroes", async () => {
+    const adapter = createInMemoryChartsLocalSyncQueueRepositoryAdapter();
+
+    await expect(
+      adapter.repository.countByStatus({ input: {}, options: readOptions })
+    ).resolves.toEqual({ failed: 0, inFlight: 0, pending: 0, synced: 0 });
+  });
 });

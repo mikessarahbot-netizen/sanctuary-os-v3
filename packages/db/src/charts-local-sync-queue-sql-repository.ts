@@ -2,6 +2,9 @@ import { z } from "zod";
 import {
   ChartsLocalSyncQueueEntryMutationResultSchema,
   ChartsLocalSyncQueueEntryPersistenceRecordSchema,
+  ChartsLocalSyncQueueStatusCountsSchema,
+  ChartsLocalSyncQueueStatusPersistenceSchema,
+  CountChartsLocalSyncQueueEntriesByStatusPersistenceOperationSchema,
   EnqueueChartsLocalSyncQueueEntryPersistenceOperationSchema,
   GetChartsLocalSyncQueueEntryPersistenceOperationSchema,
   ListPendingChartsLocalSyncQueueEntriesPersistenceOperationSchema,
@@ -14,6 +17,9 @@ import {
   type ChartsLocalSyncQueueEntryMutationResult,
   type ChartsLocalSyncQueueEntryPersistenceRecord,
   type ChartsLocalSyncQueuePersistenceRepository,
+  type ChartsLocalSyncQueueStatusCounts,
+  type ChartsLocalSyncQueueStatusPersistence,
+  type CountChartsLocalSyncQueueEntriesByStatusPersistenceOperation,
   type EnqueueChartsLocalSyncQueueEntryPersistenceOperation,
   type GetChartsLocalSyncQueueEntryPersistenceOperation,
   type ListPendingChartsLocalSyncQueueEntriesPersistenceOperation,
@@ -159,6 +165,13 @@ const ChartsLocalSyncQueueEntrySqlRowSchema = z
       updatedAt: row.updated_at
     });
   });
+
+const ChartsLocalSyncQueueStatusCountRowSchema = z
+  .object({
+    count: z.number().int().nonnegative(),
+    status: ChartsLocalSyncQueueStatusPersistenceSchema
+  })
+  .strict();
 
 const optionalTransaction = (
   transaction: TransactionHandle | undefined
@@ -459,6 +472,42 @@ RETURNING queue_entry_id
 
     return PruneChartsLocalSyncQueueEntriesPersistenceResultSchema.parse({
       removedCount: result.rows.length
+    });
+  },
+
+  countByStatus: async (
+    rawOperation: CountChartsLocalSyncQueueEntriesByStatusPersistenceOperation
+  ): Promise<ChartsLocalSyncQueueStatusCounts> => {
+    const operation =
+      CountChartsLocalSyncQueueEntriesByStatusPersistenceOperationSchema.parse(rawOperation);
+    const result = await dependencies.executor.query({
+      name: "charts.local_sync_queue.count_by_status",
+      parameters: [operation.options.context.tenantId],
+      sql: `
+SELECT status, COUNT(*) AS count
+FROM charts_local_sync_queue_entries
+WHERE tenant_id = ?
+GROUP BY status
+`.trim(),
+      ...optionalTransaction(operation.options.transaction)
+    });
+    const counts: Record<ChartsLocalSyncQueueStatusPersistence, number> = {
+      failed: 0,
+      "in-flight": 0,
+      pending: 0,
+      synced: 0
+    };
+
+    for (const row of result.rows) {
+      const parsedRow = ChartsLocalSyncQueueStatusCountRowSchema.parse(row);
+      counts[parsedRow.status] = parsedRow.count;
+    }
+
+    return ChartsLocalSyncQueueStatusCountsSchema.parse({
+      failed: counts.failed,
+      inFlight: counts["in-flight"],
+      pending: counts.pending,
+      synced: counts.synced
     });
   }
 });

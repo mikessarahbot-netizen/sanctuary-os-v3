@@ -385,6 +385,25 @@ describe("Charts local sync queue SQL repository", () => {
     expect(statement.parameters).toEqual([tenantId, "2026-06-17T03:00:00.000Z"]);
   });
 
+  it("groups status counts by tenant and defaults missing statuses to zero", async () => {
+    const executor = createRecordingExecutor([
+      [
+        { count: 2, status: "pending" },
+        { count: 1, status: "in-flight" },
+        { count: 3, status: "failed" }
+      ]
+    ]);
+    const repository = createChartsLocalSyncQueueSqlRepository({ executor });
+
+    await expect(
+      repository.countByStatus({ input: {}, options: readOptions })
+    ).resolves.toEqual({ failed: 3, inFlight: 1, pending: 2, synced: 0 });
+
+    const statement = statementAt(executor, 0);
+    expect(statement.sql).toContain("GROUP BY status");
+    expect(statement.parameters).toEqual([tenantId]);
+  });
+
   it("never embeds secret-like tokens in the queue SQL", async () => {
     const executor = createRecordingExecutor([[], [toStoredRow(baseEntry)], [toStoredRow(baseEntry)]]);
     const repository = createChartsLocalSyncQueueSqlRepository({ executor });

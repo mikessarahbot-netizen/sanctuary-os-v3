@@ -358,6 +358,19 @@ export const PruneChartsLocalSyncQueueEntriesPersistenceResultSchema = z
   })
   .strict();
 
+export const ChartsLocalSyncQueueStatusCountsSchema = z
+  .object({
+    failed: NonNegativeIntegerSchema,
+    inFlight: NonNegativeIntegerSchema,
+    pending: NonNegativeIntegerSchema,
+    synced: NonNegativeIntegerSchema
+  })
+  .strict();
+
+export const CountChartsLocalSyncQueueEntriesByStatusPersistenceInputSchema = z
+  .object({})
+  .strict();
+
 export type ChartsLocalSyncQueuedOperationPersistence = z.infer<
   typeof ChartsLocalSyncQueuedOperationPersistenceSchema
 >;
@@ -402,6 +415,12 @@ export type PruneChartsLocalSyncQueueEntriesPersistenceInput = z.infer<
 >;
 export type PruneChartsLocalSyncQueueEntriesPersistenceResult = z.infer<
   typeof PruneChartsLocalSyncQueueEntriesPersistenceResultSchema
+>;
+export type ChartsLocalSyncQueueStatusCounts = z.infer<
+  typeof ChartsLocalSyncQueueStatusCountsSchema
+>;
+export type CountChartsLocalSyncQueueEntriesByStatusPersistenceInput = z.infer<
+  typeof CountChartsLocalSyncQueueEntriesByStatusPersistenceInputSchema
 >;
 
 export const EnqueueChartsLocalSyncQueueEntryPersistenceOperationSchema = z
@@ -460,6 +479,13 @@ export const PruneChartsLocalSyncQueueEntriesPersistenceOperationSchema = z
   })
   .strict();
 
+export const CountChartsLocalSyncQueueEntriesByStatusPersistenceOperationSchema = z
+  .object({
+    input: CountChartsLocalSyncQueueEntriesByStatusPersistenceInputSchema,
+    options: ChartsPersistenceReadOptionsSchema
+  })
+  .strict();
+
 export interface ChartsLocalSyncQueueReadPersistenceOperation<TInput> {
   readonly input: TInput;
   readonly options: ChartsPersistenceReadOptions;
@@ -486,6 +512,8 @@ export type RequeueChartsLocalSyncQueueEntryPersistenceOperation =
   ChartsLocalSyncQueuePersistenceOperation<RequeueChartsLocalSyncQueueEntryPersistenceInput>;
 export type PruneChartsLocalSyncQueueEntriesPersistenceOperation =
   ChartsLocalSyncQueuePersistenceOperation<PruneChartsLocalSyncQueueEntriesPersistenceInput>;
+export type CountChartsLocalSyncQueueEntriesByStatusPersistenceOperation =
+  ChartsLocalSyncQueueReadPersistenceOperation<CountChartsLocalSyncQueueEntriesByStatusPersistenceInput>;
 
 export interface ChartsLocalSyncQueuePersistenceRepository {
   readonly enqueue: (
@@ -512,4 +540,7 @@ export interface ChartsLocalSyncQueuePersistenceRepository {
   readonly pruneSynced: (
     operation: PruneChartsLocalSyncQueueEntriesPersistenceOperation
   ) => Promise<PruneChartsLocalSyncQueueEntriesPersistenceResult>;
+  readonly countByStatus: (
+    operation: CountChartsLocalSyncQueueEntriesByStatusPersistenceOperation
+  ) => Promise<ChartsLocalSyncQueueStatusCounts>;
 }

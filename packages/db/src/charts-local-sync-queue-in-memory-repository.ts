@@ -1,6 +1,8 @@
 import {
   ChartsLocalSyncQueueEntryMutationResultSchema,
   ChartsLocalSyncQueueEntryPersistenceRecordSchema,
+  ChartsLocalSyncQueueStatusCountsSchema,
+  CountChartsLocalSyncQueueEntriesByStatusPersistenceOperationSchema,
   EnqueueChartsLocalSyncQueueEntryPersistenceOperationSchema,
   GetChartsLocalSyncQueueEntryPersistenceOperationSchema,
   ListPendingChartsLocalSyncQueueEntriesPersistenceOperationSchema,
@@ -13,6 +15,8 @@ import {
   type ChartsLocalSyncQueueEntryMutationResult,
   type ChartsLocalSyncQueueEntryPersistenceRecord,
   type ChartsLocalSyncQueuePersistenceRepository,
+  type ChartsLocalSyncQueueStatusCounts,
+  type ChartsLocalSyncQueueStatusPersistence,
   type ChartsLocalSyncQueueStatusTransitionPersistence,
   type PruneChartsLocalSyncQueueEntriesPersistenceResult
 } from "./charts-local-sync-queue-repository-contracts.js";
@@ -20,6 +24,7 @@ import type { RepositoryMutationIntent } from "./repository-contracts.js";
 import type { TransactionHandle } from "./transactions.js";
 
 export type InMemoryChartsLocalSyncQueueOperationName =
+  | "countByStatus"
   | "enqueue"
   | "getById"
   | "listPending"
@@ -312,6 +317,32 @@ export const createInMemoryChartsLocalSyncQueueRepositoryAdapter = (
         }
 
         return PruneChartsLocalSyncQueueEntriesPersistenceResultSchema.parse({ removedCount });
+      }),
+
+    countByStatus: (rawOperation): Promise<ChartsLocalSyncQueueStatusCounts> =>
+      Promise.resolve().then(() => {
+        const operation =
+          CountChartsLocalSyncQueueEntriesByStatusPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("countByStatus", operation.options);
+        const counts: Record<ChartsLocalSyncQueueStatusPersistence, number> = {
+          failed: 0,
+          "in-flight": 0,
+          pending: 0,
+          synced: 0
+        };
+
+        for (const entry of entries.values()) {
+          if (entry.tenantId === operation.options.context.tenantId) {
+            counts[entry.status] += 1;
+          }
+        }
+
+        return ChartsLocalSyncQueueStatusCountsSchema.parse({
+          failed: counts.failed,
+          inFlight: counts["in-flight"],
+          pending: counts.pending,
+          synced: counts.synced
+        });
       })
   };
 
