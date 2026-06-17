@@ -1,31 +1,32 @@
 # NOW
 
 ## Task
-Add a Presenter local sync queue plan.
+Add Presenter local sync queue contracts.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/presenter-module-plan.md`, `07-reviews/architecture/presenter-output-window-contract-release-check.md`, current Presenter domain/API/persistence contracts, and existing Planning offline/sync guidance
-- Add a Presenter local sync queue plan under `05-plans/` or a closely scoped planning document that defines offline-safe queued edit scope, queue record shape, conflict states, retry/replay behavior, tenant/audit metadata, storage ownership, and validation expectations
-- Keep the plan aligned with desktop-owned run mode, API-owned saved presentation persistence, and existing event transport boundaries
-- Document explicit out-of-scope items and first implementation acceptance criteria
-- Run docs-compatible validation gates
+- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/presenter-module-plan.md`, `05-plans/presenter-local-sync-queue-plan.md`, current Presenter domain/API/persistence contracts, and existing offline/release-check notes
+- Add strict Presenter local sync queue schemas/types/parser helpers for queue entries, queued operations, conflict details, retry metadata, and status transitions
+- Cover approved non-destructive Presenter command operations from the plan and reject destructive operations, local run-mode actions, OBS/stream controls, raw media, vendor tokens, secrets, and unknown fields
+- Add focused tests for valid queue entries, tenant/presentation/actor/request metadata, status transition validation, conflict detail validation, replay readiness ordering, and forbidden payloads
+- Keep contracts adapter-free and storage-free
+- Run focused tests plus lint, typecheck, and full tests
 - Commit and push the slice
 - Run session handoff
 
 ## Out of scope
-Production queue code · SQLite schema/migrations · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
+Production queue runner · SQLite schema/migrations · local persistence adapter · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [x] Re-sync with required docs and current Presenter contracts
-- [x] Draft Presenter local sync queue plan
-- [x] Check plan against offline/failure/privacy rules
-- [x] Run validation
+- [ ] Re-sync with required docs and current Presenter contracts
+- [ ] Implement local sync queue schemas/types/parser helpers
+- [ ] Add focused queue contract tests
+- [ ] Run validation
 - [ ] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
-Presenter local sync queue planning is documented, validated, committed, pushed, and handoff documents identify the exact next task.
+Presenter local sync queue contracts are Zod-validated, tested, committed, pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Add Presenter local sync queue contracts if the plan is clean, or address any planning findings first.
+Run a focused release check for Presenter local sync queue contracts, or address any contract findings first.

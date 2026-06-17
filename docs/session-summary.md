@@ -1118,6 +1118,16 @@ Next task:
 
 Open questions:
 - None.
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue plan
+
+- Added `05-plans/presenter-local-sync-queue-plan.md`.
+- Defined queue ownership across Desktop Presenter, API backend, future local DB adapter, and event transport.
+- Documented approved non-destructive queued edit scope, queue record shape, conflict states, replay rules, tenant/audit metadata, storage expectations, validation expectations, and first implementation acceptance criteria.
+- Kept the slice planning-only with no production queue code, SQLite schema/migrations, desktop UI, Tauri commands, desktop event bus, production WebSocket/SSE adapters, raw media storage, OBS/stream automation, vendor SDKs, Auth0, AI execution, deployment config, or checked-in secrets.
+- Validation passed: `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed planning commit `6f1209a` (`docs(presenter): add local sync queue plan`) to `feature/presenter-domain-contracts`.
+- Next task: add Presenter local sync queue contracts against the new plan.
+
 ## 2026-06-16 - feature/presenter-domain-contracts - Presenter output-window contract release check
 
 - Completed the Presenter desktop output-window contract release check and wrote findings to `07-reviews/architecture/presenter-output-window-contract-release-check.md`.
