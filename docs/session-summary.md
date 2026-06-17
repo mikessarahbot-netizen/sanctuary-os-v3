@@ -1118,6 +1118,14 @@ Next task:
 
 Open questions:
 - None.
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter output-window contract release check
+
+- Completed the Presenter desktop output-window contract release check and wrote findings to `07-reviews/architecture/presenter-output-window-contract-release-check.md`.
+- Result: pass with follow-ups. The contract layer has strict Zod validation for desktop output-window state, local/offline run-mode status, and active-slide render contexts while avoiding real window creation, Tauri commands, desktop event-bus wiring, GraphQL/API coupling changes, OBS control, stream actions, raw media payloads, and secrets.
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- src/domain/presenter/contracts.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed release-check commit `a01c033` (`docs(presenter): add output window contract release check`) to `feature/presenter-domain-contracts`.
+- Next task: add a Presenter local sync queue plan before implementing offline queue contracts or desktop wiring.
+
 ## 2026-06-16 - feature/presenter-domain-contracts - Presenter desktop output-window contracts
 
 - Added Presenter desktop output-window and local run-mode status contracts in `apps/api/src/domain/presenter/contracts.ts`.
