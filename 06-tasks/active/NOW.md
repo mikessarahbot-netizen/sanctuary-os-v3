@@ -1,29 +1,29 @@
 # NOW
 
 ## Task
-Add a pure Presenter local sync queue replay coordinator that maps an eligible queue entry to the existing Presenter command shape (no live transport).
+Scaffold the `apps/desktop` workspace as a minimal TypeScript package integrated with the monorepo lint/typecheck/test gates (no Tauri/Rust shell yet).
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `03-context/church-context-schema.md`, `05-plans/presenter-local-sync-queue-plan.md`, `05-plans/presenter-local-sync-queue-storage-plan.md`, `07-reviews/architecture/presenter-local-sync-queue-replay-decision-release-check.md`, the queue entry contracts in `packages/db/src/presenter-repository-contracts.ts`, and the existing Presenter service/command contracts under `apps/api/src/services/presenter` and `apps/api/src/domain/presenter`
-- Add a pure mapping that turns a validated queue entry's discriminated operation (`updatePresentation`, `addSlide`, `updateSlide`, `reorderSlides`, `applyPresenterTheme`, `setOutputTarget`) into a replay command descriptor: the target operation name plus the existing Presenter command input and an options object carrying tenant/actor/`requestId` for idempotency
-- Validate inputs and outputs with the existing Zod contracts; reject queue operations that do not map to an approved non-destructive command
-- Add focused unit tests covering each mapped operation and rejection of unmapped/forbidden shapes, with no live database, network, Tauri, event bus, or API call
-- Keep this slice pure mapping logic; do not add live API replay transport, a scheduler loop, Tauri commands, event-bus wiring, or GraphQL changes
+- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `apps/api/package.json`, `apps/api/tsconfig.json`, the root `package.json`/`pnpm-workspace.yaml`/`tsconfig` and a `packages/*` workspace for the exact lint/typecheck/test wiring to mirror
+- Add `apps/desktop/package.json` (`@sanctuary-os/desktop`, `private`, `type: module`, `lint`/`typecheck`/`test` scripts matching the other workspaces), `apps/desktop/tsconfig.json`, and a typed placeholder `src/index.ts` plus `src/index.test.ts`
+- Depend on `@sanctuary-os/db` (and `@sanctuary-os/api` if needed) so the persistence selection, migration runner, replay decision, and replay coordinator can be wired into a desktop composition root in a later slice
+- Confirm `pnpm -r typecheck`, `pnpm -r test`, and the root `eslint` glob pick up the new workspace and all gates stay green
+- Keep the scaffold infrastructure-only: a typed placeholder and wiring, no real Tauri commands, desktop windows, event-bus, replay loop, or UI
 
 ## Out of scope
-Live API replay transport · running scheduler loop/timers · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · GraphQL/API replay changes · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
+Tauri/Rust shell · real desktop windows · replay loop runtime · desktop UI screens · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
 
 ## Progress
-- [x] Re-sync with queue contracts and the Presenter command contracts
-- [x] Add the pure queue-entry-to-command replay mapping
-- [x] Add focused mapping tests
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the replay coordinator slice
+- [ ] Re-sync with the workspace wiring of an existing app/package
+- [ ] Add `apps/desktop` package.json, tsconfig, and typed placeholder + test
+- [ ] Confirm lint, typecheck, and tests pick up and pass for the new workspace
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the desktop scaffold slice
 - [ ] Session handoff
 
 ## Done when
-A pure mapping turns each approved queue operation into a validated Presenter command descriptor with tenant/actor/request idempotency scope, rejects unmapped shapes, is covered by focused tests with no live integrations, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+`apps/desktop` exists as a typed workspace whose placeholder and test are covered by `pnpm lint`, `pnpm -r typecheck`, and `pnpm -r test`, it can import the local sync queue building blocks, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Scaffold the `apps/desktop` workspace (package.json, tsconfig, vitest, lint integration) so the persistence selection, migration runner, replay decision, and replay coordinator can be wired into a desktop composition root — or address any coordinator findings first.
+Add a desktop-local Presenter sync persistence + migration composition root in `apps/desktop` that, given an injected SQLite client, migrates the store and exposes the local sync queue repository — then build the replay loop that consumes the decision + coordinator. Address any scaffold findings first.

@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue replay coordinator
+
+Tasks completed:
+- Re-synced with the queue entry contracts in `@sanctuary-os/db` and the Presenter service command contracts/auth actor schema in `apps/api`.
+- Added `mapPresenterLocalSyncQueueEntryToReplayCommand` in `apps/api/src/services/presenter/local-sync-queue-replay-coordinator.ts`: a pure mapping from a validated queue entry to the existing Presenter service command shape.
+- The mapping covers all six approved operations, reuses the entry `requestId` for idempotency, takes the authenticated actor from the caller (queue stores only `actorId`), and requires the actor tenant to match the entry tenant.
+- Added 8 pure tests covering each operation, tenant-mismatch rejection, and malformed-entry rejection; confirmed the `packages/db` persistence and `apps/api` domain schema families stay aligned (slide/output-target round-trip). Exported from the presenter service barrel.
+- Wrote `07-reviews/architecture/presenter-local-sync-queue-replay-coordinator-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- local-sync-queue-replay-coordinator.test.ts`, `pnpm --filter @sanctuary-os/api typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (api 212 tests).
+- Pushed implementation commit `31e062d` (`feat(presenter): add local sync queue replay coordinator`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Scaffold the `apps/desktop` workspace as a minimal TypeScript package integrated with the monorepo lint/typecheck/test gates (no Tauri/Rust shell yet).
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue replay decision contract
 
 Tasks completed:
