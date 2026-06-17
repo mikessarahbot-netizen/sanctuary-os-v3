@@ -40,7 +40,8 @@ Pass. The Play module's API/db backend is complete end-to-end: domain + pure log
 
 ## Known follow-ups / deferred
 
-- **Slice 10 (desktop Play replay runtime)** is deferred and paired with the desktop UI — it is the desktop-app integration (Node sidecar), best built with the desktop Play surface once the app-shell/scaffold approach is chosen.
+- **Slice 10 (desktop Play replay runtime)** is now COMPLETE (`16f856d`): a Node-sidecar runtime in `apps/desktop` mirroring the presenter desktop runtime (network command service, replay pass, scheduler, bootstrap, sidecar entry), plus an extracted `@sanctuary-os/api/play` `PlayReplayCommandExecutor` + pure mapper (the coordinator was refactored to reuse it). desktop 89.
+- **Cross-cutting network-executor gap (presenter + play):** the desktop network command services send `$input: JSON!` mutations, but the server declares typed inputs — so offline replay won't actually round-trip against a live server without a `JSON` scalar / typed documents. Pre-existing (inherited from the shipped presenter executor); faked in tests. Real gap for live operation — worth a dedicated fix across both modules.
 - **UI slices 11–12 (desktop Play surface, mobile read-only)** await the mobile/desktop scaffold decision.
 - **`play.cueFired` v1 semantics:** emitted on `addPlayCue` until a real "fire cue" transport action exists; should move to that action later.
 - **Cross-module GraphQL enum hyphen/underscore mismatch** (Charts + Play) — tracked as background task `task_85338bf7`.

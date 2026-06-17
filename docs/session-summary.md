@@ -2,6 +2,17 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 10: desktop replay runtime (PLAY BACKEND COMPLETE 1-10)
+
+Tasks completed:
+- Play slice 10 (delegated; parent verified gates + reviewed the changeset incl. a refactor of shipped code): the desktop Play replay runtime in `apps/desktop` (network command service → Play GraphQL mutations, replay pass, scheduler, runtime, bootstrap, sidecar-entry/config), mirroring the presenter desktop runtime. Extracted a shared `@sanctuary-os/api/play` PlayReplayCommandExecutor + pure mapper and refactored the coordinator to reuse it (−170 dup lines, behavior preserved; package.json `./play` subpath added). +35 desktop, +6 api tests. Gates green: db 347 / api 408 + 2 skipped / desktop 89 / church-context 5. Committed `16f856d`.
+- MILESTONE: the entire Play module backend is complete (slices 1–10). Updated the consolidated release check.
+
+Next task:
+- Author the Community+ module plan, then build its backend (hands-off verifiable path; UIs await the user's surface decision).
+
+Open questions / follow-ups: network-executor `$input: JSON!` vs typed server inputs (presenter+play live-server replay gap); GraphQL enum mismatch (task_85338bf7); play.cueFired v1 semantics; Play scope assumptions; UI surface decision (web/desktop/mobile) still with the user; live /goal hook forces continuation.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 9: WebSocket events (PLAY API/DB BACKEND COMPLETE)
 
 Tasks completed:
