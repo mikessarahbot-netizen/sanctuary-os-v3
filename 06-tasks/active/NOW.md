@@ -19,13 +19,13 @@ Wire Presenter service mutations to emit validated events after durable in-memor
 WebSocket server wiring · desktop event bus wiring · PostgreSQL Presenter adapters · database migrations · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter contracts
-- [ ] Add event publisher dependency to Presenter in-memory services
-- [ ] Emit validated Presenter events after successful state changes
-- [ ] Add focused Presenter event publication tests
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs and current Presenter contracts
+- [x] Add event publisher dependency to Presenter in-memory services
+- [x] Emit validated Presenter events after successful state changes
+- [x] Add focused Presenter event publication tests
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
 
 ## Done when
 Presenter in-memory service mutations publish validated Presenter events only after successful state changes; failed mutations publish nothing; event payloads carry correct tenant, aggregate, schema version, actor, and request scope; default gates pass; the slice is committed, pushed, and documented in session handoff.

@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:28 EDT · feature/presenter-event-publication
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current Presenter domain/API/service/event contracts.
+- Created `feature/presenter-event-publication` from the `feature/presenter-domain-contracts` tip because that branch was already checked out by another worktree.
+- Added an optional event publisher dependency to `createInMemoryPresenterServicesAdapter`.
+- Wired Presenter in-memory command mutations to emit validated events after successful map-backed state changes: `presentation.updated` for saved presentation mutations, `presenter.slideChanged` for slide-specific mutations, and `presenter.outputBlanked`/`presenter.outputRestored` for output target safe-blank state.
+- Preserved service-owned role checks, tenant scope, Zod validation, and no publication before rejected mutations.
+- Kept the slice adapter/local only with no WebSocket server wiring, desktop event bus wiring, database migrations, SQL adapters, UI, Tauri commands, OBS automation, stream start/stop, vendor SDKs, Auth0 integration, AI execution, deployment config, or checked-in secrets.
+- Added focused tests for publication after successful mutations, no publication after rejected mutations, tenant/aggregate/request/schema correctness, output event mapping, and event ordering.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- src/services/presenter/in-memory.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+
+Next task:
+- Add Presenter persistence contracts for saved presentations and output targets, or run a Presenter API/event release-check if the service/event surface needs audit before persistence.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:22 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
