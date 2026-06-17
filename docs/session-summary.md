@@ -1118,6 +1118,16 @@ Next task:
 
 Open questions:
 - None.
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter desktop output-window contracts
+
+- Added Presenter desktop output-window and local run-mode status contracts in `apps/api/src/domain/presenter/contracts.ts`.
+- Added strict Zod schemas/types/parser helpers for `PresenterDesktopOutputWindow`, `PresenterDesktopRunModeStatus`, and `PresenterOutputWindowRenderContext`.
+- Covered output window identity, output role, safe blank state, confidence-output eligibility, active slide rendering context, tenant consistency, local/offline status metadata, and rejection of OBS/stream/raw-media/secret-like fields.
+- Documented the desktop Presenter contract boundary in `apps/desktop/README.md`.
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- src/domain/presenter/contracts.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed implementation commit `93d537a` (`feat(presenter): add desktop output window contracts`) to `feature/presenter-domain-contracts`.
+- Next task: run a focused Presenter desktop output-window contract release check and write findings under `07-reviews/architecture/`.
+
 ## 2026-06-16 - feature/presenter-domain-contracts - Presenter event transport release check
 
 - Completed the Presenter event transport release check and wrote findings to `07-reviews/architecture/presenter-event-transport-release-check.md`.
