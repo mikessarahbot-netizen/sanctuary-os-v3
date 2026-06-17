@@ -1118,3 +1118,10 @@ Next task:
 
 Open questions:
 - None.
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter event transport release check
+
+- Completed the Presenter event transport release check and wrote findings to `07-reviews/architecture/presenter-event-transport-release-check.md`.
+- Result: pass with follow-ups. The transport boundary validates Presenter event envelopes before delivery, wraps events with tenant/aggregate/type route metadata, filters subscriptions by tenant/aggregate/type, uses an injected transport client, keeps default tests live-network-free, and avoids desktop event bus, OBS, stream, raw media, and secret payload support.
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- events/index.test.ts presenter`, `pnpm --filter @sanctuary-os/api test:integration:postgres`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed release-check commit `bedb82b` (`docs(presenter): add event transport release check`) to `feature/presenter-domain-contracts`.
+- Next task: add Presenter desktop run-mode/output-window contracts without implementing desktop UI, Tauri window wiring, live event bus wiring, OBS, stream control, or raw media support.
