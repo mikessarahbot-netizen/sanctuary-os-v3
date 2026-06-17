@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 20:58 EDT · feature/presenter-module-plan
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current API package layout.
+- Added the first Presenter domain contract surface in `apps/api/src/domain/presenter/` for presentations, slide groups, slides, slide blocks, scripture refs, style templates, output state, loaded local run state, and desktop run-mode actions.
+- Added Presenter service operation contracts in `apps/api/src/services/presenter/` for tenant-scoped read queries, create/update commands, output state mutation, command envelopes, and destructive presentation deletion confirmation.
+- Exported Presenter contracts from the API domain/service barrels and added Presenter aggregates to the planned aggregate list.
+- Covered schema validation, service-item slide group rules, tenant/output-state matching, offline-safe loaded state, blackout/freeze actions, destructive intent requirements, and rejection of raw media/secret-like fields with focused tests.
+- Kept the slice adapter-free with no UI, GraphQL resolvers, persistence adapters, media storage, Bible API, OBS control, vendor SDKs, Auth0 changes, AI prompt execution, deployment config, or checked-in secrets.
+- Ran and passed `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm --filter @sanctuary-os/api typecheck`, and `pnpm --filter @sanctuary-os/api test -- presenter`.
+- Committed and pushed `82562a6 feat(presenter): add domain contract schemas`.
+
+Next task:
+- Add Presenter GraphQL contract/resolver shells that Zod-validate inputs and delegate to Presenter services.
+
+Open questions:
+- None.
+
 ## 2026-06-17 EDT · feature/presenter-module-plan
 
 Tasks completed:
