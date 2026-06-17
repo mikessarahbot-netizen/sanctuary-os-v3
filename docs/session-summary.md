@@ -2,19 +2,20 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
-## 2026-06-16 21:21 EDT · feature/presenter-domain-contracts
+## 2026-06-16 21:22 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
-- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current Presenter domain/API/service/event contracts.
-- Added validated Presenter API event payload contracts for `presentation.updated`, `presenter.slideChanged`, `presenter.outputBlanked`, and `presenter.outputRestored`.
-- Added Presenter event schema versions, envelope validation, tenant consistency checks, aggregate/presentation consistency checks, and public API exports through the existing events module.
-- Kept the slice contract-only with no WebSocket server, event publishing from Presenter services, desktop event bus wiring, persistence adapters, DB migrations, UI, desktop output windows, Tauri commands, raw media storage, Bible API integration, OBS control, stream start/stop, vendor SDKs, Auth0 integration, AI prompt execution, deployment config, or checked-in secrets.
-- Added focused tests for Presenter event type names, schema versioning, payload schema validation, tenant/aggregate consistency, strict rejection of OBS/stream/raw-media/secret-like payload fields, and in-memory event publisher validation.
-- Ran and passed `pnpm --filter @sanctuary-os/api test -- src/events/index.test.ts src/index.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
-- Completed active task handoff for the next Presenter slice.
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, current Presenter domain/API/service contracts, and existing API event conventions.
+- Extended the API event contract union with Presenter event names: `presentation.updated`, `presenter.slideChanged`, `presenter.outputBlanked`, and `presenter.outputRestored`.
+- Added strict Presenter event payload schemas with schema versions, tenant IDs, presentation aggregate IDs, and optional actor/request scope through the shared event envelope.
+- Added Presenter-specific envelope consistency validation so event tenant IDs match payload tenant IDs and event aggregate IDs match payload presentation IDs.
+- Kept the slice contract-only with no WebSocket server wiring, desktop event bus wiring, service publication, persistence adapters, DB migrations, UI, OBS control, stream start/stop, vendor SDKs, AI execution, deployment config, or checked-in secrets.
+- Added focused tests for event names, schema versions, publisher validation, tenant/aggregate mismatch rejection, and rejection of OBS/stream/raw-media/secret-like payload fields.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- events`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `4ed2829 feat(presenter): add event payload contracts`.
 
 Next task:
-- Wire Presenter service mutations to emit validated events after durable in-memory state changes, or add Presenter persistence contracts first if event publication needs a persistence boundary.
+- Wire Presenter service mutations to emit validated events after durable in-memory state changes.
 
 Open questions:
 - None.
