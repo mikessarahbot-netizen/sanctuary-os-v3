@@ -22,8 +22,10 @@
     "test:integration:postgres": "vitest run src/services/planning/postgresql-integration.test.ts src/services/presenter/postgresql-integration.test.ts"
   },
   "dependencies": {
+    "@graphql-tools/schema": "^10.0.33",
     "@sanctuary-os/church-context": "workspace:*",
     "@sanctuary-os/db": "workspace:*",
+    "graphql": "^16.14.2",
     "zod": "^3.25.67"
   },
   "devDependencies": {

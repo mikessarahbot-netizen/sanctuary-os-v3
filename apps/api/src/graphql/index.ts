@@ -43,3 +43,5 @@ export interface GraphqlSurface {
 
 export * from "./planning.js";
 export * from "./presenter.js";
+export * from "./presenter-schema.js";
+export * from "./transport.js";

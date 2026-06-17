@@ -15,11 +15,12 @@ Build the API HTTP/GraphQL server transport: an injected-`fetch`-style request h
 Concrete Node `http`/framework server binding · deployment/runtime config · desktop process main / Tauri spawn / UI · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the GraphQL schema, context, auth boundary, and desktop conventions
-- [ ] Add the transport-agnostic GraphQL request handler with actor/requestId resolution
-- [ ] Add the service-error → `extensions.code` conflict mapping
-- [ ] Add focused unit tests (success / unauthenticated / idempotency / conflict)
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the GraphQL schema, context, auth boundary, and desktop conventions
+- [x] Add the executable Presenter GraphQL schema (base root + DateTime/JSON scalars + makeExecutableSchema)
+- [x] Add the transport-agnostic GraphQL request handler with actor/requestId resolution
+- [~] Service-error → `extensions.code` conflict mapping — deferred: the handler preserves `extensions.code` and redacts resolver text, but the services lack typed domain errors to emit codes; that needs a domain-error slice
+- [x] Add focused unit tests (mutation / query / idempotency passthrough / generated id / unauthenticated x2)
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the API transport slice
 - [ ] Session handoff
 
