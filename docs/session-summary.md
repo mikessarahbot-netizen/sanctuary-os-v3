@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop operator requeue/cancel actions
+
+Tasks completed:
+- Added `requeueEntry`/`cancelEntry` to the desktop runtime (`apps/desktop/src/replay-runtime.ts`): look up the entry, build the allowed transition from its current status, and call `repository.requeue`/`cancel` under the runtime actor.
+- Added a pure POST `/actions` handler (`status-server.ts`) over those methods (Zod body, 200/400/405/409) and made the localhost server route both `GET /status` and `POST /actions`; the env starter passes the runtime actions.
+- Added requeue/cancel controls to `web/index.html` (entry-id input + buttons posting to `/actions`).
+- Added 5 action-handler unit tests + a `node:sqlite` runtime smoke (conflict → `requeueEntry` → `queued`); the sidecar bundle still builds. desktop now 54 tests.
+- Wrote `07-reviews/architecture/presenter-desktop-operator-actions-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm lint`, `pnpm typecheck`, `pnpm test` (db 143, api 230 + 2 skipped, desktop 54, church-context 5).
+- Pushed implementation commit `618591a` (`feat(desktop): add operator requeue/cancel for queue entries`).
+
+Next task:
+- Wire the desktop packaging: build the sidecar in the Tauri build and pass the status port from the shell to the sidecar and webview.
+
+Open questions:
+- Node-runtime bundling / a self-contained sidecar binary for distribution is a deeper deployment task (after the build wiring).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop status endpoint + status UI
 
 Tasks completed:

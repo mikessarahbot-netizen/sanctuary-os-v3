@@ -1,32 +1,31 @@
 # NOW
 
 ## Task
-Add operator retry/cancel for conflict/failed queue entries: a sidecar action endpoint mapping to repository requeue/cancel, plus UI controls.
+Wire the desktop packaging: build the sidecar as part of the Tauri build and pass the status port from the shell to both the sidecar and the webview.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/desktop/src/status-server.ts`, `apps/desktop/src/replay-runtime.ts`, the queue transition contracts in `packages/db/src/presenter-repository-contracts.ts`, and `apps/desktop/web/index.html`
-- Add a pure action handler (`{ method, path, body } → { status, body }`) that accepts `POST` with `{ action: "requeue" | "cancel", queueEntryId, from }`, builds the allowed transition, and calls `repository.requeue`/`cancel` under the runtime's actor; validate the body with Zod and reject unknown actions / malformed bodies
-- Add a `node:http` action server (or fold into the status server) bound to localhost; wire it into the env starter with the status server
-- Add UI controls to `web/index.html` to requeue/cancel an entry by id (minimal form; non-gate-tested)
-- Add focused tests for the action handler (requeue, cancel, bad body, wrong method) using a fake repository, plus a `node:sqlite` smoke that conflicts an entry then requeues it via the handler
-- Keep this slice the action endpoint + minimal UI only; no auth beyond the sidecar's actor; no secrets
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/desktop/package.json`, `apps/desktop/src-tauri/tauri.conf.json`, `apps/desktop/src-tauri/src/lib.rs`, and `apps/desktop/web/index.html`
+- Set the Tauri `build.beforeBuildCommand` (and `beforeDevCommand`) to run `pnpm build:sidecar` so the bundle exists before the app is built
+- Have the Rust shell pass `SANCTUARY_OS_PRESENTER_STATUS_PORT` (a default constant) to the spawned sidecar, and resolve the bundled sidecar path relative to the app resources when `SANCTUARY_OS_PRESENTER_SIDECAR_PATH` is unset
+- Make the webview status port configurable instead of hardcoded: inject it via a generated `web/config.js` written by `build:sidecar` (or a small build step) so the UI and the shell agree on the port
+- Verify `cargo check` still compiles and the bundle builds; keep the TS gates green
+- Out of scope: bundling a Node runtime / self-contained binary / code-signing (a deeper deployment task); document it as the remaining packaging step
 
 ## Out of scope
-Packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets · planning/other modules
+Node-runtime bundling / self-contained sidecar binary · code-signing / installers · CI release pipeline · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets · other modules
 
 ## Progress
-- [x] Re-sync with the status server, runtime, and transition contracts
-- [x] Add `requeueEntry`/`cancelEntry` to the runtime (getById → transition → requeue/cancel) and a pure action handler (Zod body, 200/400/405/409)
-- [x] Route the action endpoint in the combined localhost server; env starter passes the runtime actions
-- [x] Add requeue/cancel UI controls to web/index.html
-- [x] Add 5 action-handler tests + a `node:sqlite` requeue smoke (conflict → requeueEntry → queued)
-- [x] Run lint, typecheck, and tests; the sidecar bundle still builds
-- [ ] Commit and push the operator-actions slice
+- [ ] Re-sync with the desktop package, Tauri config, Rust shell, and web frontend
+- [ ] Wire `build:sidecar` into the Tauri before-build/dev commands
+- [ ] Pass the status port + resolve the sidecar path from the Rust shell
+- [ ] Make the webview status port configurable (generated config)
+- [ ] Verify `cargo check`, the bundle build, and the TS gates
+- [ ] Commit and push the packaging-wiring slice
 - [ ] Session handoff
 
 ## Done when
-The sidecar exposes a localhost action endpoint that requeues/cancels entries through the repository (pure handler unit-tested + a `node:sqlite` smoke), the UI offers the controls, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+The Tauri build runs `build:sidecar`, the shell and webview agree on the status port via configuration (not a hardcoded constant), `cargo check` and the bundle build pass, the TS gates stay green, the slice is committed and pushed, and handoff documents identify the exact next task (a Node-runtime/self-contained packaging step, then the next module).
 
 ## Next task after this
-Package the desktop app (bundle Node / self-contained sidecar binary; wire `build:sidecar` into the Tauri build; pass the status port to the webview), then begin the next module — addressing any operator-action findings first.
+Decide and document the Node-runtime packaging approach (bundle Node / self-contained binary) for distribution; then begin the next module (re-sync its plan first). Address any packaging-wiring findings first.
