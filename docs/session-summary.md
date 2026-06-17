@@ -19,6 +19,18 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue contract release check
+
+- Completed the Presenter local sync queue contract release check and wrote findings to `07-reviews/architecture/presenter-local-sync-queue-contract-release-check.md`.
+- Result: pass with follow-ups. The contract layer has strict Zod validation for approved queued operations, queue entries, conflict details, retry metadata, status transitions, and replay ordering.
+- Verified the slice avoids production queue runners, SQLite migrations, local persistence adapters, desktop/Tauri/event-bus wiring, GraphQL/API coupling changes, OBS/stream controls, raw media payloads, vendor tokens, and secrets.
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- src/domain/presenter/contracts.test.ts`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed release-check commit `5c39a18` (`docs(presenter): add local sync queue contract release check`) to `feature/presenter-domain-contracts`.
+- Next task: add a Presenter local sync queue persistence/storage plan before implementing SQLite-backed queue storage.
+
+Open questions:
+- None.
+
 ## 2026-06-16 22:17 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
