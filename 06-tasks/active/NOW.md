@@ -1,30 +1,32 @@
 # NOW
 
 ## Task
-Add a desktop sidecar status reporter (`getStatus` via `countByStatus` + `summarizePresenterLocalSyncQueue`) and expose it from the runtime.
+Expose the sidecar status over a localhost HTTP endpoint and render a minimal desktop status UI.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/desktop/src/replay-runtime.ts`, `apps/desktop/src/sidecar-entry.ts`, and the new `countByStatus`/`summarizePresenterLocalSyncQueue` in `@sanctuary-os/db`
-- Add a `getStatus(actor)` (or context-scoped) capability to the desktop runtime/sidecar handle that calls `repository.countByStatus` and returns `summarizePresenterLocalSyncQueue(counts)` plus the last replay-pass result
-- Surface it on the runtime assembly and the sidecar handle so a future IPC/UI can read it
-- Add focused tests (fake repository returning counts → expected summary; last-result tracking) with no live engine, plus a `node:sqlite` smoke if consistent
-- Keep this slice the status reporter only; the Tauri command/IPC channel and the UI rendering are the next slice
-- Default tests only; no live network/IPC
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/desktop/src/replay-runtime.ts` (`getStatus`), `apps/desktop/src/sidecar-entry.ts`, and `apps/desktop/web/index.html`
+- Add a small status HTTP handler (a pure `{ method, path } → { status, body }` adapter over `getStatus`, plus a `node:http` server factory bound to localhost) that serves the queue summary as JSON on GET; reuse the request/response-adapter style from the API http listener
+- Wire the sidecar to start the status server on a configurable port (env `SANCTUARY_OS_PRESENTER_STATUS_PORT`, optional) and stop it with the sidecar
+- Add a minimal status section to `apps/desktop/web/index.html` that polls the status endpoint and renders total / pending / synced / needs-attention (static-friendly; non-gate-tested)
+- Add focused tests for the pure status handler (GET ok, wrong method/path) and a real listen+fetch smoke; default tests only
+- Keep this slice the status endpoint + UI only; no operator retry/cancel actions yet
 
 ## Out of scope
-Tauri command/IPC channel · desktop status UI rendering · packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
+Operator retry/cancel mutations from the UI · packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [x] Re-sync with the runtime, sidecar handle, and the new db status helpers
-- [x] Add `getStatus` to the runtime (counts → summary + last replay result; wraps `onResult` to track last result)
-- [x] Extend the `node:sqlite` runtime smoke to assert the summary + last result after a real replay
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the status-reporter slice
+- [ ] Re-sync with the runtime getStatus, sidecar, and web frontend
+- [ ] Add the pure status HTTP handler + `node:http` localhost server factory
+- [ ] Wire the sidecar to start/stop the status server (configurable port)
+- [ ] Add the minimal status UI section to web/index.html
+- [ ] Add handler unit tests + a real listen+fetch smoke
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the status endpoint/UI slice
 - [ ] Session handoff
 
 ## Done when
-The desktop runtime/sidecar exposes a `getStatus` that returns the queue summary (and last replay result), covered by focused tests with no live engine, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+The sidecar serves the queue summary over a localhost HTTP endpoint (pure handler unit-tested + a listen smoke), the web frontend polls and renders it, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Add the Tauri command/IPC channel and a minimal desktop status UI rendering the summary with operator retry/cancel — addressing any reporter findings first.
+Add operator retry/cancel actions (UI → sidecar → repository requeue/cancel) for conflict/failed entries, then move on to packaging — or address any status-endpoint findings first.

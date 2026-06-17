@@ -2,6 +2,21 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop runtime getStatus reporter
+
+Tasks completed:
+- Added `getStatus` to the desktop replay runtime (`apps/desktop/src/replay-runtime.ts`): calls `repository.countByStatus`, returns `summarizePresenterLocalSyncQueue(counts)` plus the last replay-pass result (tracked by wrapping the scheduler `onResult`).
+- Extended the `node:sqlite` runtime smoke to assert the summary (`{ synced: 1, total: 1, ... }`) and `lastResult` after a real replay.
+- Wrote `07-reviews/architecture/presenter-desktop-status-reporter-release-check.md` (pass).
+- Validation passed: `pnpm lint`, `pnpm typecheck`, `pnpm test` (db 143, api 230 + 2 skipped, desktop 44, church-context 5).
+- Pushed implementation commit `c4f328f` (`feat(desktop): expose getStatus on the replay runtime`).
+
+Next task:
+- Expose the sidecar status over a localhost HTTP endpoint and render a minimal desktop status UI.
+
+Open questions:
+- The status endpoint handler is gate-testable; the web UI rendering is verified by running the app.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Local sync queue status counts + summary
 
 Tasks completed:
