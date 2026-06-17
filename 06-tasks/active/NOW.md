@@ -15,10 +15,10 @@ Add a desktop replay scheduler that runs the replay pass on an injected interval
 Tauri/Rust shell · real desktop windows · real network command service · real timer wiring at startup · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
 
 ## Progress
-- [ ] Re-sync with the replay pass and runtime expectations
-- [ ] Add the scheduler with offline gating and injected interval
-- [ ] Add focused scheduler tests with fakes
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the replay pass and runtime expectations
+- [x] Add the scheduler with offline gating and injected interval
+- [x] Add focused scheduler tests with fakes
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the scheduler slice
 - [ ] Session handoff
 

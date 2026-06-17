@@ -6,6 +6,7 @@ import {
 
 export * from "./local-sync-queue-store.js";
 export * from "./replay-pass.js";
+export * from "./replay-scheduler.js";
 
 /**
  * Entry point for the Sanctuary OS desktop app workspace.
