@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 3: migration artifact
+
+Tasks completed:
+- Play slice 3 (delegated; parent verified gates): `packages/db/src/play-migrations.ts` — `PlayInitialSchemaMigration` (six tenant-scoped tables + indexes + all CHECKs + rollback, SQLite-compatible; migrationId `…0005`; schema_version NOT NULL; pad_key column per plan). +9 db tests (incl. node:sqlite smoke). Gates green: db 258 / api 339 + 2 skipped / desktop 54 / church-context 5. Committed `3f39126`.
+
+Next task:
+- Play slice 4: the Play SQLite adapter (`packages/db/src/play-sql-repository.ts`), mirroring the Charts adapter. Then slices 5–10 per the plan.
+
+Open questions: unchanged (Play scope assumptions; UI awaits scaffold; live /goal hook forces continuation — building with safe commits/pushes).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 2: persistence contracts
 
 Tasks completed:
