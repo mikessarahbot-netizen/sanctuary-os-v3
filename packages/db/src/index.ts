@@ -16,5 +16,6 @@ export * from "./presenter-sql-repository.js";
 export * from "./postgresql-planning-executor.js";
 export * from "./repository-contracts.js";
 export * from "./sqlite-executor.js";
+export * from "./sqlite-migration-runner.js";
 export * from "./tenant-scope.js";
 export * from "./transactions.js";
