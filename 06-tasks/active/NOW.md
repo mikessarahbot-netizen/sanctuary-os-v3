@@ -17,10 +17,10 @@ Run a Presenter local sync queue contract release check.
 New production code · production queue runner · SQLite schema/migrations · local persistence adapter · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter contracts
-- [ ] Audit local sync queue contract readiness
-- [ ] Write release-check findings to `07-reviews/architecture/`
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current Presenter contracts
+- [x] Audit local sync queue contract readiness
+- [x] Write release-check findings to `07-reviews/architecture/`
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
