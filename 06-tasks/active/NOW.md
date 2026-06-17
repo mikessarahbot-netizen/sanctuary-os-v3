@@ -17,10 +17,10 @@ Add a Presenter local sync queue plan.
 Production queue code · SQLite schema/migrations · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter contracts
-- [ ] Draft Presenter local sync queue plan
-- [ ] Check plan against offline/failure/privacy rules
-- [ ] Run validation
+- [x] Re-sync with required docs and current Presenter contracts
+- [x] Draft Presenter local sync queue plan
+- [x] Check plan against offline/failure/privacy rules
+- [x] Run validation
 - [ ] Commit and push slice
 - [ ] Session handoff
 
