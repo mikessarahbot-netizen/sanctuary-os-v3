@@ -16,11 +16,11 @@ Make the desktop sidecar runnable and have the Tauri Rust shell spawn it: a buil
 Status IPC channel · desktop status UI · packaging/installers/code-signing · deployment config · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the sidecar main, desktop package, and Tauri Rust shell
-- [ ] Add the desktop `build` script + sidecar bin entry
-- [ ] Spawn/supervise the sidecar from the Tauri Rust shell setup
-- [ ] Verify `cargo check`/`cargo build` and the desktop build
-- [ ] Run lint, typecheck, and tests (TS gates unaffected)
+- [x] Re-sync with the sidecar main, desktop package, and Tauri Rust shell
+- [x] Add the `build:sidecar` esbuild bundle + `sidecar-bin` entry (dist/presenter-sidecar.mjs, gitignored)
+- [x] Spawn/supervise the sidecar from the Tauri Rust shell setup (env-guarded; killed on Exit)
+- [x] Verify `cargo check` compiles and the bundle passes `node --check`
+- [x] Run lint, typecheck, and tests (TS gates unaffected)
 - [ ] Commit and push the Tauri spawn slice
 - [ ] Session handoff
 
