@@ -18,10 +18,10 @@ Add Presenter WebSocket event payload contracts.
 Event publishing from Presenter services · WebSocket server wiring · desktop event bus wiring · PostgreSQL Presenter adapters · database migrations · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter contracts
-- [ ] Add Presenter event payload schemas
-- [ ] Add focused Presenter event contract tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current Presenter contracts
+- [x] Add Presenter event payload schemas
+- [x] Add focused Presenter event contract tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 

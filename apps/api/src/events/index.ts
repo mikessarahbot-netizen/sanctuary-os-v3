@@ -3,7 +3,11 @@ import { z } from "zod";
 export const ApiEventTypeSchema = z.enum([
   "service.published",
   "assignment.statusChanged",
-  "readiness.updated"
+  "readiness.updated",
+  "presentation.updated",
+  "presenter.slideChanged",
+  "presenter.outputBlanked",
+  "presenter.outputRestored"
 ]);
 
 export const ApiEventEnvelopeSchema = z.object({
@@ -40,7 +44,71 @@ export const AssignmentStatusChangedEventPayloadSchema = z
   })
   .strict();
 
-export const ValidatedApiEventEnvelopeSchema = z.discriminatedUnion("eventType", [
+export const PresentationUpdatedEventPayloadSchema = z
+  .object({
+    changeKind: z.enum(["created", "updated"]),
+    presentationId: z.string().min(1),
+    serviceId: z.string().min(1).optional(),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime()
+  })
+  .strict();
+
+export const PresenterSlideChangedEventPayloadSchema = z
+  .object({
+    activeSlideId: z.string().min(1),
+    previousSlideId: z.string().min(1).optional(),
+    presentationId: z.string().min(1),
+    tenantId: z.string().min(1)
+  })
+  .strict();
+
+export const PresenterOutputBlankedEventPayloadSchema = z
+  .object({
+    outputTargetId: z.string().min(1).optional(),
+    presentationId: z.string().min(1),
+    reason: z.string().min(1).optional(),
+    tenantId: z.string().min(1)
+  })
+  .strict();
+
+export const PresenterOutputRestoredEventPayloadSchema = z
+  .object({
+    outputTargetId: z.string().min(1).optional(),
+    presentationId: z.string().min(1),
+    tenantId: z.string().min(1)
+  })
+  .strict();
+
+const validatePresenterEventScope = (
+  event: {
+    readonly aggregateId: string;
+    readonly payload: {
+      readonly presentationId: string;
+      readonly tenantId: string;
+    };
+    readonly tenantId: string;
+  },
+  context: z.RefinementCtx
+): void => {
+  if (event.tenantId !== event.payload.tenantId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Presenter event tenant must match payload tenant.",
+      path: ["payload", "tenantId"]
+    });
+  }
+
+  if (event.aggregateId !== event.payload.presentationId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Presenter event aggregate must match presentation ID.",
+      path: ["aggregateId"]
+    });
+  }
+};
+
+const ValidatedApiEventEnvelopeBaseSchema = z.discriminatedUnion("eventType", [
   ApiEventEnvelopeSchema.extend({
     eventType: z.literal("service.published"),
     payload: ServicePublishedEventPayloadSchema,
@@ -55,8 +123,40 @@ export const ValidatedApiEventEnvelopeSchema = z.discriminatedUnion("eventType",
     eventType: z.literal("readiness.updated"),
     payload: ReadinessUpdatedEventPayloadSchema,
     schemaVersion: z.literal("planning-readiness.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("presentation.updated"),
+    payload: PresentationUpdatedEventPayloadSchema,
+    schemaVersion: z.literal("presenter-presentation-updated.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("presenter.slideChanged"),
+    payload: PresenterSlideChangedEventPayloadSchema,
+    schemaVersion: z.literal("presenter-slide-changed.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("presenter.outputBlanked"),
+    payload: PresenterOutputBlankedEventPayloadSchema,
+    schemaVersion: z.literal("presenter-output-blanked.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("presenter.outputRestored"),
+    payload: PresenterOutputRestoredEventPayloadSchema,
+    schemaVersion: z.literal("presenter-output-restored.v1")
   })
 ]);
+
+export const ValidatedApiEventEnvelopeSchema =
+  ValidatedApiEventEnvelopeBaseSchema.superRefine((event, context) => {
+    if (
+      event.eventType === "presentation.updated" ||
+      event.eventType === "presenter.slideChanged" ||
+      event.eventType === "presenter.outputBlanked" ||
+      event.eventType === "presenter.outputRestored"
+    ) {
+      validatePresenterEventScope(event, context);
+    }
+  });
 
 export type ApiEventType = z.infer<typeof ApiEventTypeSchema>;
 export type ApiEventEnvelope = z.infer<typeof ApiEventEnvelopeSchema>;
@@ -65,6 +165,18 @@ export type ReadinessUpdatedEventPayload = z.infer<typeof ReadinessUpdatedEventP
 export type ServicePublishedEventPayload = z.infer<typeof ServicePublishedEventPayloadSchema>;
 export type AssignmentStatusChangedEventPayload = z.infer<
   typeof AssignmentStatusChangedEventPayloadSchema
+>;
+export type PresentationUpdatedEventPayload = z.infer<
+  typeof PresentationUpdatedEventPayloadSchema
+>;
+export type PresenterSlideChangedEventPayload = z.infer<
+  typeof PresenterSlideChangedEventPayloadSchema
+>;
+export type PresenterOutputBlankedEventPayload = z.infer<
+  typeof PresenterOutputBlankedEventPayloadSchema
+>;
+export type PresenterOutputRestoredEventPayload = z.infer<
+  typeof PresenterOutputRestoredEventPayloadSchema
 >;
 
 export interface EventPublisher {
