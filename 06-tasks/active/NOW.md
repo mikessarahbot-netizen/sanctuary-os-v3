@@ -1,34 +1,34 @@
 # NOW
 
 ## Task
-Add Presenter GraphQL contract and resolver scaffolding based on the Presenter domain schemas.
+Add in-memory Presenter services/repositories for GraphQL contract tests and development composition.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/presenter-module-plan.md`, and current API layout
-- Add Presenter service contract schemas/interfaces for planned query and mutation operations
-- Add Presenter GraphQL SDL placeholders and resolver shells that Zod-validate GraphQL input/context and delegate to Presenter services
-- Use planned API names from `05-plans/presenter-module-plan.md`
-- Keep resolvers thin; role checks, transactions, event publication, repositories, and persistence stay in future service slices
-- Add focused tests for operation names, actor/request propagation, resolver-side validation, destructive intent requirements, service error propagation, and exclusion of stream/OBS/raw-media controls
+- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/presenter-module-plan.md`, and current Presenter domain/API contracts
+- Add in-memory Presenter repository/service adapters that implement the service contracts behind the GraphQL resolver shells
+- Preserve tenant scope, role-check ownership in services, Zod validation, and opaque IDs at boundaries
+- Support the planned Presenter query/mutation contracts enough for local development composition and tests
+- Keep persistence adapter-free: no database migrations or SQL adapters in this slice
+- Add focused tests for tenant scoping, role enforcement, command validation, mutation behavior, and GraphQL composition through in-memory services
 - Run lint, typecheck, and tests
 - Commit and push the slice
 - Run session handoff
 
 ## Out of scope
-Presenter service implementations · repositories · database migrations · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
+PostgreSQL Presenter adapters · database migrations · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [x] Re-sync with required docs and current API layout
-- [x] Add Presenter service contract schemas/interfaces
-- [x] Add Presenter GraphQL SDL and resolver shells
-- [x] Add focused Presenter GraphQL tests
-- [x] Run lint, typecheck, and tests
+- [ ] Re-sync with required docs and current Presenter contracts
+- [ ] Add in-memory Presenter repository/service adapters
+- [ ] Add local development composition helpers if needed
+- [ ] Add focused Presenter service/composition tests
+- [ ] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
-Presenter has typed GraphQL contract/resolver scaffolding aligned with `05-plans/presenter-module-plan.md`; resolver inputs are Zod-validated and delegated to service contracts; default gates pass; the slice is committed, pushed, and documented in session handoff.
+Presenter GraphQL resolver shells can be composed with in-memory Presenter services for local tests/development; services validate inputs, enforce tenant/role boundaries, and keep all out-of-scope integrations absent; default gates pass; the slice is committed, pushed, and documented in session handoff.
 
 ## Next task after this
-Add in-memory Presenter services/repositories for GraphQL contract tests and development composition.
+Add Presenter persistence contracts or WebSocket event payload contracts, depending on the smallest safe continuation after in-memory service composition.

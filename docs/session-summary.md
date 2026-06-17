@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-16 21:07 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, and current API layout.
+- Added Presenter service contract schemas/interfaces in `apps/api/src/services/presenter/` for planned Presenter queries and mutations.
+- Added Presenter GraphQL SDL placeholders and typed resolver shells in `apps/api/src/graphql/presenter.ts`.
+- Wired Presenter operation names into the GraphQL public surface exports.
+- Kept the slice implementation-free beyond contracts: no repositories, DB migrations, UI, desktop windows, Tauri commands, raw media storage, Bible API, OBS control, stream start/stop, vendor SDKs, Auth0 integration, AI execution, deployment config, or checked-in secrets.
+- Added focused tests for Presenter operation names, actor/request delegation, resolver validation, duplicate slide order rejection, destructive slide-removal confirmation, service error propagation, and exclusion of stream/OBS/raw-media controls.
+- Ran and passed `pnpm --filter @sanctuary-os/api test -- presenter`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Committed and pushed `04812e6 feat(presenter): add graphql contract shells`.
+
+Next task:
+- Add in-memory Presenter services/repositories for GraphQL contract tests and development composition.
+
+Open questions:
+- None.
+
 ## 2026-06-16 20:56 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
