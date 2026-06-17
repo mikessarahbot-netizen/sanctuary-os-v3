@@ -19,6 +19,20 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue migration artifact
+
+- Added `PresenterLocalSyncQueueMigration` in `packages/db/src/presenter-migrations.ts`.
+- Defined the SQLite-compatible `presenter_local_sync_queue_entries` table with tenant scope, queue entry identity, presentation/actor/request/base revision metadata, operation/status fields, JSON text payload/conflict fields, safe failure text, retry timestamps, schema version, and created/updated timestamps.
+- Added replay, status dashboard, and request idempotency indexes plus rollback SQL and deterministic checksum coverage.
+- Added migration tests for artifact validity, registry order, required columns, tenant scope, schema version, status/operation constraints, retry constraints, indexes, rollback SQL, portability, and secret/raw-media/OBS/stream/vendor field exclusion.
+- Kept the slice migration-artifact-only with no concrete local adapter, production queue runner, desktop UI, Tauri command, desktop event bus, GraphQL/API replay changes, vendor SDK, Auth0 integration, AI execution, deployment config, or checked-in secrets.
+- Validation passed: `pnpm --filter @sanctuary-os/db test -- presenter-migrations.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed implementation commit `432cbca` (`feat(presenter): add local sync queue migration artifact`) to `feature/presenter-domain-contracts`.
+- Next task: run a focused release check for Presenter local sync queue migration artifacts.
+
+Open questions:
+- None.
+
 ## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue repository contract release check
 
 - Completed the Presenter local sync queue repository contract release check and wrote findings to `07-reviews/architecture/presenter-local-sync-queue-repository-contract-release-check.md`.
