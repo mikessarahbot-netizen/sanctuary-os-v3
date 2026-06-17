@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue replay decision contract
+
+Tasks completed:
+- Re-synced with the local sync queue plans, the migration-runner release check, and the existing `listPresenterLocalSyncQueueEntriesReadyForReplay` helper and queue entry contracts.
+- Added `decidePresenterLocalSyncQueueReplay` in `packages/db/src/presenter-local-sync-queue-replay.ts`: a pure scheduling decision with a Zod-validated policy (max attempts, backoff base/multiplier/cap).
+- The decision reuses the readiness helper for ordering and conflict/failed blocking, decides one head entry per presentation, and returns `eligible`, `waiting` (next-eligible time from capped exponential backoff), and `exhausted` (attempt budget spent) sets — never calling the API or starting a timer.
+- Added 9 pure unit tests (policy rejection, immediate eligibility, backoff hold/release, cap, exhaustion, one-per-presentation, conflict blocking, independent presentations). Exported from the barrel.
+- Wrote `07-reviews/architecture/presenter-local-sync-queue-replay-decision-release-check.md` (pass with follow-ups).
+- Placed in `packages/db` alongside the existing readiness-helper precedent; the desktop scheduler runtime that consumes this remains a later slice.
+- Validation passed: `pnpm --filter @sanctuary-os/db test -- presenter-local-sync-queue-replay.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (db 140 tests).
+- Pushed implementation commit `eedd0a6` (`feat(db): add Presenter local sync queue replay decision contract`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a pure Presenter local sync queue replay coordinator that maps an eligible queue entry to the existing Presenter command shape (no live transport).
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Local SQLite migration runner
 
 Tasks completed:
