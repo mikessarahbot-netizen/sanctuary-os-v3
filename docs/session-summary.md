@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 7: offline-sync queue
+
+Tasks completed:
+- Play slice 7 (delegated; parent verified gates): `packages/db/src/play-local-sync-queue-repository-contracts.ts` (9-op non-destructive union reusing the Play command input schemas as payloads; removePlayCue excluded; pending/in-flight/failed/synced + attempt/backoff), `…-sql-repository.ts` + `…-in-memory-repository.ts`, and `PlayLocalSyncQueueMigration` in play-migrations.ts (migrationId …0006). +57 db tests. Gates green: db 334 / api 387 + 2 skipped / desktop 54 / church-context 5. Committed `cbd20cc`.
+
+Next task:
+- Play slice 8: replay decision + coordinator (mirror Charts slice 7b). Then 9 (events), 10 (desktop runtime) → Play backend complete.
+
+Open questions / follow-ups: GraphQL enum mismatch (background task task_85338bf7); Play scope assumptions; UI awaits scaffold; live /goal hook forces continuation (building with safe commits/pushes).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 6: persistence-backed service
 
 Tasks completed:
