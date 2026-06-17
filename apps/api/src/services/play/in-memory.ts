@@ -1,4 +1,5 @@
 import type { AuthenticatedActor } from "../../auth/index.js";
+import type { ApiEventEnvelope, EventPublisher } from "../../events/index.js";
 import {
   AddPlayCueCommandSchema,
   GetPlaybackStateQuerySchema,
@@ -73,6 +74,7 @@ export interface InMemoryPlayServiceIds {
 
 export interface InMemoryPlayServiceDependencies {
   readonly clock?: () => string;
+  readonly eventPublisher?: EventPublisher;
   readonly ids?: Partial<InMemoryPlayServiceIds>;
   readonly seed?: InMemoryPlayServiceSeed;
 }
@@ -110,6 +112,7 @@ export const createInMemoryPlayServicesAdapter = (
   dependencies: InMemoryPlayServiceDependencies = {}
 ): InMemoryPlayServicesAdapter => {
   const clock = dependencies.clock ?? (() => new Date().toISOString());
+  const eventPublisher = dependencies.eventPublisher;
   const ids = createPlayIds(dependencies.ids);
   const trackSets = new Map<string, TrackSet>();
   const arrangements = new Map<string, PlayArrangement>();
@@ -312,14 +315,14 @@ export const createInMemoryPlayServicesAdapter = (
 
   const commandService: PlayCommandService = {
     saveTrackSet: (rawCommand): Promise<TrackSet> =>
-      runPlayOperation((): TrackSet => {
+      runPlayOperation(async (): Promise<TrackSet> => {
         const command = SaveTrackSetCommandSchema.parse(rawCommand);
         assertPlayCommandRole(command.actor);
         const now = clock();
         const trackSetId = command.input.trackSetId ?? ids.trackSetId();
         const existingTrackSet = trackSets.get(trackSetKey(command.actor.tenantId, trackSetId));
 
-        return saveTrackSetRecord(
+        const savedTrackSet = saveTrackSetRecord(
           TrackSetSchema.parse({
             createdAt: existingTrackSet?.createdAt ?? now,
             defaultKey: command.input.defaultKey,
@@ -338,21 +341,45 @@ export const createInMemoryPlayServicesAdapter = (
             ...(command.input.title !== undefined ? { title: command.input.title } : {})
           })
         );
+
+        await publishPlayEvents(eventPublisher, [
+          createTrackSetUpdatedEvent({
+            actor: command.actor,
+            changeKind: existingTrackSet === undefined ? "created" : "updated",
+            occurredAt: savedTrackSet.updatedAt,
+            requestId: command.requestId,
+            trackSet: savedTrackSet
+          })
+        ]);
+
+        return savedTrackSet;
       }),
 
     updateTrackSetMembers: (rawCommand): Promise<TrackSet> =>
-      runPlayOperation((): TrackSet => {
+      runPlayOperation(async (): Promise<TrackSet> => {
         const command = UpdateTrackSetMembersCommandSchema.parse(rawCommand);
         assertPlayCommandRole(command.actor);
         const trackSet = findTenantTrackSet(command.input.trackSetId, command.actor);
 
-        return saveTrackSetRecord(
+        const savedTrackSet = saveTrackSetRecord(
           TrackSetSchema.parse({
             ...trackSet,
             trackRefs: command.input.trackRefs,
             updatedAt: clock()
           })
         );
+
+        await publishPlayEvents(eventPublisher, [
+          createTrackSetUpdatedEvent({
+            actor: command.actor,
+            changeKind: "updated",
+            occurredAt: savedTrackSet.updatedAt,
+            requestId: command.requestId,
+            trackSet: savedTrackSet
+          })
+        ]);
+
+        return savedTrackSet;
       }),
 
     savePlayArrangement: (rawCommand): Promise<PlayArrangement> =>
@@ -435,7 +462,7 @@ export const createInMemoryPlayServicesAdapter = (
       }),
 
     addPlayCue: (rawCommand): Promise<PlayCue> =>
-      runPlayOperation((): PlayCue => {
+      runPlayOperation(async (): Promise<PlayCue> => {
         const command = AddPlayCueCommandSchema.parse(rawCommand);
         assertPlayCommandRole(command.actor);
         findTenantTrackSet(command.input.trackSetId, command.actor);
@@ -459,6 +486,15 @@ export const createInMemoryPlayServicesAdapter = (
             : {})
         });
         cues.set(cueKey(cue.tenantId, cue.trackSetId, cue.cueId), cue);
+
+        await publishPlayEvents(eventPublisher, [
+          createPlayCueFiredEvent({
+            actor: command.actor,
+            cue,
+            occurredAt: cue.updatedAt,
+            requestId: command.requestId
+          })
+        ]);
 
         return cue;
       }),
@@ -549,7 +585,7 @@ export const createInMemoryPlayServicesAdapter = (
       }),
 
     setPlaybackState: (rawCommand): Promise<PlaybackState> =>
-      runPlayOperation((): PlaybackState => {
+      runPlayOperation(async (): Promise<PlaybackState> => {
         const command = SetPlaybackStateCommandSchema.parse(rawCommand);
         assertPlayCommandRole(command.actor);
         findTenantTrackSet(command.input.trackSetId, command.actor);
@@ -571,6 +607,15 @@ export const createInMemoryPlayServicesAdapter = (
           playbackStateKey(playbackState.tenantId, playbackState.trackSetId),
           playbackState
         );
+
+        await publishPlayEvents(eventPublisher, [
+          createPlayPlaybackStateChangedEvent({
+            actor: command.actor,
+            occurredAt: playbackState.updatedAt,
+            playbackState,
+            requestId: command.requestId
+          })
+        ]);
 
         return playbackState;
       })
@@ -639,6 +684,94 @@ const hasAllowedRole = (
   actor: AuthenticatedActor,
   allowedRoles: readonly string[]
 ): boolean => actor.roles.some((role) => allowedRoles.includes(role));
+
+const publishPlayEvents = (
+  eventPublisher: EventPublisher | undefined,
+  events: readonly ApiEventEnvelope[]
+): Promise<void> => {
+  if (eventPublisher === undefined) {
+    return Promise.resolve();
+  }
+
+  return events.reduce(
+    (previousPublish, event) =>
+      previousPublish.then(() => eventPublisher.publishAfterCommit(event)),
+    Promise.resolve()
+  );
+};
+
+const createTrackSetUpdatedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly changeKind: "created" | "updated";
+  readonly occurredAt: string;
+  readonly requestId: string;
+  readonly trackSet: TrackSet;
+}): ApiEventEnvelope => ({
+  aggregateId: input.trackSet.trackSetId,
+  actorId: input.actor.actorId,
+  eventType: "trackSet.updated",
+  occurredAt: input.occurredAt,
+  payload: {
+    changeKind: input.changeKind,
+    tenantId: input.trackSet.tenantId,
+    trackSetId: input.trackSet.trackSetId,
+    updatedAt: input.trackSet.updatedAt
+  },
+  requestId: input.requestId,
+  schemaVersion: "play-track-set-updated.v1",
+  tenantId: input.trackSet.tenantId
+});
+
+const createPlayPlaybackStateChangedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly occurredAt: string;
+  readonly playbackState: PlaybackState;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.playbackState.trackSetId,
+  actorId: input.actor.actorId,
+  eventType: "play.playbackStateChanged",
+  occurredAt: input.occurredAt,
+  payload: {
+    clickEnabled: input.playbackState.clickEnabled,
+    positionBeats: input.playbackState.positionBeats,
+    tenantId: input.playbackState.tenantId,
+    trackSetId: input.playbackState.trackSetId,
+    transportStatus: input.playbackState.transportStatus,
+    updatedAt: input.playbackState.updatedAt,
+    ...(input.playbackState.activePadLayerRef !== undefined
+      ? { activePadLayerRef: input.playbackState.activePadLayerRef }
+      : {}),
+    ...(input.playbackState.activeSectionRef !== undefined
+      ? { activeSectionRef: input.playbackState.activeSectionRef }
+      : {})
+  },
+  requestId: input.requestId,
+  schemaVersion: "play-playback-state-changed.v1",
+  tenantId: input.playbackState.tenantId
+});
+
+const createPlayCueFiredEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly cue: PlayCue;
+  readonly occurredAt: string;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.cue.trackSetId,
+  actorId: input.actor.actorId,
+  eventType: "play.cueFired",
+  occurredAt: input.occurredAt,
+  payload: {
+    action: input.cue.action,
+    cueId: input.cue.cueId,
+    firedAt: input.occurredAt,
+    tenantId: input.cue.tenantId,
+    trackSetId: input.cue.trackSetId
+  },
+  requestId: input.requestId,
+  schemaVersion: "play-cue-fired.v1",
+  tenantId: input.cue.tenantId
+});
 
 const runPlayOperation = <TResult>(
   operation: () => TResult | Promise<TResult>

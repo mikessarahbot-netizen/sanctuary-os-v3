@@ -14,6 +14,7 @@ import {
   type PlaybackState,
   type TrackSet
 } from "../../domain/play/index.js";
+import { createInMemoryEventPublisher } from "../../events/index.js";
 import { createPlayGraphqlResolvers } from "../../graphql/play.js";
 import { createInMemoryPlayServicesAdapter } from "./in-memory.js";
 
@@ -671,5 +672,182 @@ describe("createInMemoryPlayServicesAdapter", () => {
       positionBeats: 8,
       transportStatus: "paused"
     });
+  });
+
+  it("publishes validated track-set and playback-state events after durable commits", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryPlayServicesAdapter({
+      clock: () => "2026-06-21T14:10:00.000Z",
+      eventPublisher,
+      ids: {
+        trackSetId: () => "track_set_created"
+      },
+      seed: { trackSets: [trackSet] }
+    });
+
+    await adapter.commandService.saveTrackSet({
+      actor: leader,
+      input: {
+        defaultKey: "A",
+        songRef: "song_created",
+        tempoBpm: 132,
+        title: "New Set",
+        trackRefs: [{ muted: false, role: "guide", trackRef: "media_guide" }]
+      },
+      requestId: "request_create_track_set"
+    });
+    await adapter.commandService.updateTrackSetMembers({
+      actor: leader,
+      input: {
+        trackRefs: [{ muted: true, role: "stem", trackRef: "media_stem" }],
+        trackSetId: "track_set_1"
+      },
+      requestId: "request_update_members"
+    });
+    await adapter.commandService.setPlaybackState({
+      actor: leader,
+      input: {
+        activePadLayerRef: "pad_layer_1",
+        activeSectionRef: "section_intro",
+        clickEnabled: false,
+        positionBeats: 8,
+        transportStatus: "playing",
+        trackSetId: "track_set_1"
+      },
+      requestId: "request_playback_state"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        aggregateId: event.aggregateId,
+        actorId: event.actorId,
+        eventType: event.eventType,
+        payload: event.payload,
+        requestId: event.requestId,
+        schemaVersion: event.schemaVersion,
+        tenantId: event.tenantId
+      }))
+    ).toEqual([
+      {
+        aggregateId: "track_set_created",
+        actorId: "leader_1",
+        eventType: "trackSet.updated",
+        payload: {
+          changeKind: "created",
+          tenantId: "tenant_1",
+          trackSetId: "track_set_created",
+          updatedAt: "2026-06-21T14:10:00.000Z"
+        },
+        requestId: "request_create_track_set",
+        schemaVersion: "play-track-set-updated.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "track_set_1",
+        actorId: "leader_1",
+        eventType: "trackSet.updated",
+        payload: {
+          changeKind: "updated",
+          tenantId: "tenant_1",
+          trackSetId: "track_set_1",
+          updatedAt: "2026-06-21T14:10:00.000Z"
+        },
+        requestId: "request_update_members",
+        schemaVersion: "play-track-set-updated.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "track_set_1",
+        actorId: "leader_1",
+        eventType: "play.playbackStateChanged",
+        payload: {
+          activePadLayerRef: "pad_layer_1",
+          activeSectionRef: "section_intro",
+          clickEnabled: false,
+          positionBeats: 8,
+          tenantId: "tenant_1",
+          trackSetId: "track_set_1",
+          transportStatus: "playing",
+          updatedAt: "2026-06-21T14:10:00.000Z"
+        },
+        requestId: "request_playback_state",
+        schemaVersion: "play-playback-state-changed.v1",
+        tenantId: "tenant_1"
+      }
+    ]);
+  });
+
+  it("publishes a cue-fired event after a cue is durably committed", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryPlayServicesAdapter({
+      clock: () => "2026-06-21T14:15:00.000Z",
+      eventPublisher,
+      ids: {
+        cueId: () => "cue_fired"
+      },
+      seed: { trackSets: [trackSet] }
+    });
+
+    await adapter.commandService.addPlayCue({
+      actor: leader,
+      input: {
+        action: "play",
+        fireMode: "manual",
+        label: "Start",
+        markerOffsetBeats: 0,
+        sectionId: "section_intro",
+        trackSetId: "track_set_1"
+      },
+      requestId: "request_add_cue"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        aggregateId: event.aggregateId,
+        eventType: event.eventType,
+        occurredAt: event.occurredAt,
+        payload: event.payload,
+        requestId: event.requestId,
+        schemaVersion: event.schemaVersion
+      }))
+    ).toEqual([
+      {
+        aggregateId: "track_set_1",
+        eventType: "play.cueFired",
+        occurredAt: "2026-06-21T14:15:00.000Z",
+        payload: {
+          action: "play",
+          cueId: "cue_fired",
+          firedAt: "2026-06-21T14:15:00.000Z",
+          tenantId: "tenant_1",
+          trackSetId: "track_set_1"
+        },
+        requestId: "request_add_cue",
+        schemaVersion: "play-cue-fired.v1"
+      }
+    ]);
+  });
+
+  it("does not publish Play events when a command is rejected before its state change", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryPlayServicesAdapter({
+      eventPublisher,
+      seed: { trackSets: [trackSet] }
+    });
+
+    await expect(
+      adapter.commandService.setPlaybackState({
+        actor: leader,
+        input: {
+          clickEnabled: false,
+          positionBeats: 0,
+          transportStatus: "stopped",
+          trackSetId: "track_set_missing"
+        },
+        requestId: "request_state_missing"
+      })
+    ).rejects.toThrow();
+
+    expect(eventPublisher.readPublishedEvents()).toEqual([]);
   });
 });

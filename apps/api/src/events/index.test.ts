@@ -313,6 +313,190 @@ describe("createInMemoryEventPublisher", () => {
       })
     ).toThrow("Unrecognized key");
   });
+
+  it("validates Play event payload contracts and schema versions", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "track_set_1",
+      actorId: "actor_1",
+      eventType: "trackSet.updated",
+      occurredAt: "2026-06-16T22:10:00.000Z",
+      payload: {
+        changeKind: "updated",
+        tenantId: "tenant_1",
+        trackSetId: "track_set_1",
+        updatedAt: "2026-06-16T22:10:00.000Z"
+      },
+      requestId: "request_track_set_updated",
+      schemaVersion: "play-track-set-updated.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "track_set_1",
+      actorId: "actor_1",
+      eventType: "play.playbackStateChanged",
+      occurredAt: "2026-06-16T22:11:00.000Z",
+      payload: {
+        activePadLayerRef: "pad_layer_1",
+        activeSectionRef: "section_intro",
+        clickEnabled: true,
+        positionBeats: 8,
+        tenantId: "tenant_1",
+        trackSetId: "track_set_1",
+        transportStatus: "playing",
+        updatedAt: "2026-06-16T22:11:00.000Z"
+      },
+      requestId: "request_playback_state_changed",
+      schemaVersion: "play-playback-state-changed.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "track_set_1",
+      actorId: "actor_1",
+      eventType: "play.cueFired",
+      occurredAt: "2026-06-16T22:12:00.000Z",
+      payload: {
+        action: "play",
+        cueId: "cue_1",
+        firedAt: "2026-06-16T22:12:00.000Z",
+        tenantId: "tenant_1",
+        trackSetId: "track_set_1"
+      },
+      requestId: "request_cue_fired",
+      schemaVersion: "play-cue-fired.v1",
+      tenantId: "tenant_1"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        eventType: event.eventType,
+        schemaVersion: event.schemaVersion
+      }))
+    ).toEqual([
+      {
+        eventType: "trackSet.updated",
+        schemaVersion: "play-track-set-updated.v1"
+      },
+      {
+        eventType: "play.playbackStateChanged",
+        schemaVersion: "play-playback-state-changed.v1"
+      },
+      {
+        eventType: "play.cueFired",
+        schemaVersion: "play-cue-fired.v1"
+      }
+    ]);
+  });
+
+  it("rejects Play event tenant and aggregate mismatches", () => {
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "track_set_1",
+        actorId: "actor_1",
+        eventType: "play.playbackStateChanged",
+        occurredAt: "2026-06-16T22:11:00.000Z",
+        payload: {
+          clickEnabled: true,
+          positionBeats: 0,
+          tenantId: "tenant_2",
+          trackSetId: "track_set_1",
+          transportStatus: "stopped",
+          updatedAt: "2026-06-16T22:11:00.000Z"
+        },
+        requestId: "request_playback_state_changed",
+        schemaVersion: "play-playback-state-changed.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("Play event tenant must match payload tenant.");
+
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "track_set_2",
+        actorId: "actor_1",
+        eventType: "trackSet.updated",
+        occurredAt: "2026-06-16T22:10:00.000Z",
+        payload: {
+          changeKind: "updated",
+          tenantId: "tenant_1",
+          trackSetId: "track_set_1",
+          updatedAt: "2026-06-16T22:10:00.000Z"
+        },
+        requestId: "request_track_set_updated",
+        schemaVersion: "play-track-set-updated.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("Play event aggregate must match track set ID.");
+
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "track_set_2",
+        actorId: "actor_1",
+        eventType: "play.cueFired",
+        occurredAt: "2026-06-16T22:12:00.000Z",
+        payload: {
+          action: "play",
+          cueId: "cue_1",
+          firedAt: "2026-06-16T22:12:00.000Z",
+          tenantId: "tenant_1",
+          trackSetId: "track_set_1"
+        },
+        requestId: "request_cue_fired",
+        schemaVersion: "play-cue-fired.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("Play event aggregate must match track set ID.");
+  });
+
+  it("rejects Play event payloads with raw media, playhead, or secret fields", () => {
+    const baseEvent = {
+      aggregateId: "track_set_1",
+      actorId: "actor_1",
+      eventType: "play.playbackStateChanged" as const,
+      occurredAt: "2026-06-16T22:11:00.000Z",
+      payload: {
+        clickEnabled: true,
+        positionBeats: 0,
+        tenantId: "tenant_1",
+        trackSetId: "track_set_1",
+        transportStatus: "stopped" as const,
+        updatedAt: "2026-06-16T22:11:00.000Z"
+      },
+      requestId: "request_playback_state_changed",
+      schemaVersion: "play-playback-state-changed.v1" as const,
+      tenantId: "tenant_1"
+    };
+
+    expect(() =>
+      validateApiEventEnvelope({
+        ...baseEvent,
+        payload: {
+          ...baseEvent.payload,
+          playheadSampleOffset: 44100
+        }
+      })
+    ).toThrow("Unrecognized key");
+
+    expect(() =>
+      validateApiEventEnvelope({
+        ...baseEvent,
+        payload: {
+          ...baseEvent.payload,
+          rawAudioPayload: "base64"
+        }
+      })
+    ).toThrow("Unrecognized key");
+
+    expect(() =>
+      validateApiEventEnvelope({
+        ...baseEvent,
+        payload: {
+          ...baseEvent.payload,
+          vendorToken: "secret"
+        }
+      })
+    ).toThrow("Unrecognized key");
+  });
 });
 
 describe("API event transport", () => {

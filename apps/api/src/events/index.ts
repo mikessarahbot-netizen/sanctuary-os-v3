@@ -7,7 +7,10 @@ export const ApiEventTypeSchema = z.enum([
   "presentation.updated",
   "presenter.slideChanged",
   "presenter.outputBlanked",
-  "presenter.outputRestored"
+  "presenter.outputRestored",
+  "trackSet.updated",
+  "play.playbackStateChanged",
+  "play.cueFired"
 ]);
 
 export const ApiEventEnvelopeSchema = z.object({
@@ -80,6 +83,38 @@ export const PresenterOutputRestoredEventPayloadSchema = z
   })
   .strict();
 
+export const TrackSetUpdatedEventPayloadSchema = z
+  .object({
+    changeKind: z.enum(["created", "updated"]),
+    tenantId: z.string().min(1),
+    trackSetId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
+export const PlayPlaybackStateChangedEventPayloadSchema = z
+  .object({
+    activePadLayerRef: z.string().min(1).optional(),
+    activeSectionRef: z.string().min(1).optional(),
+    clickEnabled: z.boolean(),
+    positionBeats: z.number().nonnegative(),
+    tenantId: z.string().min(1),
+    trackSetId: z.string().min(1),
+    transportStatus: z.enum(["stopped", "playing", "paused"]),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
+export const PlayCueFiredEventPayloadSchema = z
+  .object({
+    action: z.enum(["play", "stop", "jump", "pad-change", "click-toggle"]),
+    cueId: z.string().min(1),
+    firedAt: z.string().datetime({ offset: true }),
+    tenantId: z.string().min(1),
+    trackSetId: z.string().min(1)
+  })
+  .strict();
+
 const validatePresenterEventScope = (
   event: {
     readonly aggregateId: string;
@@ -103,6 +138,34 @@ const validatePresenterEventScope = (
     context.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Presenter event aggregate must match presentation ID.",
+      path: ["aggregateId"]
+    });
+  }
+};
+
+const validatePlayEventScope = (
+  event: {
+    readonly aggregateId: string;
+    readonly payload: {
+      readonly tenantId: string;
+      readonly trackSetId: string;
+    };
+    readonly tenantId: string;
+  },
+  context: z.RefinementCtx
+): void => {
+  if (event.tenantId !== event.payload.tenantId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Play event tenant must match payload tenant.",
+      path: ["payload", "tenantId"]
+    });
+  }
+
+  if (event.aggregateId !== event.payload.trackSetId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Play event aggregate must match track set ID.",
       path: ["aggregateId"]
     });
   }
@@ -143,6 +206,21 @@ const ValidatedApiEventEnvelopeBaseSchema = z.discriminatedUnion("eventType", [
     eventType: z.literal("presenter.outputRestored"),
     payload: PresenterOutputRestoredEventPayloadSchema,
     schemaVersion: z.literal("presenter-output-restored.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("trackSet.updated"),
+    payload: TrackSetUpdatedEventPayloadSchema,
+    schemaVersion: z.literal("play-track-set-updated.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("play.playbackStateChanged"),
+    payload: PlayPlaybackStateChangedEventPayloadSchema,
+    schemaVersion: z.literal("play-playback-state-changed.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("play.cueFired"),
+    payload: PlayCueFiredEventPayloadSchema,
+    schemaVersion: z.literal("play-cue-fired.v1")
   })
 ]);
 
@@ -155,6 +233,14 @@ export const ValidatedApiEventEnvelopeSchema =
       event.eventType === "presenter.outputRestored"
     ) {
       validatePresenterEventScope(event, context);
+    }
+
+    if (
+      event.eventType === "trackSet.updated" ||
+      event.eventType === "play.playbackStateChanged" ||
+      event.eventType === "play.cueFired"
+    ) {
+      validatePlayEventScope(event, context);
     }
   });
 
@@ -178,6 +264,13 @@ export type PresenterOutputBlankedEventPayload = z.infer<
 export type PresenterOutputRestoredEventPayload = z.infer<
   typeof PresenterOutputRestoredEventPayloadSchema
 >;
+export type TrackSetUpdatedEventPayload = z.infer<
+  typeof TrackSetUpdatedEventPayloadSchema
+>;
+export type PlayPlaybackStateChangedEventPayload = z.infer<
+  typeof PlayPlaybackStateChangedEventPayloadSchema
+>;
+export type PlayCueFiredEventPayload = z.infer<typeof PlayCueFiredEventPayloadSchema>;
 
 export interface EventPublisher {
   readonly publishAfterCommit: (event: ApiEventEnvelope) => Promise<void>;
