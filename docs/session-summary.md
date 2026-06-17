@@ -2,6 +2,17 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 3: migration artifact
+
+Tasks completed:
+- Community+ slice 3 (delegated; parent verified gates): `packages/db/src/community-migrations.ts` — CommunityInitialSchemaMigration (8 tenant-scoped tables + indexes incl. partial-unique for active membership/member attendance + all CHECKs: enum, boolean, confirmation-gate, consent-in-opaque-refs; NO raw PII columns, verified by a column-parsing test; migrationId ...0007). +13 db tests (incl. node:sqlite smoke). Gates green: db 380 / api 499 + 2 skipped / desktop 89 / church-context 5. Committed `a4a4bbe`.
+- Flagged for slice 4: contract↔DDL mismatch — CommunicationMessage record has schemaVersion but the DDL has schema_version on members only; slice 4 reconciles.
+
+Next task:
+- Community+ slice 4: SQLite adapter (`packages/db/src/community-sql-repository.ts`), reconciling the message schemaVersion. Then slices 5–10 per the plan.
+
+Open questions / follow-ups: the schemaVersion reconciliation; Community+ open questions; standing follow-ups (network-executor JSON gap; enum mismatch task_85338bf7; UI surface decision; live /goal hook).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 2: persistence contracts
 
 Tasks completed:
