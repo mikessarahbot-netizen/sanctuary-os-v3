@@ -58,7 +58,14 @@ const parseQueryResult = (rawResult: unknown): PlanningSqlQueryResult => {
   const result = PostgreSqlPlanningQueryResultSchema.parse(rawResult);
 
   return {
-    rows: result.rows
+    rows: result.rows.map((row) =>
+      Object.fromEntries(
+        Object.entries(row).map(([key, value]) => [
+          key,
+          value instanceof Date ? value.toISOString() : value
+        ])
+      )
+    )
   };
 };
 

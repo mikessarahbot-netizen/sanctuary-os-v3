@@ -19,12 +19,12 @@ Add opt-in live PostgreSQL integration coverage for Planning persistence wiring 
 Checked-in connection strings or secrets · requiring live PostgreSQL in default CI/tests · production deployment config · migration runner deployment automation · GraphQL contract changes · UI · workers · vendor SDKs · Auth0 integration changes · ORM/query-builder adoption · new Planning domain behavior
 
 ## Progress
-- [ ] Re-sync with required docs, release-checks, API composition code, DB migrations, and PostgreSQL executor code
-- [ ] Identify opt-in integration test approach and required environment variables
-- [ ] Add live PostgreSQL integration coverage or documented skip harness
-- [ ] Document local execution and skip behavior without secrets
-- [ ] Confirm default test suite remains live-DB-free
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, release-checks, API composition code, DB migrations, and PostgreSQL executor code
+- [x] Identify opt-in integration test approach and required environment variables
+- [x] Add live PostgreSQL integration coverage or documented skip harness
+- [x] Document local execution and skip behavior without secrets
+- [x] Confirm default test suite remains live-DB-free
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 

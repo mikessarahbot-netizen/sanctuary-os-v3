@@ -20,3 +20,22 @@ Planning command services depend on the DB package
 `PlanningServiceCommandPersistenceRepository` contract. The eventual production
 adapter notes live in
 [`packages/db/docs/planning-production-adapter-contract.md`](../../packages/db/docs/planning-production-adapter-contract.md).
+
+## Opt-in PostgreSQL integration test
+
+Default tests are live-DB-free. The Planning PostgreSQL integration smoke test is
+skipped unless `SANCTUARY_OS_PLANNING_POSTGRES_URL` is set.
+
+Run it locally with:
+
+```sh
+SANCTUARY_OS_PLANNING_POSTGRES_URL="<local-postgres-url>" pnpm --filter @sanctuary-os/api test:integration:postgres
+```
+
+Optional: set `SANCTUARY_OS_PLANNING_POSTGRES_SCHEMA` to a dedicated schema name
+matching `[a-z][a-z0-9_]{0,62}`. The smoke test drops and recreates that schema,
+applies the Planning migration, exercises the SQL-backed Planning repositories
+through API runtime composition, and drops the schema afterward.
+
+Do not commit real database URLs, passwords, tokens, or `.env` files. Checked-in
+runtime config stores environment variable names only.

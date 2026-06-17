@@ -2,12 +2,14 @@
 
 Persistence boundary contracts for Sanctuary OS.
 
-## Scaffold contract
+## Contract
 - Defines tenant-scoped database operation context.
 - Defines migration and transaction contract shapes.
 - Supports future PostgreSQL server persistence and SQLite local/offline persistence.
-- Does not choose an ORM, query builder, or migration tool.
-- Does not include migrations, generated clients, connection strings, or schema implementation.
+- Uses explicit SQL migration artifacts and PostgreSQL adapter boundaries for
+  Planning server persistence.
+- Does not include generated clients, connection strings, or checked-in secret
+  values.
 
 All persisted reads and writes must be tenant-scoped before this package gains concrete adapters.
 
@@ -16,3 +18,9 @@ All persisted reads and writes must be tenant-scoped before this package gains c
 - [Planning production adapter contract](docs/planning-production-adapter-contract.md)
   documents the eventual production database adapter boundary for
   `PlanningServiceCommandPersistenceRepository`.
+
+## PostgreSQL integration coverage
+
+The opt-in live PostgreSQL smoke test for Planning runtime composition lives in
+the API package because API composition owns runtime selection. See
+[`apps/api/README.md`](../../apps/api/README.md).

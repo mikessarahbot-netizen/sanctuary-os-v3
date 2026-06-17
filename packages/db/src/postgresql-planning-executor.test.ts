@@ -80,6 +80,33 @@ describe("createPostgreSqlPlanningExecutor", () => {
     ]);
   });
 
+  it("normalizes PostgreSQL timestamp rows to repository-safe ISO strings", async () => {
+    const client = createRecordingPostgreSqlClient([
+      {
+        rows: [
+          {
+            starts_at: new Date("2026-06-17T12:00:00.000Z"),
+            service_id: "service_1",
+            tenant_id: "tenant_1"
+          }
+        ]
+      }
+    ]);
+    const executor = createPostgreSqlPlanningExecutor({
+      queryClient: client
+    });
+
+    await expect(executor.query(createStatement())).resolves.toEqual({
+      rows: [
+        {
+          starts_at: "2026-06-17T12:00:00.000Z",
+          service_id: "service_1",
+          tenant_id: "tenant_1"
+        }
+      ]
+    });
+  });
+
   it("uses transaction-scoped PostgreSQL clients for statements inside transactions", async () => {
     const queryClient = createRecordingPostgreSqlClient();
     const transactionClient = createRecordingPostgreSqlClient([
