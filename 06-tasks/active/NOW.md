@@ -16,11 +16,11 @@ Add the desktop Presenter sidecar entry: a Zod-validated runtime config loader a
 Tauri sidecar spawn/supervision config · desktop UI screens · live network endpoint/secrets · API GraphQL server transport · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config
 
 ## Progress
-- [ ] Re-sync with the bootstrap and ADR 0005
-- [ ] Add the Zod sidecar config loader with tests
-- [ ] Add the `node:sqlite` migration-client wrapper helper
-- [ ] Add the sidecar entry function with tests + a `node:sqlite` smoke
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the bootstrap and ADR 0005
+- [x] Add the Zod sidecar config loader with tests
+- [x] Add the `node:sqlite` migration-client wrapper helper
+- [x] Add the sidecar entry function with tests + a `node:sqlite` smoke
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the sidecar entry slice
 - [ ] Session handoff
 
