@@ -17,12 +17,12 @@ Charts module, slice 1: the pure ChordPro domain — Zod schemas + a determinist
 Charts persistence/db contracts · GraphQL/API surface · per-musician preferences/annotations storage · offline sync · mobile UI · CCLI/catalog · AI suggestions · notation rendering
 
 ## Progress
-- [ ] Re-sync with the Charts plan and presenter domain style
-- [ ] Add the ChordPro Zod schemas (document/section/line/segment/chord)
-- [ ] Add `parseChordPro` (pure)
-- [ ] Add `transposeChordProDocument` (pure)
-- [ ] Add focused parse + transpose unit tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the Charts plan and presenter domain style
+- [x] Add the ChordPro Zod schemas (document/section/line/segment/kind)
+- [x] Add `parseChordPro` (pure: directives, sections, inline chords, default section)
+- [x] Add `transposeChord` + `transposeChordProDocument` (pure: root/bass shift, sharp policy, key transpose)
+- [x] Add 9 focused parse + transpose unit tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the ChordPro core slice
 - [ ] Session handoff
 
