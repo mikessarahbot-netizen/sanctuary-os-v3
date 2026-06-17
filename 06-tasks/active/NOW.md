@@ -15,10 +15,10 @@ Add a pure Presenter local sync queue replay decision contract (ordering, backof
 Running scheduler loop/timers · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · GraphQL/API replay changes · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with the replay-readiness helper and queue entry contracts
-- [ ] Add the replay policy schema and pure decision function
-- [ ] Add focused decision tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the replay-readiness helper and queue entry contracts
+- [x] Add the replay policy schema and pure decision function
+- [x] Add focused decision tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the replay decision contract slice
 - [ ] Session handoff
 
