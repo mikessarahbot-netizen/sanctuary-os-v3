@@ -2,6 +2,21 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop Tauri shell scaffold (toolchain installed)
+
+Tasks completed:
+- With user authorization to install required tooling, installed the Rust toolchain (Homebrew `rustup` keg → stable 1.96.0; `cargo`/`rustc` available) and added `@tauri-apps/cli ^2.11.2` to `apps/desktop`.
+- Scaffolded `apps/desktop/src-tauri` into a real Tauri 2 app: `cargo build` (dev) and `cargo check` both compile. Set a proper bundle identifier (`os.sanctuary.presenter`), a static `web/index.html` frontend, default capabilities/icons, and a `tauri` package script; renamed the crate to `sanctuary-os-presenter`.
+- Confirmed the monorepo gates are unaffected — `apps/desktop/tsconfig.json` and the root eslint glob only cover `src/**/*.ts`, and `src-tauri/target` is gitignored. All four workspaces green (db 140, api 212 + 2 skipped, desktop 18, church-context 5).
+- Wrote `07-reviews/architecture/presenter-desktop-tauri-shell-scaffold-release-check.md`; updated the Tauri blocker note to RESOLVED.
+- Pushed implementation commit `740d06d` (`feat(desktop): scaffold Tauri shell for the Presenter desktop app`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a production network `PresenterCommandService` and a concrete replay error classifier (pure TypeScript) that the desktop shell injects into the replay runtime.
+
+Open questions:
+- Desktop SQLite execution model: the synchronous `SqliteMigrationDatabaseClient` cannot run in a Tauri webview — Node sidecar vs async Tauri-SQL-plugin client. Capture as an ADR in `08-decisions/` before wiring the runtime bootstrap.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop replay runtime assembly (Presenter offline-sync feature complete)
 
 Tasks completed:
