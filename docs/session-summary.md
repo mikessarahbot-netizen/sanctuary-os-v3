@@ -2,6 +2,23 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop replay scheduler
+
+Tasks completed:
+- Re-synced with the replay pass and desktop runtime expectations.
+- Added `createPresenterDesktopReplayScheduler` in `apps/desktop/src/replay-scheduler.ts`: wraps a replay-pass runner with offline/online gating and an injected interval. `runOnce` skips while offline or runs the pass and reports the result; `start`/`stop` drive `runOnce` through the injected `schedule`/`cancel` abstraction; a scheduled tick never throws (per-tick errors route to `onError`).
+- Connectivity, interval, and the pass runner are injected; the scheduler is generic over the result and handle types and holds no transport or real timer.
+- Added 5 engine-free tests (offline skip, online run, start scheduling, start idempotency + stop cancel, per-tick error containment). Re-exported from the desktop barrel.
+- Wrote `07-reviews/architecture/presenter-desktop-replay-scheduler-release-check.md` (pass with follow-ups). The desktop replay runtime (pass + scheduler) is now complete and fully injected.
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm --filter @sanctuary-os/desktop typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (desktop 16 tests; all 4 workspaces green).
+- Pushed implementation commit `c0b9112` (`feat(desktop): add Presenter replay scheduler`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a desktop Presenter replay runtime assembly factory that composes the migrated store, the replay pass binding, and the scheduler from injected adapters.
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop replay conflict classification
 
 Tasks completed:
