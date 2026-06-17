@@ -19,10 +19,10 @@ Add in-memory Presenter persistence repository adapters.
 PostgreSQL Presenter adapters · database migrations · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter persistence contracts
-- [ ] Add in-memory Presenter persistence repository adapters
-- [ ] Add focused Presenter persistence adapter tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current Presenter persistence contracts
+- [x] Add in-memory Presenter persistence repository adapters
+- [x] Add focused Presenter persistence adapter tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
