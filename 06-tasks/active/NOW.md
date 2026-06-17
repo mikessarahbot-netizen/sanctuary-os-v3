@@ -15,10 +15,10 @@ Add a pure Presenter local sync queue replay coordinator that maps an eligible q
 Live API replay transport · running scheduler loop/timers · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · GraphQL/API replay changes · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with queue contracts and the Presenter command contracts
-- [ ] Add the pure queue-entry-to-command replay mapping
-- [ ] Add focused mapping tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with queue contracts and the Presenter command contracts
+- [x] Add the pure queue-entry-to-command replay mapping
+- [x] Add focused mapping tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the replay coordinator slice
 - [ ] Session handoff
 
