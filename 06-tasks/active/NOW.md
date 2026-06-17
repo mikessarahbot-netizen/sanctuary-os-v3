@@ -15,10 +15,10 @@ Add a desktop-local Presenter sync composition root in `apps/desktop` that migra
 Replay loop runtime · Tauri/Rust shell · real desktop windows · desktop UI screens · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
 
 ## Progress
-- [ ] Re-sync with the desktop scaffold and the db building blocks
-- [ ] Add the desktop-local sync composition root
-- [ ] Add default wiring tests and an availability-guarded migrate+round-trip smoke
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the desktop scaffold and the db building blocks
+- [x] Add the desktop-local sync composition root
+- [x] Add default wiring tests and an availability-guarded migrate+round-trip smoke
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the desktop composition root slice
 - [ ] Session handoff
 

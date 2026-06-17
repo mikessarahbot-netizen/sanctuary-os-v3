@@ -4,6 +4,8 @@ import {
   type PresenterLocalSyncQueuePersistenceRuntimeConfigInput
 } from "@sanctuary-os/db";
 
+export * from "./local-sync-queue-store.js";
+
 /**
  * Entry point for the Sanctuary OS desktop app workspace.
  *
