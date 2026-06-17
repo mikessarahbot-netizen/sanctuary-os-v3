@@ -2,6 +2,18 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 2: persistence contracts
+
+Tasks completed:
+- Play slice 2 (delegated; parent verified gates): `packages/db/src/play-repository-contracts.ts` — tenant-scoped Zod persistence records for the six Play objects (unbranded storage strings; schemaVersion on the TrackSet aggregate; trackRefs/sectionOrder as validated arrays for the slice-4 adapter to JSON-serialize), per-operation input schemas, actor-required option guards, and the query/command repository interfaces. Mirrors the Charts contracts. +14 db tests. Gates green: db 249 / api 339 + 2 skipped / desktop 54 / church-context 5. Committed `9575f98`.
+- Ceremony streamlined for routine backend slices (NOW.md + summary + commit/push; consolidated release checks at module-backend milestones) to conserve context.
+
+Next task:
+- Play slice 3: the migration artifact (`packages/db/src/play-migrations.ts`, `PlayInitialSchemaMigration`). Then slices 4–10 per the plan.
+
+Open questions:
+- Same as prior entries (Play scope assumptions to confirm; UI slices await scaffold; live /goal hook forces continuation — building under it with safe commits/pushes).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play module started: plan + slice 1 (domain + pure logic)
 
 Tasks completed:

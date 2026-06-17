@@ -1,35 +1,32 @@
 # NOW
 
 ## Task
-Play module, slice 2: the Play persistence contracts (`packages/db/src/play-repository-contracts.ts`) — tenant-scoped Zod persistence records + per-operation input schemas + read/write option guards + `PlayQueryPersistenceRepository` / `PlayCommandPersistenceRepository` interfaces, mirroring the Charts persistence contracts. (Slice 1 — Play domain + pure logic — is DONE and green at `4d4fc73`.)
+Play module, slice 3: the Play migration artifact (`packages/db/src/play-migrations.ts`) — `PlayInitialSchemaMigration` (six tables + indexes + CHECKs) via `defineSqlMigrationArtifact`, mirroring `charts-migrations.ts`. (Play slices 1–2 done + green at `9575f98`.)
 
 ## Module
-Building Play from `05-plans/play-module-plan.md` (authoritative; full slice breakdown 1–10 backend, 11–12 UI). Backend-first per granted discretion; mobile/desktop UI slices await a scaffold decision.
+Building Play from `05-plans/play-module-plan.md` (authoritative; slice breakdown 1–10 backend, 11–12 UI). Backend-first.
 
 ## Session protocol (in force)
-See `agents.md` › "Session continuity protocol": commit + push at clean breakpoints; the Play plan + this NOW.md + `docs/session-summary.md` are the handoff (a fresh session resumes from them).
+See `agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the Play plan + this NOW.md + `docs/session-summary.md`. Per-slice release-check docs are streamlined to module-backend milestones to conserve context; gates are the per-slice verification.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Mirror `packages/db/src/charts-repository-contracts.ts` exactly in shape
-- Add `packages/db/src/play-repository-contracts.ts`: `PlayPersistenceReadOptions`/`PlayPersistenceWriteOptions` (reuse `RepositoryReadOptions`/`WriteOptions` + require `actorId` via superRefine); one `*PersistenceRecordSchema` per object (TrackSet, PlayArrangement, PlaySection, PlayCue, PadLayer, PlaybackState — the durable persistence shapes from the plan's persistence-model section, snake_case-mappable, JSON for `trackRefs`/`sectionOrder`); per-operation `*PersistenceInputSchema`; `readOperation`/`writeOperation` wrappers; `PlayQueryPersistenceRepository` + `PlayCommandPersistenceRepository` interfaces (list/get per object, save/upsert, update, remove cue, setPlaybackState)
-- Export from the db barrel
-- Contract tests (round-trip parse, `.strict()` rejection, actor-id requirement, key invariants) mirroring `charts-repository-contracts.test.ts`
+- Mirror `packages/db/src/charts-migrations.ts` + its test exactly
+- Add `packages/db/src/play-migrations.ts`: `PlayInitialSchemaMigration` creating the six tables from the plan's persistence-model section (`track_sets`, `play_arrangements`, `play_sections`, `play_cues`, `pad_layers`, `playback_state`) with PKs leading `tenant_id`, all CHECK constraints (tempo_bpm>0, schema_version='play.v1', kind/action/fire_mode/transport_status enums, gain 0..1, boolean IN (0,1), nonneg bounds, jump⇒target / pad-change⇒pad), tenant-scoped indexes, and rollback; SQLite-compatible (TEXT/INTEGER/REAL). Export `PlayInitialMigrationTableNames`/`IndexNames` + `PlaySqlMigrations`
+- Tests: artifact shape, CREATE TABLE/INDEX presence, constraint strings, rollback drops, checksum stability, and a `node:sqlite` smoke (apply → insert valid → reject bad rows → rollback)
 
 ## Out of scope
-Migration (slice 3) · SQLite adapter (slice 4) · GraphQL/service · offline-sync · UI
+The local-sync-queue migration (slice 7) · SQLite adapter (slice 4) · service/graphql · UI
 
 ## Progress
-- [ ] Re-sync with the Charts persistence contracts + the Play plan persistence-model section
-- [ ] `play-repository-contracts.ts` (records + inputs + options + repo interfaces)
-- [ ] Barrel export
-- [ ] Contract tests
+- [ ] Re-sync with `charts-migrations.ts` + the plan persistence-model section
+- [ ] `play-migrations.ts` (`PlayInitialSchemaMigration` + name lists + `PlaySqlMigrations`)
+- [ ] Migration tests + `node:sqlite` smoke
 - [ ] Run lint, typecheck, test green
-- [ ] Release check + session-summary + NOW.md advance
-- [ ] Commit + push
+- [ ] Advance NOW.md + session-summary + commit/push
 
 ## Done when
-The Play persistence contracts exist (records + per-operation inputs + option guards + query/command repository interfaces) with contract tests, default gates green, committed and pushed.
+`PlayInitialSchemaMigration` creates the six tables/indexes with all CHECKs + rollback, covered by artifact tests + a `node:sqlite` smoke, gates green, committed and pushed.
 
 ## Next task after this
-Play slice 3: the Play migration artifact (`packages/db/src/play-migrations.ts`, `PlayInitialSchemaMigration` — six tables + indexes + CHECKs), then slices 4–10 per `05-plans/play-module-plan.md` (SQLite adapter → GraphQL+service → persistence service → offline queue → replay → events → desktop replay runtime). UI slices 11–12 await the scaffold decision.
+Play slice 4: the Play SQLite adapter (`packages/db/src/play-sql-repository.ts`) over the executor (JSON (de)serialization for track_refs/section_order, tenant filtering), then slices 5–10 per `05-plans/play-module-plan.md`.
