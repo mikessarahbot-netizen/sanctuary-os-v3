@@ -109,4 +109,90 @@ export const ChartsInitialSchemaMigration = defineSqlMigrationArtifact({
   upSql
 });
 
-export const ChartsSqlMigrations = [ChartsInitialSchemaMigration] as const;
+export const ChartsLocalSyncQueueMigrationTableNames = [
+  "charts_local_sync_queue_entries"
+] as const;
+
+export const ChartsLocalSyncQueueMigrationIndexNames = [
+  "charts_local_sync_queue_pending_idx",
+  "charts_local_sync_queue_status_idx",
+  "charts_local_sync_queue_request_idx"
+] as const;
+
+const localSyncQueueUpSql = `
+CREATE TABLE charts_local_sync_queue_entries (
+  tenant_id TEXT NOT NULL,
+  queue_entry_id TEXT NOT NULL,
+  chart_id TEXT,
+  actor_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  safe_error_message TEXT,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  queued_at TEXT NOT NULL,
+  last_attempted_at TEXT,
+  next_attempt_at TEXT,
+  schema_version TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, queue_entry_id),
+  CHECK (attempt_count >= 0),
+  CHECK (payload_json <> ''),
+  CHECK (schema_version = 'charts-local-sync-queue.v1'),
+  CHECK (operation IN (
+    'saveChart',
+    'updateChartSource',
+    'saveChartArrangement',
+    'setMusicianChartPreference',
+    'addChartAnnotation',
+    'updateChartAnnotation',
+    'removeChartAnnotation'
+  )),
+  CHECK (status IN ('pending', 'in-flight', 'failed', 'synced')),
+  CHECK (
+    (status = 'failed' AND safe_error_message IS NOT NULL)
+    OR (status <> 'failed' AND safe_error_message IS NULL)
+  ),
+  CHECK (next_attempt_at IS NULL OR status = 'failed'),
+  CHECK (last_attempted_at IS NULL OR attempt_count > 0)
+);
+
+CREATE INDEX charts_local_sync_queue_pending_idx
+  ON charts_local_sync_queue_entries (
+    tenant_id,
+    status,
+    queued_at,
+    queue_entry_id
+  );
+CREATE INDEX charts_local_sync_queue_status_idx
+  ON charts_local_sync_queue_entries (tenant_id, status, updated_at);
+CREATE INDEX charts_local_sync_queue_request_idx
+  ON charts_local_sync_queue_entries (tenant_id, request_id);
+`.trim();
+
+const localSyncQueueDownSql = `
+DROP INDEX IF EXISTS charts_local_sync_queue_request_idx;
+DROP INDEX IF EXISTS charts_local_sync_queue_status_idx;
+DROP INDEX IF EXISTS charts_local_sync_queue_pending_idx;
+DROP TABLE IF EXISTS charts_local_sync_queue_entries;
+`.trim();
+
+export const ChartsLocalSyncQueueMigration = defineSqlMigrationArtifact({
+  auditTables: [],
+  description:
+    "Create the tenant-scoped Charts local sync queue storage table and replay indexes.",
+  downSql: localSyncQueueDownSql,
+  migrationId: "202606170004_charts_local_sync_queue",
+  requiredIndexes: [...ChartsLocalSyncQueueMigrationIndexNames],
+  requiredTables: [...ChartsLocalSyncQueueMigrationTableNames],
+  tenantScopedTables: [...ChartsLocalSyncQueueMigrationTableNames],
+  transactional: true,
+  upSql: localSyncQueueUpSql
+});
+
+export const ChartsSqlMigrations = [
+  ChartsInitialSchemaMigration,
+  ChartsLocalSyncQueueMigration
+] as const;
