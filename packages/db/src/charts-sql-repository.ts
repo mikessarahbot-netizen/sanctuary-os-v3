@@ -16,30 +16,49 @@ import {
   SaveChartPersistenceOperationSchema,
   SetMusicianChartPreferencePersistenceOperationSchema,
   UpdateChartSourcePersistenceOperationSchema,
-  type AddChartAnnotationPersistenceOperation,
   type ChartAnnotationPersistenceRecord,
   type ChartArrangementPersistenceRecord,
   type ChartPersistenceRecord,
   type ChartsCommandPersistenceRepository,
   type ChartsQueryPersistenceRepository,
-  type GetChartPersistenceOperation,
-  type GetMusicianChartPreferencePersistenceOperation,
-  type ListChartAnnotationsPersistenceOperation,
-  type ListChartArrangementsPersistenceOperation,
-  type ListChartsForSongPersistenceOperation,
-  type ListChartsPersistenceOperation,
-  type MusicianChartPreferencePersistenceRecord,
-  type RemoveChartAnnotationPersistenceOperation,
-  type SaveChartArrangementPersistenceOperation,
-  type SaveChartPersistenceOperation,
-  type SetMusicianChartPreferencePersistenceOperation,
-  type UpdateChartSourcePersistenceOperation
+  type MusicianChartPreferencePersistenceRecord
 } from "./charts-repository-contracts.js";
 import type {
   PlanningSqlExecutor,
   PlanningSqlRow
 } from "./planning-command-sql-repository.js";
 import type { TransactionHandle } from "./transactions.js";
+
+type ListChartsPersistenceOperation = z.infer<typeof ListChartsPersistenceOperationSchema>;
+type GetChartPersistenceOperation = z.infer<typeof GetChartPersistenceOperationSchema>;
+type ListChartsForSongPersistenceOperation = z.infer<
+  typeof ListChartsForSongPersistenceOperationSchema
+>;
+type ListChartArrangementsPersistenceOperation = z.infer<
+  typeof ListChartArrangementsPersistenceOperationSchema
+>;
+type GetMusicianChartPreferencePersistenceOperation = z.infer<
+  typeof GetMusicianChartPreferencePersistenceOperationSchema
+>;
+type ListChartAnnotationsPersistenceOperation = z.infer<
+  typeof ListChartAnnotationsPersistenceOperationSchema
+>;
+type SaveChartPersistenceOperation = z.infer<typeof SaveChartPersistenceOperationSchema>;
+type UpdateChartSourcePersistenceOperation = z.infer<
+  typeof UpdateChartSourcePersistenceOperationSchema
+>;
+type SaveChartArrangementPersistenceOperation = z.infer<
+  typeof SaveChartArrangementPersistenceOperationSchema
+>;
+type SetMusicianChartPreferencePersistenceOperation = z.infer<
+  typeof SetMusicianChartPreferencePersistenceOperationSchema
+>;
+type AddChartAnnotationPersistenceOperation = z.infer<
+  typeof AddChartAnnotationPersistenceOperationSchema
+>;
+type RemoveChartAnnotationPersistenceOperation = z.infer<
+  typeof RemoveChartAnnotationPersistenceOperationSchema
+>;
 
 export type ChartsSqlExecutor = Pick<PlanningSqlExecutor, "query">;
 
