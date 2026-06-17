@@ -15,7 +15,16 @@ export const plannedGraphqlQueries = [
   "chartsForSong",
   "chartArrangements",
   "musicianChartPreference",
-  "chartAnnotations"
+  "chartAnnotations",
+  "trackSets",
+  "trackSet",
+  "trackSetsForSong",
+  "playArrangements",
+  "playSections",
+  "playCues",
+  "padLayers",
+  "playbackState",
+  "resolvedPlaySequence"
 ] as const;
 
 export const plannedGraphqlMutations = [
@@ -43,7 +52,17 @@ export const plannedGraphqlMutations = [
   "setMusicianChartPreference",
   "addChartAnnotation",
   "updateChartAnnotation",
-  "removeChartAnnotation"
+  "removeChartAnnotation",
+  "saveTrackSet",
+  "updateTrackSetMembers",
+  "savePlayArrangement",
+  "savePlaySection",
+  "reorderPlaySections",
+  "addPlayCue",
+  "updatePlayCue",
+  "removePlayCue",
+  "savePadLayer",
+  "setPlaybackState"
 ] as const;
 
 export type PlannedGraphqlQuery = (typeof plannedGraphqlQueries)[number];
@@ -57,6 +76,7 @@ export interface GraphqlSurface {
 export * from "./charts.js";
 export * from "./http-server.js";
 export * from "./planning.js";
+export * from "./play.js";
 export * from "./presenter.js";
 export * from "./presenter-schema.js";
 export * from "./transport.js";

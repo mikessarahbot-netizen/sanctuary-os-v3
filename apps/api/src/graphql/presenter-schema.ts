@@ -6,6 +6,11 @@ import {
   type ChartsGraphqlResolverDependencies
 } from "./charts.js";
 import {
+  createPlayGraphqlResolvers,
+  playGraphqlTypeDefs,
+  type PlayGraphqlResolverDependencies
+} from "./play.js";
+import {
   createPresenterGraphqlResolvers,
   presenterGraphqlTypeDefs,
   type PresenterGraphqlResolverDependencies
@@ -20,8 +25,10 @@ import {
  * pass-through: variables arrive already parsed, literals are converted with
  * graphql's untyped AST reader. The Charts SDL also `extend`s the roots and
  * reuses the `DateTime` scalar the Presenter SDL declares, so it is only merged
- * in when Charts dependencies are supplied. Planning is not wired here yet; this
- * schema is the surface the desktop replay transport executes.
+ * in when Charts dependencies are supplied. The Play SDL likewise `extend`s the
+ * roots and reuses the `DateTime` scalar, so it is only merged in when Play
+ * dependencies are supplied. Planning is not wired here yet; this schema is the
+ * surface the desktop replay transport executes.
  */
 const baseTypeDefs = `
   scalar JSON
@@ -51,6 +58,7 @@ const JsonScalar = new GraphQLScalarType({
 
 export interface ApiGraphqlSchemaDependencies extends PresenterGraphqlResolverDependencies {
   readonly charts?: ChartsGraphqlResolverDependencies;
+  readonly play?: PlayGraphqlResolverDependencies;
 }
 
 export const createPresenterGraphqlSchema = (
@@ -61,6 +69,10 @@ export const createPresenterGraphqlSchema = (
     dependencies.charts !== undefined
       ? createChartsGraphqlResolvers(dependencies.charts)
       : undefined;
+  const playResolvers =
+    dependencies.play !== undefined
+      ? createPlayGraphqlResolvers(dependencies.play)
+      : undefined;
 
   return makeExecutableSchema({
     resolvers: {
@@ -68,17 +80,20 @@ export const createPresenterGraphqlSchema = (
       JSON: JsonScalar,
       Mutation: {
         ...presenterResolvers.Mutation,
-        ...(chartsResolvers !== undefined ? chartsResolvers.Mutation : {})
+        ...(chartsResolvers !== undefined ? chartsResolvers.Mutation : {}),
+        ...(playResolvers !== undefined ? playResolvers.Mutation : {})
       },
       Query: {
         ...presenterResolvers.Query,
-        ...(chartsResolvers !== undefined ? chartsResolvers.Query : {})
+        ...(chartsResolvers !== undefined ? chartsResolvers.Query : {}),
+        ...(playResolvers !== undefined ? playResolvers.Query : {})
       }
     },
     typeDefs: [
       baseTypeDefs,
       presenterGraphqlTypeDefs,
-      ...(chartsResolvers !== undefined ? [chartsGraphqlTypeDefs] : [])
+      ...(chartsResolvers !== undefined ? [chartsGraphqlTypeDefs] : []),
+      ...(playResolvers !== undefined ? [playGraphqlTypeDefs] : [])
     ]
   });
 };
