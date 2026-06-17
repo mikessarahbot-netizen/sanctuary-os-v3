@@ -17,9 +17,9 @@ Add Presenter local sync queue local persistence repository contracts.
 SQLite schema/migrations · concrete local persistence adapter implementation · production queue runner · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · GraphQL/API replay changes · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs and storage plan
-- [ ] Add local sync queue persistence repository contracts and tests
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and storage plan
+- [x] Add local sync queue persistence repository contracts and tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push contract slice
 - [ ] Session handoff
 

@@ -1,17 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
   AddPresenterSlidePersistenceOperationSchema,
+  CleanupPresenterLocalSyncQueueEntriesPersistenceOperationSchema,
+  EnqueuePresenterLocalSyncQueueEntryPersistenceOperationSchema,
+  GetPresenterLocalSyncQueueEntryPersistenceOperationSchema,
+  ListPresenterLocalSyncQueueEntriesReadyForReplayPersistenceOperationSchema,
+  MarkPresenterLocalSyncQueueEntryConflictPersistenceOperationSchema,
+  MarkPresenterLocalSyncQueueEntryFailedPersistenceOperationSchema,
   GetPresenterPresentationPersistenceOperationSchema,
   ListPresenterOutputTargetsPersistenceOperationSchema,
   PresenterPersistenceReadOptionsSchema,
   PresenterPersistenceWriteOptionsSchema,
+  PresenterLocalSyncQueueEntryPersistenceRecordSchema,
+  PresenterLocalSyncQueueEntryMutationResultSchema,
+  PresenterLocalSyncQueueStatusTransitionPersistenceSchema,
   PresenterPresentationPersistenceRecordSchema,
   PresenterSlidePersistenceRecordSchema,
   ReorderPresenterSlidesPersistenceOperationSchema,
   SavePresenterPresentationPersistenceOperationSchema,
   SavePresenterThemePersistenceOperationSchema,
   SetPresenterOutputTargetPersistenceOperationSchema,
+  TransitionPresenterLocalSyncQueueEntryPersistenceOperationSchema,
+  listPresenterLocalSyncQueueEntriesReadyForReplay,
   type PresenterCommandPersistenceRepository,
+  type PresenterLocalSyncQueueEntryPersistenceRecord,
+  type PresenterLocalSyncQueuePersistenceRepository,
   type PresenterPresentationPersistenceRecord,
   type PresenterQueryPersistenceRepository
 } from "./index.js";
@@ -99,6 +112,42 @@ const presentation: PresenterPresentationPersistenceRecord =
     title: "Sunday Worship",
     updatedAt: "2026-06-21T14:05:00.000Z"
   });
+
+const queuedEntry: PresenterLocalSyncQueueEntryPersistenceRecord =
+  PresenterLocalSyncQueueEntryPersistenceRecordSchema.parse({
+    actorId: "actor_1",
+    attemptCount: 0,
+    baseRevision: "rev_1",
+    createdAt: "2026-06-21T14:06:00.000Z",
+    operation: {
+      operation: "updatePresentation",
+      payload: {
+        presentationId: "presentation_1",
+        title: "Sunday Worship Updated"
+      }
+    },
+    presentationId: "presentation_1",
+    queuedAt: "2026-06-21T14:06:00.000Z",
+    queueEntryId: "queue_1",
+    requestId: "request_queue_1",
+    schemaVersion: "presenter-local-sync-queue.v1",
+    status: "queued",
+    tenantId: "tenant_1",
+    updatedAt: "2026-06-21T14:06:00.000Z"
+  });
+
+const replayingTransition = {
+  from: "queued",
+  to: "replaying",
+  transitionedAt: "2026-06-21T14:07:00.000Z"
+} as const;
+
+const conflictDetail = {
+  conflictKind: "stale-presentation",
+  localBaseRevision: "rev_1",
+  safeMessage: "The presentation changed on another device.",
+  serverRevision: "rev_2"
+} as const;
 
 describe("Presenter repository contracts", () => {
   it("requires actor, request, and tenant scope for Presenter persistence operations", () => {
@@ -342,5 +391,323 @@ describe("Presenter repository contracts", () => {
         }
       })
     ).resolves.toEqual(presentation);
+  });
+
+  it("validates Presenter local sync queue entry storage contracts", () => {
+    expect(
+      EnqueuePresenterLocalSyncQueueEntryPersistenceOperationSchema.parse({
+        input: {
+          entry: queuedEntry
+        },
+        options: writeOptions
+      }).input.entry.requestId
+    ).toBe("request_queue_1");
+
+    expect(() =>
+      EnqueuePresenterLocalSyncQueueEntryPersistenceOperationSchema.parse({
+        input: {
+          entry: {
+            ...queuedEntry,
+            status: "replaying"
+          }
+        },
+        options: writeOptions
+      })
+    ).toThrow("Presenter local sync enqueue requires queued status.");
+
+    expect(() =>
+      PresenterLocalSyncQueueEntryPersistenceRecordSchema.parse({
+        ...queuedEntry,
+        operation: {
+          operation: "reorderSlides",
+          payload: {
+            orderedSlideIds: ["slide_1", "slide_1"],
+            presentationId: "presentation_1"
+          }
+        }
+      })
+    ).toThrow("Presenter local sync queued slide order cannot contain duplicate slide IDs.");
+
+    expect(() =>
+      PresenterLocalSyncQueueEntryPersistenceRecordSchema.parse({
+        ...queuedEntry,
+        operation: {
+          operation: "updateSlide",
+          payload: {
+            presentationId: "presentation_1",
+            slide: {
+              ...slide,
+              tenantId: "tenant_2"
+            }
+          }
+        }
+      })
+    ).toThrow("Presenter local sync queued slide tenant must match entry tenant.");
+
+    expect(() =>
+      PresenterLocalSyncQueueEntryPersistenceRecordSchema.parse({
+        ...queuedEntry,
+        vendorToken: "secret"
+      })
+    ).toThrow("Unrecognized key");
+  });
+
+  it("validates queue transitions, conflict details, failures, and cleanup operations", () => {
+    expect(
+      TransitionPresenterLocalSyncQueueEntryPersistenceOperationSchema.parse({
+        input: {
+          queueEntryId: "queue_1",
+          transition: replayingTransition
+        },
+        options: writeOptions
+      }).input.transition.to
+    ).toBe("replaying");
+
+    expect(() =>
+      PresenterLocalSyncQueueStatusTransitionPersistenceSchema.parse({
+        from: "synced",
+        to: "queued",
+        transitionedAt: "2026-06-21T14:08:00.000Z"
+      })
+    ).toThrow("Presenter local sync queue status transition is not allowed.");
+
+    expect(
+      MarkPresenterLocalSyncQueueEntryConflictPersistenceOperationSchema.parse({
+        input: {
+          conflict: conflictDetail,
+          queueEntryId: "queue_1",
+          transition: {
+            from: "replaying",
+            to: "conflict",
+            transitionedAt: "2026-06-21T14:08:00.000Z"
+          }
+        },
+        options: writeOptions
+      }).input.conflict.serverRevision
+    ).toBe("rev_2");
+
+    expect(() =>
+      MarkPresenterLocalSyncQueueEntryConflictPersistenceOperationSchema.parse({
+        input: {
+          conflict: conflictDetail,
+          queueEntryId: "queue_1",
+          transition: {
+            from: "replaying",
+            to: "failed",
+            transitionedAt: "2026-06-21T14:08:00.000Z"
+          }
+        },
+        options: writeOptions
+      })
+    ).toThrow("Presenter local sync conflict updates must transition to conflict.");
+
+    expect(
+      MarkPresenterLocalSyncQueueEntryFailedPersistenceOperationSchema.parse({
+        input: {
+          queueEntryId: "queue_1",
+          safeErrorMessage: "Could not sync this edit yet.",
+          transition: {
+            from: "replaying",
+            to: "failed",
+            transitionedAt: "2026-06-21T14:09:00.000Z"
+          }
+        },
+        options: writeOptions
+      }).input.safeErrorMessage
+    ).toBe("Could not sync this edit yet.");
+
+    expect(
+      CleanupPresenterLocalSyncQueueEntriesPersistenceOperationSchema.parse({
+        input: {
+          olderThan: "2026-06-22T14:00:00.000Z"
+        },
+        options: {
+          ...writeOptions,
+          intent: "delete"
+        }
+      }).input.olderThan
+    ).toBe("2026-06-22T14:00:00.000Z");
+  });
+
+  it("sorts ready queue entries and blocks later replay behind conflicts or failures", () => {
+    const laterQueuedEntry = PresenterLocalSyncQueueEntryPersistenceRecordSchema.parse({
+      ...queuedEntry,
+      operation: {
+        operation: "applyPresenterTheme",
+        payload: {
+          presentationId: "presentation_1",
+          themeId: "theme_1"
+        }
+      },
+      queuedAt: "2026-06-21T14:09:00.000Z",
+      queueEntryId: "queue_3",
+      requestId: "request_queue_3",
+      updatedAt: "2026-06-21T14:09:00.000Z"
+    });
+    const conflictedEntry = PresenterLocalSyncQueueEntryPersistenceRecordSchema.parse({
+      ...queuedEntry,
+      conflict: conflictDetail,
+      queuedAt: "2026-06-21T14:08:00.000Z",
+      queueEntryId: "queue_2",
+      requestId: "request_queue_2",
+      status: "conflict",
+      updatedAt: "2026-06-21T14:08:00.000Z"
+    });
+    const otherPresentationEntry = PresenterLocalSyncQueueEntryPersistenceRecordSchema.parse({
+      ...queuedEntry,
+      operation: {
+        operation: "updatePresentation",
+        payload: {
+          presentationId: "presentation_2",
+          title: "Evening Worship"
+        }
+      },
+      presentationId: "presentation_2",
+      queuedAt: "2026-06-21T14:07:00.000Z",
+      queueEntryId: "queue_4",
+      requestId: "request_queue_4",
+      updatedAt: "2026-06-21T14:07:00.000Z"
+    });
+
+    expect(
+      listPresenterLocalSyncQueueEntriesReadyForReplay([
+        laterQueuedEntry,
+        otherPresentationEntry,
+        conflictedEntry,
+        queuedEntry
+      ]).map((entry) => entry.queueEntryId)
+    ).toEqual(["queue_1", "queue_4"]);
+
+    expect(
+      listPresenterLocalSyncQueueEntriesReadyForReplay(
+        [laterQueuedEntry, otherPresentationEntry, conflictedEntry, queuedEntry],
+        { presentationId: "presentation_1" }
+      ).map((entry) => entry.queueEntryId)
+    ).toEqual(["queue_1"]);
+  });
+
+  it("defines adapter-free Presenter local sync queue repository interfaces", async () => {
+    const localQueueRepository: PresenterLocalSyncQueuePersistenceRepository = {
+      cancel: (operation) =>
+        Promise.resolve(
+          PresenterLocalSyncQueueEntryMutationResultSchema.parse({
+            entry: {
+              ...queuedEntry,
+              status: operation.input.transition.to,
+              updatedAt: operation.input.transition.transitionedAt
+            }
+          })
+        ),
+      cleanupSyncedAndCancelled: () => Promise.resolve({ removedCount: 0 }),
+      enqueue: (operation) => Promise.resolve({ entry: operation.input.entry }),
+      getById: (operation) =>
+        Promise.resolve(
+          operation.input.queueEntryId === queuedEntry.queueEntryId ? queuedEntry : null
+        ),
+      listReadyForReplay: (operation) =>
+        Promise.resolve(
+          listPresenterLocalSyncQueueEntriesReadyForReplay([queuedEntry], operation.input)
+        ),
+      markConflict: (operation) =>
+        Promise.resolve(
+          PresenterLocalSyncQueueEntryMutationResultSchema.parse({
+            entry: {
+              ...queuedEntry,
+              conflict: operation.input.conflict,
+              status: "conflict",
+              updatedAt: operation.input.transition.transitionedAt
+            }
+          })
+        ),
+      markFailed: (operation) =>
+        Promise.resolve(
+          PresenterLocalSyncQueueEntryMutationResultSchema.parse({
+            entry: {
+              ...queuedEntry,
+              attemptCount: 1,
+              lastAttemptedAt: operation.input.transition.transitionedAt,
+              safeErrorMessage: operation.input.safeErrorMessage,
+              status: "failed",
+              updatedAt: operation.input.transition.transitionedAt
+            }
+          })
+        ),
+      markReplaying: (operation) =>
+        Promise.resolve(
+          PresenterLocalSyncQueueEntryMutationResultSchema.parse({
+            entry: {
+              ...queuedEntry,
+              attemptCount: queuedEntry.attemptCount + 1,
+              lastAttemptedAt: operation.input.transition.transitionedAt,
+              status: "replaying",
+              updatedAt: operation.input.transition.transitionedAt
+            }
+          })
+        ),
+      markSynced: (operation) =>
+        Promise.resolve(
+          PresenterLocalSyncQueueEntryMutationResultSchema.parse({
+            entry: {
+              ...queuedEntry,
+              attemptCount: 1,
+              lastAttemptedAt: "2026-06-21T14:07:00.000Z",
+              status: "synced",
+              updatedAt: operation.input.transition.transitionedAt
+            }
+          })
+        ),
+      requeue: (operation) =>
+        Promise.resolve(
+          PresenterLocalSyncQueueEntryMutationResultSchema.parse({
+            entry: {
+              ...queuedEntry,
+              attemptCount: 1,
+              lastAttemptedAt: "2026-06-21T14:07:00.000Z",
+              status: "queued",
+              updatedAt: operation.input.transition.transitionedAt
+            }
+          })
+        )
+    };
+
+    await expect(
+      localQueueRepository.getById(
+        GetPresenterLocalSyncQueueEntryPersistenceOperationSchema.parse({
+          input: {
+            queueEntryId: "queue_1"
+          },
+          options: readOptions
+        })
+      )
+    ).resolves.toMatchObject({
+      queueEntryId: "queue_1",
+      requestId: "request_queue_1"
+    });
+
+    await expect(
+      localQueueRepository.markReplaying({
+        input: {
+          queueEntryId: "queue_1",
+          transition: replayingTransition
+        },
+        options: writeOptions
+      })
+    ).resolves.toMatchObject({
+      entry: {
+        attemptCount: 1,
+        baseRevision: "rev_1",
+        requestId: "request_queue_1",
+        status: "replaying"
+      }
+    });
+
+    await expect(
+      localQueueRepository.listReadyForReplay(
+        ListPresenterLocalSyncQueueEntriesReadyForReplayPersistenceOperationSchema.parse({
+          input: {},
+          options: readOptions
+        })
+      )
+    ).resolves.toEqual([queuedEntry]);
   });
 });
