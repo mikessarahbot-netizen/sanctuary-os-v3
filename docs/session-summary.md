@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop runtime bootstrap (offline-sync runtime runnable end to end)
+
+Tasks completed:
+- Recorded ADR 0005: the desktop Presenter replay runtime runs in a Node context using `node:sqlite` (reusing the synchronous client), with the Tauri shell spawning it as a sidecar — chosen over an async Tauri-SQL-plugin client refactor.
+- Added `createPresenterFetchGraphqlTransport` (`apps/desktop/src/graphql-transport.ts`): a `fetch`-based GraphQL transport validating the `{ data, errors }` envelope and throwing on non-OK HTTP, with fake-`fetch` tests.
+- Added `createPresenterDesktopRuntimeBootstrap` (`apps/desktop/src/runtime-bootstrap.ts`): wires the transport, network executor, classifier, and a Node interval scheduler into `createPresenterDesktopReplayRuntime`, all from injected SQLite client/fetch/auth/connectivity.
+- Added a `node:sqlite` availability-guarded smoke proving the assembled bootstrap migrates, enqueues, replays an edit to `synced`, and skips while offline; added `zod` as a direct desktop dependency.
+- Wrote `07-reviews/architecture/presenter-desktop-runtime-bootstrap-release-check.md` (pass with follow-ups).
+- The Presenter offline-sync feature is now runnable end to end at the runtime level (storage, API coordinator/executor, desktop runtime + adapters + bootstrap, compiling Tauri shell). Four green workspaces (db 140, api 212 + 2 skipped, desktop 33, church-context 5).
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+- Pushed implementation commit `febf648` (`feat(desktop): bootstrap the Presenter replay runtime (ADR 0005)`).
+
+Next task:
+- Add the desktop Presenter sidecar entry: a Zod-validated runtime config loader and a Node entry that builds a real `node:sqlite` client and runs the runtime bootstrap.
+
+Open questions:
+- The API HTTP/GraphQL server transport is still unbuilt; the runtime assumes bearer auth + `x-request-id` idempotency + `extensions.code` conflict codes, which the server must honor.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop network replay executor + error classifier
 
 Tasks completed:

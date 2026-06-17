@@ -1,32 +1,31 @@
 # NOW
 
 ## Task
-Bootstrap the desktop Presenter replay runtime: a concrete fetch GraphQL transport, the SQLite-execution-model ADR, and a Node entry that wires every adapter and runs `createPresenterDesktopReplayRuntime`.
+Add the desktop Presenter sidecar entry: a Zod-validated runtime config loader and a Node entry that builds a real `node:sqlite` client and runs the runtime bootstrap.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `07-reviews/architecture/presenter-desktop-network-replay-executor-release-check.md`, and the desktop runtime/adapters (`apps/desktop/src/replay-runtime.ts`, `network-command-service.ts`, `replay-error-classifier.ts`, `local-sync-queue-store.ts`)
-- Record an ADR in `08-decisions/` for the desktop SQLite execution model: run the runtime in a Node context using `node:sqlite` (reusing the synchronous `SqliteMigrationDatabaseClient`), with the Tauri shell spawning it as a sidecar — chosen over an async Tauri-SQL-plugin client (which would force a sync→async client refactor)
-- Add a concrete `fetch`-based `PresenterGraphqlTransport` (injected `fetch` + endpoint URL) that POSTs the GraphQL request and parses `{ data, errors }`, with fake-`fetch` unit tests
-- Add a Node runtime bootstrap factory that builds the `node:sqlite`-backed migration client, the fetch transport + network executor, the error classifier, and the interval/connectivity/clock adapters, then calls `createPresenterDesktopReplayRuntime`
-- Add default unit tests (no live engine/network) plus a `node:sqlite` availability-guarded smoke proving the bootstrap migrates and exposes a scheduler
-- Keep this slice runtime-bootstrap-only; do not add the Tauri sidecar spawn, desktop UI, or a live network endpoint
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `08-decisions/0005-desktop-presenter-replay-runs-in-node-with-node-sqlite.md`, `07-reviews/architecture/presenter-desktop-runtime-bootstrap-release-check.md`, and `apps/desktop/src/runtime-bootstrap.ts`
+- Add a Zod-validated sidecar runtime config (GraphQL endpoint URL, replay interval, replay policy, local SQLite file path, tenant/actor identity, request-id header name) parsed from an injected env record, with default and rejection tests
+- Add a reusable `node:sqlite` → `SqliteMigrationDatabaseClient` wrapper helper (so the entry and smokes share one wrapper)
+- Add a Node sidecar entry function that, given a parsed config + injected SQLite client + fetch + auth token, calls `createPresenterDesktopRuntimeBootstrap` and starts the scheduler, returning a stop handle; keep the actual process `main`/stdin-stdout protocol thin and out of scope for now
+- Add default unit tests for config parsing and entry wiring (fake client/fetch) plus a `node:sqlite` availability-guarded smoke
+- Do not add the Tauri sidecar spawn config or UI yet (next slice); no checked-in secrets
 
 ## Out of scope
-Tauri sidecar process wiring · desktop UI screens · live network endpoint/secrets · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · API GraphQL server transport
+Tauri sidecar spawn/supervision config · desktop UI screens · live network endpoint/secrets · API GraphQL server transport · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config
 
 ## Progress
-- [x] Re-sync with the runtime, adapters, and executor release check
-- [x] Record the SQLite execution-model ADR in `08-decisions/` (ADR 0005)
-- [x] Add the concrete fetch GraphQL transport with fake-fetch tests
-- [x] Add the Node runtime bootstrap factory
-- [x] Add default tests and a `node:sqlite` availability-guarded smoke
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the bootstrap slice
+- [ ] Re-sync with the bootstrap and ADR 0005
+- [ ] Add the Zod sidecar config loader with tests
+- [ ] Add the `node:sqlite` migration-client wrapper helper
+- [ ] Add the sidecar entry function with tests + a `node:sqlite` smoke
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the sidecar entry slice
 - [ ] Session handoff
 
 ## Done when
-The SQLite execution-model ADR is recorded, a fetch GraphQL transport and a Node bootstrap factory wire every adapter and call `createPresenterDesktopReplayRuntime`, default tests pass without a live engine/network plus a `node:sqlite` smoke proves migrate + scheduler, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+A Zod-validated sidecar config loader, a reusable `node:sqlite` client wrapper, and a sidecar entry that runs the bootstrap and starts the scheduler are covered by default tests plus a `node:sqlite` smoke, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Wire the Tauri shell to spawn the Node runtime bootstrap as a sidecar (per the ADR) and surface queue/replay status in a minimal desktop UI — or address any bootstrap findings first.
+Wire the Tauri shell to spawn and supervise the sidecar (start/stop, crash recovery) and add a minimal desktop UI surfacing queue/replay status — or address any sidecar-entry findings first. Separately, the API HTTP/GraphQL server transport remains unbuilt and is required for a live endpoint.
