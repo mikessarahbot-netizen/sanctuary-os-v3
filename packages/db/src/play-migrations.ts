@@ -156,4 +156,92 @@ export const PlayInitialSchemaMigration = defineSqlMigrationArtifact({
   upSql
 });
 
-export const PlaySqlMigrations = [PlayInitialSchemaMigration] as const;
+export const PlayLocalSyncQueueMigrationTableNames = [
+  "play_local_sync_queue_entries"
+] as const;
+
+export const PlayLocalSyncQueueMigrationIndexNames = [
+  "play_local_sync_queue_pending_idx",
+  "play_local_sync_queue_status_idx",
+  "play_local_sync_queue_request_idx"
+] as const;
+
+const localSyncQueueUpSql = `
+CREATE TABLE play_local_sync_queue_entries (
+  tenant_id TEXT NOT NULL,
+  queue_entry_id TEXT NOT NULL,
+  track_set_id TEXT,
+  actor_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  operation TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  status TEXT NOT NULL,
+  safe_error_message TEXT,
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  queued_at TEXT NOT NULL,
+  last_attempted_at TEXT,
+  next_attempt_at TEXT,
+  schema_version TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, queue_entry_id),
+  CHECK (attempt_count >= 0),
+  CHECK (payload_json <> ''),
+  CHECK (schema_version = 'play-local-sync-queue.v1'),
+  CHECK (operation IN (
+    'saveTrackSet',
+    'updateTrackSetMembers',
+    'savePlayArrangement',
+    'savePlaySection',
+    'reorderPlaySections',
+    'addPlayCue',
+    'updatePlayCue',
+    'savePadLayer',
+    'setPlaybackState'
+  )),
+  CHECK (status IN ('pending', 'in-flight', 'failed', 'synced')),
+  CHECK (
+    (status = 'failed' AND safe_error_message IS NOT NULL)
+    OR (status <> 'failed' AND safe_error_message IS NULL)
+  ),
+  CHECK (next_attempt_at IS NULL OR status = 'failed'),
+  CHECK (last_attempted_at IS NULL OR attempt_count > 0)
+);
+
+CREATE INDEX play_local_sync_queue_pending_idx
+  ON play_local_sync_queue_entries (
+    tenant_id,
+    status,
+    queued_at,
+    queue_entry_id
+  );
+CREATE INDEX play_local_sync_queue_status_idx
+  ON play_local_sync_queue_entries (tenant_id, status, updated_at);
+CREATE INDEX play_local_sync_queue_request_idx
+  ON play_local_sync_queue_entries (tenant_id, request_id);
+`.trim();
+
+const localSyncQueueDownSql = `
+DROP INDEX IF EXISTS play_local_sync_queue_request_idx;
+DROP INDEX IF EXISTS play_local_sync_queue_status_idx;
+DROP INDEX IF EXISTS play_local_sync_queue_pending_idx;
+DROP TABLE IF EXISTS play_local_sync_queue_entries;
+`.trim();
+
+export const PlayLocalSyncQueueMigration = defineSqlMigrationArtifact({
+  auditTables: [],
+  description:
+    "Create the tenant-scoped Play local sync queue storage table and replay indexes.",
+  downSql: localSyncQueueDownSql,
+  migrationId: "202606170006_play_local_sync_queue",
+  requiredIndexes: [...PlayLocalSyncQueueMigrationIndexNames],
+  requiredTables: [...PlayLocalSyncQueueMigrationTableNames],
+  tenantScopedTables: [...PlayLocalSyncQueueMigrationTableNames],
+  transactional: true,
+  upSql: localSyncQueueUpSql
+});
+
+export const PlaySqlMigrations = [
+  PlayInitialSchemaMigration,
+  PlayLocalSyncQueueMigration
+] as const;
