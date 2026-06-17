@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Desktop replay sidecar config + entry
+
+Tasks completed:
+- Added a Zod-validated sidecar config loader (`apps/desktop/src/sidecar-config.ts`) parsing twelve env keys (GraphQL endpoint, auth token, SQLite path, replay interval/policy, tenant/actor identity, optional request-id header) from an injected env record into a typed config with a validated `AuthenticatedActor`.
+- Added a reusable `node:sqlite`/`better-sqlite3` → `SqliteMigrationDatabaseClient` wrapper (`apps/desktop/src/node-sqlite-client.ts`).
+- Added `startPresenterDesktopSidecar` (`apps/desktop/src/sidecar-entry.ts`): bootstraps the runtime, starts the scheduler, and returns a `{ runtime, stop }` handle.
+- Added 9 tests (config parse valid/invalid, wrapper delegation, and a `node:sqlite` smoke that starts the sidecar, replays a queued edit to `synced`, and stops cleanly).
+- Wrote `07-reviews/architecture/presenter-desktop-sidecar-entry-release-check.md` (pass with follow-ups).
+- The Presenter offline-sync feature is now complete from storage through a runnable sidecar entry; only the thin process `main`, Tauri sidecar spawn, and a status UI remain on the desktop side. Four green workspaces (db 140, api 212 + 2 skipped, desktop 42, church-context 5).
+- Validation passed: `pnpm --filter @sanctuary-os/desktop test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+- Pushed implementation commit `5812888` (`feat(desktop): add Presenter replay sidecar config and entry`).
+
+Next task:
+- Build the API HTTP/GraphQL server transport (transport-agnostic request handler: actor/requestId resolution, schema execution, conflict-code error mapping) — the live endpoint the desktop assumes.
+
+Open questions:
+- None blocking; the API server transport is the next foundational piece, after which the desktop sidecar can reach a real endpoint.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop runtime bootstrap (offline-sync runtime runnable end to end)
 
 Tasks completed:

@@ -1,31 +1,30 @@
 # NOW
 
 ## Task
-Add the desktop Presenter sidecar entry: a Zod-validated runtime config loader and a Node entry that builds a real `node:sqlite` client and runs the runtime bootstrap.
+Build the API HTTP/GraphQL server transport: an injected-`fetch`-style request handler that resolves the actor from the auth header, conveys `requestId`, executes the GraphQL schema, and maps service errors to `extensions.code` conflict codes.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `08-decisions/0005-desktop-presenter-replay-runs-in-node-with-node-sqlite.md`, `07-reviews/architecture/presenter-desktop-runtime-bootstrap-release-check.md`, and `apps/desktop/src/runtime-bootstrap.ts`
-- Add a Zod-validated sidecar runtime config (GraphQL endpoint URL, replay interval, replay policy, local SQLite file path, tenant/actor identity, request-id header name) parsed from an injected env record, with default and rejection tests
-- Add a reusable `node:sqlite` → `SqliteMigrationDatabaseClient` wrapper helper (so the entry and smokes share one wrapper)
-- Add a Node sidecar entry function that, given a parsed config + injected SQLite client + fetch + auth token, calls `createPresenterDesktopRuntimeBootstrap` and starts the scheduler, returning a stop handle; keep the actual process `main`/stdin-stdout protocol thin and out of scope for now
-- Add default unit tests for config parsing and entry wiring (fake client/fetch) plus a `node:sqlite` availability-guarded smoke
-- Do not add the Tauri sidecar spawn config or UI yet (next slice); no checked-in secrets
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/api/src/graphql/index.ts`, `apps/api/src/graphql/presenter.ts`, `apps/api/src/auth/index.ts`, and the desktop network executor's assumed conventions (bearer auth, `x-request-id`, `extensions.code`)
+- Add a transport-agnostic GraphQL request handler (`{ headers, body }` → `{ status, body }`) that parses the request, resolves the `AuthenticatedActor` via an injected `AuthBoundary.resolveActor` from the `Authorization` header, derives `requestId` from the `x-request-id` header (or a generated fallback), builds the GraphQL context, executes the schema, and serializes `{ data, errors }`
+- Map domain/service errors to GraphQL `errors[].extensions.code` using the conflict codes the desktop classifier expects (`STALE_PRESENTATION`, `MISSING_SLIDE`, `THEME_MISMATCH`, `OUTPUT_TARGET_MISMATCH`, `VALIDATION_FAILED`, `AUTHORIZATION_FAILED`); redact internal error text
+- Add focused unit tests (fake auth boundary + in-memory services) covering a successful mutation, an unauthenticated request, an idempotency-key passthrough, and a conflict-code mapping, with no live HTTP server, network, or secret
+- Keep this slice the request-handler contract only; do not bind a concrete Node `http`/framework listener, add deployment config, or change desktop code
 
 ## Out of scope
-Tauri sidecar spawn/supervision config · desktop UI screens · live network endpoint/secrets · API GraphQL server transport · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config
+Concrete Node `http`/framework server binding · deployment/runtime config · desktop process main / Tauri spawn / UI · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [x] Re-sync with the bootstrap and ADR 0005
-- [x] Add the Zod sidecar config loader with tests
-- [x] Add the `node:sqlite` migration-client wrapper helper
-- [x] Add the sidecar entry function with tests + a `node:sqlite` smoke
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the sidecar entry slice
+- [ ] Re-sync with the GraphQL schema, context, auth boundary, and desktop conventions
+- [ ] Add the transport-agnostic GraphQL request handler with actor/requestId resolution
+- [ ] Add the service-error → `extensions.code` conflict mapping
+- [ ] Add focused unit tests (success / unauthenticated / idempotency / conflict)
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the API transport slice
 - [ ] Session handoff
 
 ## Done when
-A Zod-validated sidecar config loader, a reusable `node:sqlite` client wrapper, and a sidecar entry that runs the bootstrap and starts the scheduler are covered by default tests plus a `node:sqlite` smoke, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+A transport-agnostic GraphQL request handler resolves the actor and `requestId`, executes the schema, and maps service errors to the conflict codes the desktop expects, covered by fake-boundary unit tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Wire the Tauri shell to spawn and supervise the sidecar (start/stop, crash recovery) and add a minimal desktop UI surfacing queue/replay status — or address any sidecar-entry findings first. Separately, the API HTTP/GraphQL server transport remains unbuilt and is required for a live endpoint.
+Bind the request handler to a concrete Node `http` listener (separate slice), then return to the desktop tail: the process `main`, the Tauri sidecar spawn/supervision, and a minimal status UI.
