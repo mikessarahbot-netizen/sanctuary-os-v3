@@ -1,34 +1,32 @@
 # NOW
 
 ## Task
-Add Presenter PostgreSQL persistence migrations and repository adapters.
+Wire API runtime composition to select Presenter persistence adapters.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/presenter-module-plan.md`, `07-reviews/architecture/presenter-api-event-persistence-release-check.md`, `packages/db/src/presenter-repository-contracts.ts`, and current Planning SQL migration/adapter patterns
-- Add Presenter SQL migration definitions for saved presentations, slides, slide blocks, scripture passages/verses, media cues, themes, output targets, presentation-output target links, and audit metadata needed by the current persistence contracts
-- Implement PostgreSQL-compatible Presenter query and command repository adapters satisfying `PresenterQueryPersistenceRepository` and `PresenterCommandPersistenceRepository`
-- Preserve tenant scope, actor/request audit metadata, mutation intent, transaction propagation, row validation, opaque IDs, no raw media payload storage, no OBS/stream automation, and no checked-in secrets
-- Use recording-executor tests only; no live PostgreSQL requirement in the default gates
-- Add focused DB tests for migration shape, tenant predicates, audit inserts, operation validation, transaction behavior, row parsing, slide ordering, output target links, and rejection of raw media/secret/vendor fields
+- Re-sync with `agents.md`, `docs/session-summary.md`, `00-product/vision.md`, `01-architecture/system-map.md`, `02-standards/engineering-rules.md`, `05-plans/api-plan.md`, `05-plans/presenter-module-plan.md`, `07-reviews/architecture/presenter-api-event-persistence-release-check.md`, current Presenter API service composition, and `packages/db/src/presenter-sql-repository.ts`
+- Add an API composition boundary for Presenter persistence selection that mirrors existing Planning runtime composition patterns where appropriate
+- Support explicit in-memory/test Presenter persistence and production PostgreSQL Presenter persistence adapter construction without a live DB requirement in default tests
+- Preserve tenant scope, actor/request propagation, repository contract boundaries, no raw media payload storage, no OBS/stream automation, no checked-in secrets, and no direct GraphQL-to-DB coupling
+- Add focused API tests for adapter selection, default/test mode behavior, production adapter construction, and prevention of accidental live database work in unit tests
 - Run lint, typecheck, and tests
 - Commit and push the slice
 - Run session handoff
 
 ## Out of scope
-Live PostgreSQL integration · migration runner execution · API runtime composition · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
+Live PostgreSQL integration · migration runner execution · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [x] Re-sync with required docs and current DB patterns
-- [x] Add Presenter SQL migration definitions
-- [x] Add Presenter PostgreSQL query and command repository adapters
-- [x] Add focused Presenter SQL persistence tests
-- [x] Run lint, typecheck, and tests
+- [ ] Re-sync with required docs and current API/DB composition patterns
+- [ ] Add Presenter persistence composition boundary
+- [ ] Add focused API composition tests
+- [ ] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
 ## Done when
-Presenter has tested PostgreSQL-compatible migrations and repository adapters satisfying the current persistence contracts, preserving tenant/audit scope and adapter isolation, passing default live-DB-free gates, committed and pushed with handoff documentation.
+Presenter API composition can select in-memory/test or production PostgreSQL persistence adapters through a tested boundary, preserving service/repository isolation and passing default live-DB-free gates, committed and pushed with handoff documentation.
 
 ## Next task after this
-Wire API runtime composition to select in-memory/test or production Presenter persistence adapters, or address any SQL persistence release-check findings first.
+Run a focused Presenter persistence composition release check, or address any composition findings first.

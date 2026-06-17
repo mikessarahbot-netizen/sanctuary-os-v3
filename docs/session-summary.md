@@ -19,6 +19,22 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 21:59 EDT · feature/presenter-domain-contracts
+
+Tasks completed:
+- Continued the Presenter persistence foundation from the release-check handoff in a clean temporary worktree, leaving unrelated dirty changes in the original worktree untouched.
+- Added Presenter PostgreSQL migration artifacts for presentations, slides, slide blocks, scripture passages/verses, media cues, themes, output targets, presentation-output target links, and audit metadata.
+- Added PostgreSQL-compatible Presenter query and command repository adapters with tenant predicates, transaction propagation, row validation, actor/request audit metadata, mutation intent auditing, slide ordering support, output target links, and raw-media/secret/vendor-field rejection.
+- Added focused DB tests using recording executors only; no live PostgreSQL dependency was introduced.
+- Rebased the local SQL persistence commit onto the latest pushed `feature/presenter-domain-contracts` branch and pushed `902584c feat(db): add presenter sql persistence`.
+- Verified `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass after the rebase.
+
+Next task:
+- Wire API runtime composition to select in-memory/test or production Presenter persistence adapters.
+
+Open questions:
+- None.
+
 ## 2026-06-16 21:44 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
