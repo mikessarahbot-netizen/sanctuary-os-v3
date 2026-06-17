@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  parsePresenterDesktopOutputWindow,
+  parsePresenterDesktopRunModeStatus,
   parsePresentation,
   parsePresenterLoadedRunModeState,
+  parsePresenterOutputWindowRenderContext,
   parsePresenterRunModeAction
 } from "./contracts.js";
 
@@ -136,6 +139,40 @@ const mainOutputTarget = {
   targetKind: "main",
   tenantId: "tenant_1",
   windowRef: "display:main"
+};
+
+const mainOutputWindow = {
+  confidenceOutputEligible: false,
+  displayName: "Main Projector",
+  lastHealthCheckAt: timestamp,
+  lifecycleState: "visible",
+  outputRole: "main",
+  outputTargetId: "output_main",
+  safeBlanked: false,
+  tenantId: "tenant_1",
+  windowId: "window_main",
+  windowRef: "display:main"
+};
+
+const confidenceOutputWindow = {
+  confidenceOutputEligible: true,
+  displayName: "Confidence Monitor",
+  lifecycleState: "visible",
+  outputRole: "confidence",
+  outputTargetId: "output_confidence",
+  safeBlanked: false,
+  tenantId: "tenant_1",
+  windowId: "window_confidence",
+  windowRef: "display:confidence"
+};
+
+const localRunModeStatus = {
+  apiConnectionState: "offline",
+  lastApiReachableAt: timestamp,
+  localPlaybackReady: true,
+  offlineSince: "2026-06-16T20:56:00.000Z",
+  pendingSyncQueueSize: 1,
+  syncState: "queued"
 };
 
 describe("Presenter domain contracts", () => {
@@ -305,6 +342,162 @@ describe("Presenter domain contracts", () => {
         action: "blankOutput",
         obsToken: "secret",
         tenantId: "tenant_1"
+      })
+    ).toThrow("Unrecognized key");
+  });
+
+  it("validates desktop output windows and local offline run-mode status", () => {
+    expect(parsePresenterDesktopOutputWindow(mainOutputWindow)).toMatchObject({
+      outputRole: "main",
+      windowId: "window_main"
+    });
+
+    expect(parsePresenterDesktopRunModeStatus(localRunModeStatus)).toMatchObject({
+      apiConnectionState: "offline",
+      syncState: "queued"
+    });
+
+    expect(() =>
+      parsePresenterDesktopRunModeStatus({
+        ...localRunModeStatus,
+        offlineSince: undefined
+      })
+    ).toThrow("Offline run mode status must include when offline mode began.");
+
+    expect(() =>
+      parsePresenterDesktopRunModeStatus({
+        ...localRunModeStatus,
+        pendingSyncQueueSize: 2,
+        syncState: "synced"
+      })
+    ).toThrow("Queued local changes cannot be marked synced.");
+  });
+
+  it("rejects unsafe desktop output window states", () => {
+    expect(() =>
+      parsePresenterDesktopOutputWindow({
+        ...mainOutputWindow,
+        confidenceOutputEligible: true
+      })
+    ).toThrow("Main output windows cannot be confidence-output eligible.");
+
+    expect(() =>
+      parsePresenterDesktopOutputWindow({
+        ...mainOutputWindow,
+        lifecycleState: "failed",
+        safeBlanked: false
+      })
+    ).toThrow("Failed output windows must include a failure reason.");
+
+    expect(() =>
+      parsePresenterDesktopOutputWindow({
+        ...mainOutputWindow,
+        failureReason: "Display disconnected",
+        lifecycleState: "failed",
+        safeBlanked: false
+      })
+    ).toThrow("Failed output windows must remain safe blanked.");
+  });
+
+  it("validates active slide rendering context for desktop output windows", () => {
+    const context = parsePresenterOutputWindowRenderContext({
+      activeSlide: scriptureSlide,
+      confidenceOutputEnabled: true,
+      localStatus: localRunModeStatus,
+      outputBlanked: false,
+      presentationId: "presentation_1",
+      tenantId: "tenant_1",
+      theme: baseTheme,
+      window: mainOutputWindow
+    });
+
+    expect(context.activeSlide.slideId).toBe("slide_2");
+    expect(context.window.windowRef).toBe("display:main");
+
+    expect(() =>
+      parsePresenterOutputWindowRenderContext({
+        ...context,
+        activeSlide: { ...scriptureSlide, tenantId: "tenant_2" }
+      })
+    ).toThrow("Active slide tenant must match render context tenant.");
+
+    expect(() =>
+      parsePresenterOutputWindowRenderContext({
+        ...context,
+        activeSlide: { ...scriptureSlide, presentationId: "presentation_2" }
+      })
+    ).toThrow("Active slide presentation must match render context presentation.");
+
+    expect(() =>
+      parsePresenterOutputWindowRenderContext({
+        ...context,
+        window: { ...mainOutputWindow, tenantId: "tenant_2" }
+      })
+    ).toThrow("Output window tenant must match render context tenant.");
+  });
+
+  it("keeps blanked and disabled confidence output windows safe", () => {
+    expect(() =>
+      parsePresenterOutputWindowRenderContext({
+        activeSlide: scriptureSlide,
+        confidenceOutputEnabled: true,
+        localStatus: localRunModeStatus,
+        outputBlanked: true,
+        presentationId: "presentation_1",
+        tenantId: "tenant_1",
+        theme: baseTheme,
+        window: mainOutputWindow
+      })
+    ).toThrow("Output window must be safe blanked when run mode output is blanked.");
+
+    expect(() =>
+      parsePresenterOutputWindowRenderContext({
+        activeSlide: scriptureSlide,
+        confidenceOutputEnabled: false,
+        localStatus: localRunModeStatus,
+        outputBlanked: false,
+        presentationId: "presentation_1",
+        tenantId: "tenant_1",
+        theme: baseTheme,
+        window: confidenceOutputWindow
+      })
+    ).toThrow("Disabled confidence output windows must remain safe blanked.");
+  });
+
+  it("rejects OBS, stream, raw media, and secret fields at desktop output boundaries", () => {
+    expect(() =>
+      parsePresenterDesktopOutputWindow({
+        ...mainOutputWindow,
+        obsScene: "scene_main"
+      })
+    ).toThrow("Unrecognized key");
+
+    expect(() =>
+      parsePresenterOutputWindowRenderContext({
+        activeSlide: scriptureSlide,
+        confidenceOutputEnabled: true,
+        localStatus: localRunModeStatus,
+        outputBlanked: false,
+        presentationId: "presentation_1",
+        rawMediaPayload: "base64",
+        tenantId: "tenant_1",
+        theme: baseTheme,
+        window: mainOutputWindow
+      })
+    ).toThrow("Unrecognized key");
+
+    expect(() =>
+      parsePresenterOutputWindowRenderContext({
+        activeSlide: scriptureSlide,
+        confidenceOutputEnabled: true,
+        localStatus: localRunModeStatus,
+        outputBlanked: false,
+        presentationId: "presentation_1",
+        startStream: true,
+        tenantId: "tenant_1",
+        theme: baseTheme,
+        vendorToken: "secret",
+        window: mainOutputWindow
       })
     ).toThrow("Unrecognized key");
   });

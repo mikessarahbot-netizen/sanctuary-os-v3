@@ -16,6 +16,8 @@ export const PresenterScripturePassageIdSchema =
 export const PresenterMediaCueIdSchema = NonEmptyStringSchema.brand<"PresenterMediaCueId">();
 export const PresenterOutputTargetIdSchema =
   NonEmptyStringSchema.brand<"PresenterOutputTargetId">();
+export const PresenterOutputWindowIdSchema =
+  NonEmptyStringSchema.brand<"PresenterOutputWindowId">();
 export const PresenterThemeIdSchema = NonEmptyStringSchema.brand<"PresenterThemeId">();
 export const PresenterServiceIdSchema = NonEmptyStringSchema.brand<"PresenterServiceId">();
 export const PresenterServiceItemIdSchema =
@@ -389,6 +391,160 @@ export const PresenterRunModeActionSchema = z.union([
   ToggleConfidenceOutputActionSchema
 ]);
 
+export const PresenterDesktopOutputWindowSchema = z
+  .object({
+    confidenceOutputEligible: z.boolean().default(false),
+    displayName: NonEmptyStringSchema,
+    failureReason: NonEmptyStringSchema.optional(),
+    lastHealthCheckAt: IsoDateTimeStringSchema.optional(),
+    lifecycleState: z.enum(["registered", "visible", "hidden", "failed"]),
+    outputRole: z.enum(["main", "confidence", "stage-display"]),
+    outputTargetId: PresenterOutputTargetIdSchema,
+    safeBlanked: z.boolean(),
+    tenantId: PresenterTenantIdSchema,
+    windowId: PresenterOutputWindowIdSchema,
+    windowRef: NonEmptyStringSchema
+  })
+  .strict()
+  .superRefine((window, context) => {
+    if (window.outputRole === "main" && window.confidenceOutputEligible) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Main output windows cannot be confidence-output eligible.",
+        path: ["confidenceOutputEligible"]
+      });
+    }
+
+    if (window.lifecycleState === "failed" && window.failureReason === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Failed output windows must include a failure reason.",
+        path: ["failureReason"]
+      });
+    }
+
+    if (window.lifecycleState === "failed" && !window.safeBlanked) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Failed output windows must remain safe blanked.",
+        path: ["safeBlanked"]
+      });
+    }
+  });
+
+export const PresenterDesktopRunModeStatusSchema = z
+  .object({
+    apiConnectionState: z.enum(["online", "degraded", "offline"]),
+    lastApiReachableAt: IsoDateTimeStringSchema.optional(),
+    localPlaybackReady: z.boolean(),
+    offlineSince: IsoDateTimeStringSchema.optional(),
+    pendingSyncQueueSize: NonNegativeIntegerSchema,
+    syncState: z.enum(["synced", "queued", "conflict", "failed"])
+  })
+  .strict()
+  .superRefine((status, context) => {
+    if (status.apiConnectionState === "offline" && status.offlineSince === undefined) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Offline run mode status must include when offline mode began.",
+        path: ["offlineSince"]
+      });
+    }
+
+    if (status.pendingSyncQueueSize > 0 && status.syncState === "synced") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Queued local changes cannot be marked synced.",
+        path: ["syncState"]
+      });
+    }
+
+    if (status.pendingSyncQueueSize === 0 && status.syncState === "queued") {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Queued sync state requires pending local changes.",
+        path: ["pendingSyncQueueSize"]
+      });
+    }
+  });
+
+export const PresenterOutputWindowRenderContextSchema = z
+  .object({
+    activeSlide: SlideSchema,
+    confidenceOutputEnabled: z.boolean(),
+    localStatus: PresenterDesktopRunModeStatusSchema,
+    outputBlanked: z.boolean(),
+    presentationId: PresenterPresentationIdSchema,
+    tenantId: PresenterTenantIdSchema,
+    theme: PresenterThemeSchema,
+    window: PresenterDesktopOutputWindowSchema
+  })
+  .strict()
+  .superRefine((contextValue, context) => {
+    if (contextValue.window.tenantId !== contextValue.tenantId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Output window tenant must match render context tenant.",
+        path: ["window", "tenantId"]
+      });
+    }
+
+    if (contextValue.activeSlide.tenantId !== contextValue.tenantId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Active slide tenant must match render context tenant.",
+        path: ["activeSlide", "tenantId"]
+      });
+    }
+
+    if (contextValue.activeSlide.presentationId !== contextValue.presentationId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Active slide presentation must match render context presentation.",
+        path: ["activeSlide", "presentationId"]
+      });
+    }
+
+    if (contextValue.theme.tenantId !== contextValue.tenantId) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Theme tenant must match render context tenant.",
+        path: ["theme", "tenantId"]
+      });
+    }
+
+    if (contextValue.outputBlanked && !contextValue.window.safeBlanked) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Output window must be safe blanked when run mode output is blanked.",
+        path: ["window", "safeBlanked"]
+      });
+    }
+
+    if (
+      contextValue.window.outputRole === "confidence" &&
+      !contextValue.window.confidenceOutputEligible
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Confidence output windows must be marked confidence-output eligible.",
+        path: ["window", "confidenceOutputEligible"]
+      });
+    }
+
+    if (
+      contextValue.window.outputRole === "confidence" &&
+      !contextValue.confidenceOutputEnabled &&
+      !contextValue.window.safeBlanked
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Disabled confidence output windows must remain safe blanked.",
+        path: ["window", "safeBlanked"]
+      });
+    }
+  });
+
 export type PresenterTenantId = z.infer<typeof PresenterTenantIdSchema>;
 export type PresenterPresentationId = z.infer<typeof PresenterPresentationIdSchema>;
 export type PresenterSlideId = z.infer<typeof PresenterSlideIdSchema>;
@@ -398,6 +554,7 @@ export type PresenterScripturePassageId = z.infer<
 >;
 export type PresenterMediaCueId = z.infer<typeof PresenterMediaCueIdSchema>;
 export type PresenterOutputTargetId = z.infer<typeof PresenterOutputTargetIdSchema>;
+export type PresenterOutputWindowId = z.infer<typeof PresenterOutputWindowIdSchema>;
 export type PresenterThemeId = z.infer<typeof PresenterThemeIdSchema>;
 export type PresenterServiceId = z.infer<typeof PresenterServiceIdSchema>;
 export type PresenterServiceItemId = z.infer<typeof PresenterServiceItemIdSchema>;
@@ -420,6 +577,15 @@ export type PresenterLoadedRunModeState = z.infer<
   typeof PresenterLoadedRunModeStateSchema
 >;
 export type PresenterRunModeAction = z.infer<typeof PresenterRunModeActionSchema>;
+export type PresenterDesktopOutputWindow = z.infer<
+  typeof PresenterDesktopOutputWindowSchema
+>;
+export type PresenterDesktopRunModeStatus = z.infer<
+  typeof PresenterDesktopRunModeStatusSchema
+>;
+export type PresenterOutputWindowRenderContext = z.infer<
+  typeof PresenterOutputWindowRenderContextSchema
+>;
 
 export const parsePresentation = (rawInput: unknown): Presentation =>
   PresentationSchema.parse(rawInput);
@@ -430,3 +596,16 @@ export const parsePresenterLoadedRunModeState = (
 
 export const parsePresenterRunModeAction = (rawInput: unknown): PresenterRunModeAction =>
   PresenterRunModeActionSchema.parse(rawInput);
+
+export const parsePresenterDesktopOutputWindow = (
+  rawInput: unknown
+): PresenterDesktopOutputWindow => PresenterDesktopOutputWindowSchema.parse(rawInput);
+
+export const parsePresenterDesktopRunModeStatus = (
+  rawInput: unknown
+): PresenterDesktopRunModeStatus => PresenterDesktopRunModeStatusSchema.parse(rawInput);
+
+export const parsePresenterOutputWindowRenderContext = (
+  rawInput: unknown
+): PresenterOutputWindowRenderContext =>
+  PresenterOutputWindowRenderContextSchema.parse(rawInput);

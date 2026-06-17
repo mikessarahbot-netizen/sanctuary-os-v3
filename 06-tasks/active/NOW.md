@@ -18,12 +18,12 @@ Add Presenter desktop run-mode/output-window contracts.
 Desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter contracts
-- [ ] Design the smallest desktop run-mode/output-window contract extension
-- [ ] Implement strict schemas/types and parser helpers
-- [ ] Add focused contract tests
-- [ ] Update lightweight boundary docs
-- [ ] Run validation
+- [x] Re-sync with required docs and current Presenter contracts
+- [x] Design the smallest desktop run-mode/output-window contract extension
+- [x] Implement strict schemas/types and parser helpers
+- [x] Add focused contract tests
+- [x] Update lightweight boundary docs
+- [x] Run validation
 - [ ] Commit and push slice
 - [ ] Session handoff
 
