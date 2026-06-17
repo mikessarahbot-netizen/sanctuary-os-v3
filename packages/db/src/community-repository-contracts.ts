@@ -334,7 +334,6 @@ export const CommunicationMessagePersistenceRecordSchema = z
     createdByRef: NonEmptyStringSchema,
     messageId: NonEmptyStringSchema,
     origin: CommunicationOriginSchema,
-    schemaVersion: CommunityStorageSchemaVersionSchema,
     status: CommunicationStatusSchema,
     subject: OptionalNonEmptyStringSchema,
     tenantId: NonEmptyStringSchema,
