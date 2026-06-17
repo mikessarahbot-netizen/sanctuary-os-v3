@@ -18,15 +18,23 @@ Create the next product module plan after Planning persistence readiness.
 Module implementation code · UI screens · database migrations · vendor SDK integration · OBS control implementation · Auth0 integration · deployment config · checked-in secrets · GraphQL contract changes outside plan documentation
 
 ## Progress
-- [ ] Re-sync with required docs, existing plans, and architecture reviews
-- [ ] Decide the next product module after Planning persistence readiness
-- [ ] Add the next module plan in `05-plans/`
-- [ ] Run lint, typecheck, and tests
-- [ ] Commit and push slice
-- [ ] Session handoff
+- [x] Re-sync with required docs, existing plans, and architecture reviews
+- [x] Decide the next product module after Planning persistence readiness
+- [x] Add the next module plan in `05-plans/`
+- [x] Run lint, typecheck, and tests
+- [x] Commit and push slice
+- [x] Session handoff
+
+## Decision
+Presenter is the next product module after Planning persistence readiness.
+
+Rationale:
+- Presenter consumes Planning service structure directly, making it the most natural next workflow after service planning and persistence.
+- Presenter can establish service-linked slide/output contracts before higher-risk Play playback and OBS automation work.
+- The first Presenter slice can remain documentation/contract-focused while honoring privacy, safety, and offline-first constraints.
 
 ## Done when
 A next-module plan exists in `05-plans/`, the module choice is documented through the plan/session summary, gates pass, the slice is committed and pushed, and handoff records the exact next implementation task.
 
 ## Next task after this
-Start the first approved implementation slice from the new module plan.
+Start the first approved Presenter implementation slice: define Presenter domain schemas and service contracts without UI, DB adapters, vendor SDKs, or OBS control.
