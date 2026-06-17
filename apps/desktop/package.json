@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sanctuary-os/api": "workspace:*",
     "@sanctuary-os/db": "workspace:*"
   }
 }

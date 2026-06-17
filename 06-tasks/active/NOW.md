@@ -15,10 +15,10 @@ Add the desktop Presenter local sync queue replay pass that drives an injected c
 Timer/interval scheduler loop · offline/online detection · rich conflict-vs-failure error classification (follow-up) · Tauri/Rust shell · real desktop windows · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · GraphQL/API replay changes
 
 ## Progress
-- [ ] Re-sync with the decision, coordinator, repository, and command service contracts
-- [ ] Add `@sanctuary-os/api` desktop dependency and the replay pass
-- [ ] Add focused replay-pass tests with fakes
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the decision, coordinator, repository, and command service contracts
+- [x] Add `@sanctuary-os/api` desktop dependency and the replay pass
+- [x] Add focused replay-pass tests with fakes
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the replay pass slice
 - [ ] Session handoff
 

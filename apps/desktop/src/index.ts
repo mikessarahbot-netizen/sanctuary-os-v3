@@ -5,6 +5,7 @@ import {
 } from "@sanctuary-os/db";
 
 export * from "./local-sync-queue-store.js";
+export * from "./replay-pass.js";
 
 /**
  * Entry point for the Sanctuary OS desktop app workspace.

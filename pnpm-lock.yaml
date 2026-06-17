@@ -48,6 +48,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@sanctuary-os/api':
+        specifier: workspace:*
+        version: link:../api
       '@sanctuary-os/db':
         specifier: workspace:*
         version: link:../../packages/db
