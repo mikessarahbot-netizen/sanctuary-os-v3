@@ -1,30 +1,32 @@
 # NOW
 
 ## Task
-Wire the in-memory Presenter command service to throw `PresenterDomainError` for real conflict conditions, completing the conflict path with actual detection.
+Add the desktop sidecar process entry: wire a real `node:sqlite` database and `fetch` from the parsed env config into `startPresenterDesktopSidecar`, with a thin runnable `main`.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/api/src/services/presenter/in-memory.ts`, `apps/api/src/domain/presenter/errors.ts`, and the desktop classifier codes
-- Have the in-memory Presenter command service throw the typed `PresenterDomainError` for the conditions it can detect: missing presentation/slide (`MISSING_SLIDE`), unknown theme (`THEME_MISMATCH`), unknown/invalid output target (`OUTPUT_TARGET_MISMATCH`), and tenant/authorization mismatch (`AUTHORIZATION_FAILED`); use validation failures (`VALIDATION_FAILED`) where inputs violate invariants
-- Where a base-revision is tracked or can be added cheaply, throw `STALE_PRESENTATION`; otherwise document it as still pending the revision-tracking work
-- Keep each thrown error's `safeMessage` operator-safe and redacted
-- Add focused service unit tests for each thrown code, and (optionally) one transport-level test confirming the code surfaces as `extensions.code`
-- Keep this slice service-side detection only; do not change the desktop, the transport, deployment, or unrelated services
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/desktop/src/sidecar-entry.ts`, `sidecar-config.ts`, `node-sqlite-client.ts`, and `graphql-transport.ts`
+- Add `startPresenterDesktopSidecarFromEnv(env, deps?)`: parse the sidecar config, open a `node:sqlite` database at `config.sqliteFilePath`, wrap it as the migration client, adapt `globalThis.fetch` to `PresenterFetchLike`, and call `startPresenterDesktopSidecar` — returning the handle (keep the `node:sqlite` import injectable/dynamic so the module stays loadable without it)
+- Add a thin runnable entry (`sidecar-main`) that calls the above with `process.env`, installs `SIGINT`/`SIGTERM` handlers to `stop()` and close the database, and is the only non-unit-tested shell
+- Add a `fetch` adapter from `globalThis.fetch` to the `PresenterFetchLike` shape
+- Add default tests for the `fetch` adapter and a `node:sqlite` availability-guarded smoke that runs `startPresenterDesktopSidecarFromEnv` against an in-memory path and replays a queued edit
+- Keep this slice the process-entry wiring only; do not add the Tauri sidecar spawn config or UI (next slice)
 
 ## Out of scope
-Concrete deployment/process entry · desktop process main / Tauri spawn / UI · planning wiring · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
+Tauri sidecar spawn/supervision config · desktop UI screens · deployment/packaging · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [x] Re-sync with the in-memory service, the typed error, and the codes
-- [x] Throw `PresenterDomainError` for each detectable condition in the in-memory command service
-- [x] Update existing tests for the new messages; add 6 per-code unit tests
-- [x] Run lint, typecheck, and tests
-- [ ] Commit and push the conflict-detection slice
+- [ ] Re-sync with the sidecar entry, config, and adapters
+- [ ] Add the `globalThis.fetch` → `PresenterFetchLike` adapter with tests
+- [ ] Add `startPresenterDesktopSidecarFromEnv` wiring `node:sqlite` + fetch
+- [ ] Add a thin runnable `sidecar-main` entry with signal handling
+- [ ] Add a `node:sqlite` availability-guarded smoke
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the process-entry slice
 - [ ] Session handoff
 
 ## Done when
-The in-memory Presenter command service throws the typed `PresenterDomainError` for each detectable conflict condition with a redacted message, each is covered by a unit test, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
+`startPresenterDesktopSidecarFromEnv` wires a real `node:sqlite` database and `fetch` from env config into the sidecar, a thin `main` runs it with signal handling, the fetch adapter and a `node:sqlite` smoke pass, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Desktop tail: add the thin process `main`, the Tauri sidecar spawn/supervision, and a minimal status UI surfacing pending/conflict/failed entries — addressing any conflict-detection findings first.
+Wire the Tauri shell to spawn/supervise the sidecar process and add a minimal desktop status UI surfacing pending/conflict/failed queue entries — addressing any process-entry findings first.

@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Presenter service conflict detection (typed errors)
+
+Tasks completed:
+- Replaced the in-memory Presenter command service's generic errors with typed `PresenterDomainError`, mapping each detectable condition to the conflict code the desktop classifier expects: missing presentation → `STALE_PRESENTATION`, tenant/role → `AUTHORIZATION_FAILED`, unknown theme → `THEME_MISMATCH`, unknown/missing slide → `MISSING_SLIDE`, output-target tenant → `OUTPUT_TARGET_MISMATCH`, reorder/keep-one invariants → `VALIDATION_FAILED`.
+- This completes the offline conflict round-trip with real detection: a replayed edit hitting one of these conditions now yields `extensions.code` → desktop `conflict`.
+- Updated four existing in-memory assertions for the new safe messages; added `presenter-domain-error.test.ts` with 6 per-code tests (api now 230 + 2 skipped).
+- Wrote `07-reviews/architecture/presenter-service-conflict-detection-release-check.md` (pass).
+- Validation passed: `pnpm --filter @sanctuary-os/api test`, `pnpm lint`, `pnpm typecheck`, `pnpm test`.
+- Pushed implementation commit `897f4b5` (`feat(api): throw typed Presenter domain errors for conflict conditions`).
+
+Next task:
+- Add the desktop sidecar process entry: wire a real `node:sqlite` database and `fetch` from env config into `startPresenterDesktopSidecar`, with a thin runnable `main`.
+
+Open questions:
+- `STALE_PRESENTATION` fires on a missing presentation; base-revision staleness needs server revision tracking (follow-up).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - API Presenter GraphQL HTTP listener
 
 Tasks completed:
