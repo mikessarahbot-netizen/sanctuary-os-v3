@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - API Presenter GraphQL HTTP listener
+
+Tasks completed:
+- Added `apps/api/src/graphql/http-server.ts`: a pure `handlePresenterGraphqlHttpInvocation` adapter (path/method checks, JSON body parse + Zod validation, serialization) plus `createPresenterGraphqlHttpServer` wrapping `node:http`.
+- Only POST to the configured path is served; malformed body → 400, wrong path → 404, non-POST → 405; headers normalized from `string | string[] | undefined`.
+- Added 4 pure adapter tests and 2 real listen-on-ephemeral-port + `fetch` smokes (200 with data, 401 unauthenticated). The API now serves the Presenter GraphQL surface the desktop sidecar targets.
+- Wrote `07-reviews/architecture/presenter-api-graphql-http-listener-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm --filter @sanctuary-os/api test -- http-server.test.ts`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (api 224 + 2 skipped).
+- Pushed implementation commit `5162f9a` (`feat(api): bind the Presenter GraphQL handler to a Node http listener`).
+
+Next task:
+- Wire the in-memory Presenter command service to throw `PresenterDomainError` for real conflict conditions (completing the conflict path with detection).
+
+Open questions:
+- A process entry (env-driven host/port + `server.listen`) and deployment/TLS are out of the testable core and remain for the runtime/deploy thread.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Typed Presenter domain error + conflict-code mapping
 
 Tasks completed:
