@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 4: SQLite adapter
+
+Tasks completed:
+- Community+ slice 4 (delegated; parent verified gates): `packages/db/src/community-sql-repository.ts` — query + command SQL repositories over an injected executor; tenant-filtered, row↔contract mapping, boolean↔0/1, *_json (de)serialization, column-decomposed confirmation/scope/attendance, atomic confirmation-gated message status transition, partial-unique-aware writes. Reconciled the message schemaVersion (dropped from the contract; matches DDL + domain + charts/play precedent). +21 db tests (incl. node:sqlite smoke + no-raw-PII assertion). Gates green: db 401 / api 499 + 2 skipped / desktop 89 / church-context 5. Committed `f417e35`.
+
+Next task:
+- Community+ slice 5: GraphQL + in-memory service (domain contracts/errors, services/community/in-memory.ts, graphql/community.ts), mirroring Charts/Play slice 5.
+
+Open questions / follow-ups: Community+ open questions; standing follow-ups (network-executor JSON gap; enum mismatch task_85338bf7; UI surface decision; live /goal hook).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 3: migration artifact
 
 Tasks completed:
