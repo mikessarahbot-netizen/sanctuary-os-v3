@@ -3,7 +3,9 @@ export const plannedApiAggregates = [
   "serviceItem",
   "assignment",
   "rehearsalTracking",
-  "ccliUsageLog"
+  "ccliUsageLog",
+  "presentation",
+  "presenterOutputState"
 ] as const;
 
 export type PlannedApiAggregate = (typeof plannedApiAggregates)[number];
@@ -15,3 +17,4 @@ export interface DomainRuleResult {
 }
 
 export * from "./planning/index.js";
+export * from "./presenter/index.js";
