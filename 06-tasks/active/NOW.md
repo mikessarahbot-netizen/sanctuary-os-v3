@@ -1,31 +1,30 @@
 # NOW
 
 ## Task
-Make the desktop sidecar runnable and have the Tauri Rust shell spawn it: a build step + sidecar bin entry, and Rust spawn/supervision (cargo-check verified).
+Add a Presenter local sync queue status summary: a repository count-by-status capability and a pure summary the sidecar can report.
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `apps/desktop/src/sidecar-main.ts`, `apps/desktop/package.json`, `apps/desktop/src-tauri/src/lib.rs`, and `tauri.conf.json`
-- Add a `build` script (`tsc`) to `apps/desktop` producing `dist/`, and a thin `bin/presenter-sidecar` entry that imports and calls `runPresenterDesktopSidecarMain`; keep the build out of the default `lint`/`typecheck`/`test` gates but runnable via `pnpm --filter @sanctuary-os/desktop build`
-- Update the Tauri Rust shell to spawn the sidecar process on setup (via `std::process::Command` running `node` against the built entry), passing the env through, and to terminate it on exit; keep the spawn behind a config/env guard so `cargo build` stays clean in CI
-- Verify the Rust shell still compiles with `cargo check`/`cargo build`
-- Keep this slice the spawn wiring only; the status IPC + UI are the next slice
-- Do not check in secrets; the sidecar reads its config from the environment the shell passes
+- Re-sync with `agents.md`, `docs/session-summary.md`, `02-standards/engineering-rules.md`, `packages/db/src/presenter-repository-contracts.ts`, `packages/db/src/presenter-local-sync-queue-sql-repository.ts`, and the desktop runtime
+- Add a `countByStatus(context)` (or `listEntries` + a pure counter) capability to `PresenterLocalSyncQueuePersistenceRepository` returning tenant-scoped counts per status (`queued`, `replaying`, `synced`, `conflict`, `failed`, `cancelled`), with the SQLite adapter implementation and tests (recording-executor + `node:sqlite` smoke)
+- Add a pure `summarizePresenterLocalSyncQueue` helper turning the counts into an operator status object (totals, pending, needs-attention = conflict + failed), with unit tests
+- Keep this slice the status data + summary only; do not add the IPC channel, the UI, or the Tauri command (next slice)
+- Default tests only; no live database/network by default
 
 ## Out of scope
-Status IPC channel · desktop status UI · packaging/installers/code-signing · deployment config · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
+Sidecar↔webview IPC channel · desktop status UI · Tauri commands · packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [x] Re-sync with the sidecar main, desktop package, and Tauri Rust shell
-- [x] Add the `build:sidecar` esbuild bundle + `sidecar-bin` entry (dist/presenter-sidecar.mjs, gitignored)
-- [x] Spawn/supervise the sidecar from the Tauri Rust shell setup (env-guarded; killed on Exit)
-- [x] Verify `cargo check` compiles and the bundle passes `node --check`
-- [x] Run lint, typecheck, and tests (TS gates unaffected)
-- [ ] Commit and push the Tauri spawn slice
+- [ ] Re-sync with the queue repository contract and SQLite adapter
+- [ ] Add the count-by-status capability to the contract + SQLite adapter
+- [ ] Add adapter tests (recording executor + `node:sqlite` smoke)
+- [ ] Add the pure `summarizePresenterLocalSyncQueue` helper with tests
+- [ ] Run lint, typecheck, and tests
+- [ ] Commit and push the status-summary slice
 - [ ] Session handoff
 
 ## Done when
-The desktop produces a runnable sidecar entry, the Tauri Rust shell spawns and terminates it, `cargo check` and the desktop build pass, the TS gates stay green, the slice is committed and pushed, and handoff documents identify the exact next task.
+The queue repository exposes a tenant-scoped count-by-status capability with SQLite adapter tests, a pure summary helper derives an operator status object, both are covered by default tests, default gates pass, the slice is committed and pushed, and handoff documents identify the exact next task.
 
 ## Next task after this
-Add the sidecar↔webview status IPC and a minimal desktop status UI surfacing pending/conflict/failed queue entries with operator retry/cancel — addressing any spawn findings first.
+Expose the status from the sidecar to the Tauri webview (a status channel/Tauri command) and render a minimal desktop status UI with operator retry/cancel — addressing any status-summary findings first.

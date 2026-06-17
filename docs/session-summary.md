@@ -2,6 +2,22 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Tauri sidecar spawn (launchable desktop app)
+
+Tasks completed:
+- Added an esbuild `build:sidecar` script bundling `sidecar-bin.ts` (runs `runPresenterDesktopSidecarMain`) into `dist/presenter-sidecar.mjs` (node: builtins external); verified with `node --check`.
+- Updated the Tauri Rust shell (`src-tauri/src/lib.rs`) to spawn `node <bundle>` on setup (env-guarded via `SANCTUARY_OS_PRESENTER_SIDECAR_PATH` / `_DISABLED`) and kill it on `RunEvent::Exit`; `cargo check` compiles.
+- The desktop app is now launchable: the Tauri shell spawns the Node sidecar running the offline-sync runtime.
+- `dist/` is gitignored; the TS lint/typecheck/test gates are unaffected (db 140, api 230 + 2 skipped, desktop 44, church-context 5).
+- Wrote `07-reviews/architecture/presenter-desktop-tauri-sidecar-spawn-release-check.md` (pass with follow-ups).
+- Pushed implementation commit `60285e6` (`feat(desktop): bundle the sidecar and spawn it from the Tauri shell`).
+
+Next task:
+- Add a Presenter local sync queue status summary (repository count-by-status + a pure summary the sidecar can report).
+
+Open questions:
+- The sidecar↔webview status IPC, the status UI, and Node-with-app packaging remain (next slices / deployment).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Desktop sidecar process entry (env-driven)
 
 Tasks completed:
