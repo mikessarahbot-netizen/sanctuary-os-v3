@@ -2,6 +2,24 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue persistence composition
+
+Tasks completed:
+- Re-synced with `agents.md`, the Presenter local sync queue plans, the engineering rules, the SQLite executor release check, and the API presenter composition pattern.
+- Added `createPresenterLocalSyncQueuePersistenceSelectionFromRuntimeConfig` in `packages/db/src/presenter-local-sync-queue-composition.ts`: a Zod-validated runtime config (shared `DatabaseConnectionConfigSchema`, defaulting to the `sqlite` runtime) plus an injected `SqliteDatabaseClient`, composing `createSqliteExecutor` with `createPresenterLocalSyncQueueSqlRepository`.
+- Config parse rejects non-`sqlite` runtimes; the factory throws when the injected client is absent.
+- Added 4 default tests (config parse, non-sqlite rejection, end-to-end wiring via a fake client, missing-dependency guard) needing no live engine; exported from the barrel.
+- Confirmed `apps/desktop` is an unscaffolded README-only placeholder, so the selection lives in `packages/db` for the desktop app to consume once scaffolded.
+- Wrote `07-reviews/architecture/presenter-local-sync-queue-composition-release-check.md` (pass with follow-ups).
+- Validation passed: `pnpm --filter @sanctuary-os/db test -- presenter-local-sync-queue-composition.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` (db 125 tests).
+- Pushed implementation commit `b03c1b8` (`feat(db): add Presenter local sync queue persistence composition`) to `feature/presenter-domain-contracts`.
+
+Next task:
+- Add a Presenter local sync queue replay scheduling decision contract (pure policy logic, no live Tauri/event-bus/API).
+
+Open questions:
+- None.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Presenter local sync queue SQLite executor + integration smoke
 
 Tasks completed:
