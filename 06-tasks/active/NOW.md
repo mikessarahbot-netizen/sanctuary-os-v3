@@ -16,10 +16,10 @@ Wire the in-memory Presenter command service to throw `PresenterDomainError` for
 Concrete deployment/process entry · desktop process main / Tauri spawn / UI · planning wiring · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the in-memory service, the typed error, and the codes
-- [ ] Throw `PresenterDomainError` for each detectable condition in the in-memory command service
-- [ ] Add service unit tests per thrown code
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the in-memory service, the typed error, and the codes
+- [x] Throw `PresenterDomainError` for each detectable condition in the in-memory command service
+- [x] Update existing tests for the new messages; add 6 per-code unit tests
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the conflict-detection slice
 - [ ] Session handoff
 

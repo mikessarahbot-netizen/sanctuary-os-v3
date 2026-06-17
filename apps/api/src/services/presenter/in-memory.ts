@@ -3,6 +3,7 @@ import type { ApiEventEnvelope, EventPublisher } from "../../events/index.js";
 import {
   OutputTargetSchema,
   PresentationSchema,
+  PresenterDomainError,
   PresenterThemeSchema,
   SlideSchema,
   type OutputTarget,
@@ -104,8 +105,18 @@ export const createInMemoryPresenterServicesAdapter = (
   ): Presentation => {
     const presentation = presentations.get(presentationId);
 
-    if (presentation === undefined || presentation.tenantId !== actor.tenantId) {
-      throw new Error("Presenter presentation not found for tenant.");
+    if (presentation === undefined) {
+      throw new PresenterDomainError(
+        "STALE_PRESENTATION",
+        "This presentation is no longer available on the server."
+      );
+    }
+
+    if (presentation.tenantId !== actor.tenantId) {
+      throw new PresenterDomainError(
+        "AUTHORIZATION_FAILED",
+        "You are not allowed to access this presentation."
+      );
     }
 
     return presentation;
@@ -115,7 +126,10 @@ export const createInMemoryPresenterServicesAdapter = (
     const theme = themes.get(themeId);
 
     if (theme === undefined || theme.tenantId !== actor.tenantId) {
-      throw new Error("Presenter theme not found for tenant.");
+      throw new PresenterDomainError(
+        "THEME_MISMATCH",
+        "The selected theme is no longer available on the server."
+      );
     }
 
     return theme;
@@ -144,7 +158,10 @@ export const createInMemoryPresenterServicesAdapter = (
             );
 
       if (insertAfterIndex < 0) {
-        throw new Error("Presenter slide insertion point not found for tenant.");
+        throw new PresenterDomainError(
+          "MISSING_SLIDE",
+          "A slide this edit depends on no longer exists on the server."
+        );
       }
 
       const slide = SlideSchema.parse({
@@ -277,7 +294,10 @@ export const createInMemoryPresenterServicesAdapter = (
       );
 
       if (presentation.slides.length === 1) {
-        throw new Error("Presenter presentation must keep at least one slide.");
+        throw new PresenterDomainError(
+          "VALIDATION_FAILED",
+          "This presentation must keep at least one slide."
+        );
       }
 
       const remainingSlides = presentation.slides.filter(
@@ -285,7 +305,10 @@ export const createInMemoryPresenterServicesAdapter = (
       );
 
       if (remainingSlides.length === presentation.slides.length) {
-        throw new Error("Presenter slide not found for tenant.");
+        throw new PresenterDomainError(
+          "MISSING_SLIDE",
+          "A slide this edit depends on no longer exists on the server."
+        );
       }
 
       const updatedPresentation = savePresentation({
@@ -330,7 +353,10 @@ export const createInMemoryPresenterServicesAdapter = (
       );
 
       if (command.input.orderedSlideIds.length !== presentation.slides.length) {
-        throw new Error("Presenter slide order must include every slide exactly once.");
+        throw new PresenterDomainError(
+          "VALIDATION_FAILED",
+          "This reorder must include every slide exactly once."
+        );
       }
 
       const reorderedSlides = command.input.orderedSlideIds.map(
@@ -340,7 +366,10 @@ export const createInMemoryPresenterServicesAdapter = (
           );
 
           if (slide === undefined) {
-            throw new Error("Presenter slide not found for tenant.");
+            throw new PresenterDomainError(
+          "MISSING_SLIDE",
+          "A slide this edit depends on no longer exists on the server."
+        );
           }
 
           return SlideSchema.parse({ ...slide, order });
@@ -355,7 +384,10 @@ export const createInMemoryPresenterServicesAdapter = (
       const activeSlideId = reorderedSlides[0]?.slideId;
 
       if (activeSlideId === undefined) {
-        throw new Error("Presenter slide order must include an active slide.");
+        throw new PresenterDomainError(
+          "VALIDATION_FAILED",
+          "This reorder must include an active slide."
+        );
       }
 
       await publishPresenterEvents(eventPublisher, [
@@ -389,7 +421,10 @@ export const createInMemoryPresenterServicesAdapter = (
       );
 
       if (command.input.outputTarget.tenantId !== command.actor.tenantId) {
-        throw new Error("Presenter output target tenant must match actor tenant.");
+        throw new PresenterDomainError(
+          "OUTPUT_TARGET_MISMATCH",
+          "The output target no longer matches the presentation on the server."
+        );
       }
 
       const outputTarget = OutputTargetSchema.parse(command.input.outputTarget);
@@ -463,7 +498,10 @@ export const createInMemoryPresenterServicesAdapter = (
         command.input.slide.presentationId !== presentation.presentationId ||
         command.input.slide.tenantId !== command.actor.tenantId
       ) {
-        throw new Error("Presenter slide not found for tenant.");
+        throw new PresenterDomainError(
+          "MISSING_SLIDE",
+          "A slide this edit depends on no longer exists on the server."
+        );
       }
 
       const updatedSlide = SlideSchema.parse({
@@ -657,7 +695,10 @@ const assertPresenterQueryRole = (actor: AuthenticatedActor): void => {
 
 const assertPresenterCommandRole = (actor: AuthenticatedActor): void => {
   if (!hasAllowedRole(actor, presenterCommandRoles)) {
-    throw new Error("Actor is not allowed to change Presenter resources.");
+    throw new PresenterDomainError(
+      "AUTHORIZATION_FAILED",
+      "You are not allowed to change this presentation."
+    );
   }
 };
 

@@ -220,7 +220,7 @@ describe("createInMemoryPresenterServicesAdapter", () => {
         },
         requestId: "request_viewer"
       })
-    ).rejects.toThrow("Actor is not allowed to change Presenter resources.");
+    ).rejects.toThrow("You are not allowed to change this presentation.");
   });
 
   it("mutates slides through add, reorder, update, and remove commands", async () => {
@@ -336,7 +336,7 @@ describe("createInMemoryPresenterServicesAdapter", () => {
         },
         requestId: "request_bad_order"
       })
-    ).rejects.toThrow("Presenter slide order must include every slide exactly once.");
+    ).rejects.toThrow("This reorder must include every slide exactly once.");
 
     await expect(
       adapter.commandService.setOutputTarget({
@@ -351,7 +351,7 @@ describe("createInMemoryPresenterServicesAdapter", () => {
         },
         requestId: "request_output"
       })
-    ).rejects.toThrow("Presenter output target tenant must match actor tenant.");
+    ).rejects.toThrow("The output target no longer matches the presentation on the server.");
   });
 
   it("supports Presenter GraphQL resolver composition through in-memory services", async () => {
@@ -589,7 +589,7 @@ describe("createInMemoryPresenterServicesAdapter", () => {
         },
         requestId: "request_bad_order"
       })
-    ).rejects.toThrow("Presenter slide order must include every slide exactly once.");
+    ).rejects.toThrow("This reorder must include every slide exactly once.");
 
     expect(eventPublisher.readPublishedEvents()).toEqual([]);
   });
