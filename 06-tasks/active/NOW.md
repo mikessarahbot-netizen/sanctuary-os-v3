@@ -15,12 +15,12 @@ Add typed Presenter domain errors and map them to GraphQL `extensions.code` conf
 Concrete Node `http`/framework server binding · desktop process main / Tauri spawn / UI · planning schema wiring · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · deployment config · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the Presenter services, transport handler, and desktop classifier codes
-- [ ] Add the typed Presenter domain error with stable codes
-- [ ] Throw it from the in-memory Presenter service for each conflict condition
-- [ ] Surface the code as `extensions.code` through the GraphQL resolvers
-- [ ] Add focused tests proving each code via the transport handler
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the Presenter services, transport handler, and desktop classifier codes
+- [x] Add the typed Presenter domain error with stable codes (`PresenterDomainError`)
+- [x] Surface the code as `extensions.code` through the transport (maps `error.originalError` — no resolver changes needed)
+- [x] Add a transport test proving a thrown domain error yields the conflict code + safe message
+- [~] Throw it from the in-memory Presenter service for each condition — deferred: needs per-condition detection logic (revision tracking, slide existence) in the service; the mechanism is complete and tested
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the typed-error slice
 - [ ] Session handoff
 

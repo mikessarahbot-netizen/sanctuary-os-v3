@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { graphql, type GraphQLError, type GraphQLSchema } from "graphql";
 import type { AuthBoundary } from "../auth/index.js";
+import { isPresenterDomainError } from "../domain/presenter/index.js";
 
 /**
  * Transport-agnostic GraphQL request handler for the API.
@@ -60,8 +61,16 @@ const extractErrorCode = (error: GraphQLError): string | undefined => {
 };
 
 const formatError = (error: GraphQLError): PresenterGraphqlResponseError => {
+  // Typed domain errors carry a stable conflict code and a pre-redacted message.
+  if (isPresenterDomainError(error.originalError)) {
+    return {
+      extensions: { code: error.originalError.code },
+      message: error.originalError.safeMessage
+    };
+  }
+
   const code = extractErrorCode(error);
-  // Resolver/internal failures carry an originalError; redact their text.
+  // Other resolver/internal failures carry an originalError; redact their text.
   // Schema validation/syntax errors are safe to surface verbatim.
   const message = error.originalError !== undefined ? REDACTED_RESOLVER_ERROR : error.message;
 

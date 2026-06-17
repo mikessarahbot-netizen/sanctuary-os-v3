@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AuthBoundary, AuthenticatedActor } from "../auth/index.js";
 import {
   PresentationSchema,
+  PresenterDomainError,
   type Presentation
 } from "../domain/presenter/index.js";
 import type {
@@ -163,6 +164,42 @@ describe("createPresenterGraphqlRequestHandler", () => {
     });
 
     expect(services.recordedRequestIds).toEqual(["generated-request-id"]);
+  });
+
+  it("surfaces a typed domain error as a conflict code with a safe message", async () => {
+    const services = createFakeServices();
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      generateRequestId: () => "generated-request-id",
+      schema: createPresenterGraphqlSchema({
+        presenterCommandService: {
+          ...services.commandService,
+          updatePresentation: () =>
+            Promise.reject(
+              new PresenterDomainError(
+                "STALE_PRESENTATION",
+                "This presentation changed on the server since the edit was made."
+              )
+            )
+        },
+        presenterQueryService: services.queryService
+      })
+    });
+
+    const response = await handler({
+      body: {
+        query:
+          "mutation updatePresentation($input: UpdatePresentationInput!) { updatePresentation(input: $input) { presentationId } }",
+        variables: { input: { presentationId: "presentation_1" } }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.errors?.[0]).toEqual({
+      extensions: { code: "STALE_PRESENTATION" },
+      message: "This presentation changed on the server since the edit was made."
+    });
   });
 
   it("returns 401 when the Authorization header is missing", async () => {
