@@ -14,9 +14,9 @@ Record the desktop Node-runtime packaging ADR (how the sidecar is shipped for di
 Implementing the Node-runtime binary packaging / code-signing / CI release · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets · other modules
 
 ## Progress
-- [ ] Re-sync with the packaging wiring and ADR format
-- [ ] Write the desktop Node-runtime packaging ADR in `08-decisions/`
-- [ ] Run lint, typecheck, and tests (docs-only; gates unaffected)
+- [x] Re-sync with the packaging wiring and ADR format
+- [x] Write the desktop Node-runtime packaging ADR in `08-decisions/` (ADR 0006: Node SEA binary as a Tauri external bin)
+- [x] Run lint, typecheck, and tests (docs-only; gates unaffected)
 - [ ] Commit and push the ADR
 - [ ] Session handoff
 
