@@ -18,10 +18,10 @@ Add a concrete SQLite executor and opt-in live-database integration smoke for th
 Production queue runner · desktop UI screens · real output window creation · Tauri commands · desktop event bus wiring · production WebSocket/SSE adapters · GraphQL/API replay changes · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · production deployment config · checked-in secrets · browser/client implementation
 
 ## Progress
-- [ ] Re-sync with required docs, adapter, and migration artifacts
-- [ ] Add the concrete SQLite executor boundary
-- [ ] Add the opt-in live-database integration smoke
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, adapter, and migration artifacts
+- [x] Add the concrete SQLite executor boundary
+- [x] Add the live-database integration smoke (auto-runs on `node:sqlite`, skips otherwise)
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the executor + smoke slice
 - [ ] Session handoff
 
