@@ -16,7 +16,9 @@ Everything built so far is backend; nothing is runnable as a UI yet. Choose the 
 `agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`. The live `/goal` hook forces continuation; building under it with safe commits/pushes at every breakpoint.
 
 ## If proceeding autonomously
-Default per the user's "continue at your discretion": pivot toward a runnable surface, choosing the most verifiable viable option (web preview if `apps/web` is an acceptable first surface; otherwise the desktop operator surface accepting limited autonomous verification). Build the smallest end-to-end Charts surface first (list track sets/charts → open one → render), wired to the GraphQL API, with component/hook tests + gates green, then verify it actually loads.
+Reality found: `apps/web` and `apps/mobile` are bare (README only); `apps/desktop` is all Node sidecar/runtime with no webview UI. So a UI on any surface is a large from-scratch frontend and is NOT autonomously gate-verifiable (Tauri/Expo can't be headlessly screenshotted; a web app is previewable but `apps/web`'s product role is unconfirmed). Therefore:
+- **If the user picks a surface** (web / desktop / mobile): build the smallest end-to-end Charts screen there (list → open → render) wired to the GraphQL API, with component/hook tests + gates green — verified at unit level (visual confirmation needs the user).
+- **If hands-off (hook keeps forcing continuation):** keep producing GATE-VERIFIABLE value instead of an unverifiable UI — finish Play slice 10 (the desktop replay *runtime*: a Node sidecar mirroring the presenter desktop runtime, which IS unit-verifiable), then author the Community+ module plan and build its backend, then OBS. Return to UIs once the user can pick a surface + eyeball it.
 
 ## Deferred / tracked
 - Play slice 10 (desktop replay runtime) — pairs with the desktop UI.
