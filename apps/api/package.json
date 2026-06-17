@@ -9,7 +9,7 @@
     "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration:postgres": "vitest run src/services/planning/postgresql-integration.test.ts"
+    "test:integration:postgres": "vitest run src/services/planning/postgresql-integration.test.ts src/services/presenter/postgresql-integration.test.ts"
   },
   "dependencies": {
     "@sanctuary-os/church-context": "workspace:*",

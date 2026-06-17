@@ -19,10 +19,10 @@ Add opt-in live PostgreSQL coverage for Presenter persistence composition.
 Always-on live PostgreSQL requirement · production deployment config · migration runner execution outside the smoke harness · WebSocket server wiring · desktop event bus wiring · UI screens · desktop output windows · Tauri commands · raw media storage · Bible API integration · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with required docs and current Presenter SQL/runtime patterns
-- [ ] Add opt-in Presenter PostgreSQL integration smoke test
-- [ ] Document local command and no-secrets behavior
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs and current Presenter SQL/runtime patterns
+- [x] Add opt-in Presenter PostgreSQL integration smoke test
+- [x] Document local command and no-secrets behavior
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 

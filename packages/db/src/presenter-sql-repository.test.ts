@@ -306,6 +306,7 @@ describe("Presenter SQL query repository", () => {
     const statement = statementAt(executor, 0);
     expect(statement.transaction).toEqual(transaction);
     expectSqlContains(statement, "jsonb_build_object");
+    expectSqlContains(statement, "jsonb_strip_nulls");
     expectSqlContains(statement, "presenter_slide_blocks");
     expectSqlContains(statement, "presenter_media_cues");
     expectParameters(statement, ["tenant_1", "presentation_1"]);
@@ -511,6 +512,7 @@ describe("Presenter SQL command repository", () => {
     expectSqlContains(addStatement, "jsonb_array_elements($11::jsonb)");
     expectSqlContains(reorderStatement, "FROM unnest($3::text[]) WITH ORDINALITY");
     expectSqlContains(updateStatement, "UPDATE presenter_slides");
+    expectSqlContains(removeStatement, "DELETE FROM presenter_slide_blocks");
     expectSqlContains(removeStatement, "DELETE FROM presenter_slides");
 
     expect(executor.statements.filter((statement) => statement.name === "presenter.audit.insert")).toHaveLength(4);

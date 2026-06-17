@@ -277,7 +277,7 @@ SELECT
     (
       SELECT jsonb_agg(slide_record ORDER BY (slide_record->>'order')::int)
       FROM (
-        SELECT jsonb_build_object(
+        SELECT jsonb_strip_nulls(jsonb_build_object(
           'tenantId', slide.tenant_id,
           'presentationId', slide.presentation_id,
           'slideId', slide.slide_id,
@@ -298,7 +298,7 @@ SELECT
             ),
             '[]'::jsonb
           )
-        ) AS slide_record
+        )) AS slide_record
         FROM presenter_slides slide
         WHERE slide.tenant_id = presentation.tenant_id
           AND slide.presentation_id = presentation.presentation_id
@@ -646,9 +646,22 @@ WITH remaining_count AS (
   WHERE tenant_id = $1
     AND presentation_id = $2
 ),
+removed_blocks AS (
+  DELETE FROM presenter_slide_blocks block
+  USING remaining_count
+  WHERE remaining_count.count > 1
+    AND block.tenant_id = $1
+    AND block.presentation_id = $2
+    AND block.slide_id = $3
+  RETURNING block.block_id
+),
+block_cleanup AS (
+  SELECT COUNT(*) AS removed_block_count
+  FROM removed_blocks
+),
 deleted AS (
   DELETE FROM presenter_slides slide
-  USING remaining_count
+  USING remaining_count, block_cleanup
   WHERE remaining_count.count > 1
     AND slide.tenant_id = $1
     AND slide.presentation_id = $2

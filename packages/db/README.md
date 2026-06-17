@@ -21,6 +21,7 @@ All persisted reads and writes must be tenant-scoped before this package gains c
 
 ## PostgreSQL integration coverage
 
-The opt-in live PostgreSQL smoke test for Planning runtime composition lives in
-the API package because API composition owns runtime selection. See
+The opt-in live PostgreSQL smoke tests for Planning and Presenter runtime
+composition live in the API package because API composition owns runtime
+selection. See
 [`apps/api/README.md`](../../apps/api/README.md).
