@@ -2,20 +2,20 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
-## 2026-06-16 21:43 EDT · feature/presenter-domain-contracts
+## 2026-06-16 21:44 EDT · feature/presenter-domain-contracts
 
 Tasks completed:
-- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, current Presenter service contracts, and `packages/db/src/presenter-repository-contracts.ts`.
-- Added in-memory Presenter persistence repository adapters in `apps/api/src/services/presenter/testing/`.
-- Implemented separate query and command repository surfaces for saved presentations, themes, output targets, and slide add/update/reorder/remove mutations.
-- Preserved tenant-scoped reads/writes, required actor/request audit metadata, operation recording, strict Zod validation, defensive copy behavior, adapter isolation, and no raw media payload storage.
-- Added focused tests for tenant isolation, operation validation, mutation behavior, audit metadata requirements, defensive copying, output target presentation association, and rejection of raw media/cross-tenant fields.
+- Re-synced with `agents.md`, `docs/session-summary.md`, active task state, product vision, system map, engineering rules, API plan, Presenter module plan, current Presenter service contracts, existing DB repository patterns, and `packages/db/src/presenter-repository-contracts.ts`.
+- Moved the in-memory Presenter persistence repository adapter into `packages/db` and exported it from the DB package.
+- Implemented shared in-memory query and command repositories for saved presentations, Presenter themes, output targets, and slide add/update/reorder/remove mutations.
+- Preserved tenant scope, actor/request audit metadata, transaction ID recording, Zod operation validation, opaque IDs, clone-on-read/write defensive copying, presentation-to-output-target links, and no raw media/OBS/vendor/secret storage.
+- Removed the earlier API-local Presenter persistence testing adapter now that the persistence adapter lives with the DB contracts.
+- Added focused DB tests covering tenant-scoped queries, operation validation, audit metadata, mutation behavior, output-target links, defensive copying, and invalid/out-of-scope payload rejection via the existing contracts.
 - Kept the slice persistence-adapter-only with no SQL adapter, database migration, WebSocket server, desktop event bus wiring, UI, OBS automation, stream start/stop, vendor SDKs, AI execution, deployment config, or checked-in secrets.
-- Ran and passed `pnpm --filter @sanctuary-os/api test -- presenter`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
-- Committed and pushed `766eeae feat(presenter): add in-memory persistence repositories`.
+- Ran and passed `pnpm --filter @sanctuary-os/db test -- presenter-in-memory-repository.test.ts presenter-repository-contracts.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
 
 Next task:
-- Run a Presenter API/event/persistence release-check before SQL adapter work.
+- Run a Presenter API/event/persistence release-check before SQL adapter work, or start PostgreSQL Presenter persistence adapters if the release-check is already complete.
 
 Open questions:
 - None.

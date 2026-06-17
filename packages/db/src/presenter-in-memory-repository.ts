@@ -1,12 +1,5 @@
-import type {
-  PresenterCommandPersistenceRepository,
-  PresenterOutputTargetPersistenceRecord,
-  PresenterPresentationPersistenceRecord,
-  PresenterQueryPersistenceRepository,
-  PresenterSlidePersistenceRecord,
-  PresenterThemePersistenceRecord,
-  RepositoryMutationIntent
-} from "@sanctuary-os/db";
+import type { RepositoryMutationIntent } from "./repository-contracts.js";
+import type { TransactionHandle } from "./transactions.js";
 import {
   AddPresenterSlidePersistenceOperationSchema,
   GetPresenterPresentationForServicePersistenceOperationSchema,
@@ -23,8 +16,14 @@ import {
   SavePresenterPresentationPersistenceOperationSchema,
   SavePresenterThemePersistenceOperationSchema,
   SetPresenterOutputTargetPersistenceOperationSchema,
-  UpdatePresenterSlidePersistenceOperationSchema
-} from "@sanctuary-os/db";
+  UpdatePresenterSlidePersistenceOperationSchema,
+  type PresenterCommandPersistenceRepository,
+  type PresenterOutputTargetPersistenceRecord,
+  type PresenterPresentationPersistenceRecord,
+  type PresenterQueryPersistenceRepository,
+  type PresenterSlidePersistenceRecord,
+  type PresenterThemePersistenceRecord
+} from "./presenter-repository-contracts.js";
 
 export type InMemoryPresenterPersistenceOperationName =
   | "addSlide"
@@ -46,6 +45,7 @@ export interface RecordedInMemoryPresenterPersistenceOperation {
   readonly operationName: InMemoryPresenterPersistenceOperationName;
   readonly requestId: string;
   readonly tenantId: string;
+  readonly transactionId?: string | undefined;
 }
 
 export interface InMemoryPresenterPersistenceRepositorySeed {
@@ -67,41 +67,43 @@ export interface InMemoryPresenterPersistenceRepositoryAdapter {
   readonly readThemes: () => readonly PresenterThemePersistenceRecord[];
 }
 
-interface PresenterPersistenceContext {
-  readonly actorId?: string | undefined;
-  readonly requestId: string;
-  readonly tenantId: string;
-}
-
-interface PresenterPersistenceWriteOptions {
-  readonly context: PresenterPersistenceContext;
-  readonly intent: RepositoryMutationIntent;
+interface PresenterPersistenceOperationOptions {
+  readonly context: {
+    readonly actorId?: string | undefined;
+    readonly requestId: string;
+    readonly tenantId: string;
+  };
+  readonly intent?: RepositoryMutationIntent | undefined;
+  readonly transaction?: TransactionHandle | undefined;
 }
 
 export const createInMemoryPresenterPersistenceRepositoryAdapter = (
   seed: InMemoryPresenterPersistenceRepositorySeed = {}
 ): InMemoryPresenterPersistenceRepositoryAdapter => {
-  const presentations = new Map<string, PresenterPresentationPersistenceRecord>();
-  const themes = new Map<string, PresenterThemePersistenceRecord>();
-  const outputTargets = new Map<string, PresenterOutputTargetPersistenceRecord>();
+  const presentations = new Map(
+    (seed.presentations ?? []).map((rawPresentation) => {
+      const presentation = clonePresentation(rawPresentation);
+      return [presentation.presentationId, presentation] as const;
+    })
+  );
+  const themes = new Map(
+    (seed.themes ?? []).map((rawTheme) => {
+      const theme = cloneTheme(rawTheme);
+      return [theme.themeId, theme] as const;
+    })
+  );
+  const outputTargets = new Map(
+    (seed.outputTargets ?? []).map((rawOutputTarget) => {
+      const outputTarget = cloneOutputTarget(rawOutputTarget);
+      return [outputTarget.outputTargetId, outputTarget] as const;
+    })
+  );
   const presentationOutputTargetIds = new Map<string, Set<string>>();
   const operations: RecordedInMemoryPresenterPersistenceOperation[] = [];
 
-  (seed.presentations ?? []).forEach((rawPresentation) => {
-    const presentation = clonePresentation(rawPresentation);
-    presentations.set(presentation.presentationId, presentation);
+  for (const presentation of presentations.values()) {
     themes.set(presentation.theme.themeId, cloneTheme(presentation.theme));
-  });
-
-  (seed.themes ?? []).forEach((rawTheme) => {
-    const theme = cloneTheme(rawTheme);
-    themes.set(theme.themeId, theme);
-  });
-
-  (seed.outputTargets ?? []).forEach((rawOutputTarget) => {
-    const outputTarget = cloneOutputTarget(rawOutputTarget);
-    outputTargets.set(outputTarget.outputTargetId, outputTarget);
-  });
+  }
 
   Object.entries(seed.presentationOutputTargets ?? {}).forEach(
     ([presentationId, outputTargetIds]) => {
@@ -109,30 +111,23 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
     }
   );
 
-  const recordReadOperation = (
+  const recordOperation = (
     operationName: InMemoryPresenterPersistenceOperationName,
-    context: PresenterPersistenceContext
+    options: PresenterPersistenceOperationOptions
   ): void => {
-    const actorId = requireActorId(context);
-    operations.push({
-      actorId,
-      operationName,
-      requestId: context.requestId,
-      tenantId: context.tenantId
-    });
-  };
+    if (options.context.actorId === undefined) {
+      throw new Error("Presenter persistence operations require an actor ID.");
+    }
 
-  const recordWriteOperation = (
-    operationName: InMemoryPresenterPersistenceOperationName,
-    options: PresenterPersistenceWriteOptions
-  ): void => {
-    const actorId = requireActorId(options.context);
     operations.push({
-      actorId,
-      intent: options.intent,
+      actorId: options.context.actorId,
+      ...(options.intent !== undefined ? { intent: options.intent } : {}),
       operationName,
       requestId: options.context.requestId,
-      tenantId: options.context.tenantId
+      tenantId: options.context.tenantId,
+      ...(options.transaction !== undefined
+        ? { transactionId: options.transaction.transactionId }
+        : {})
     });
   };
 
@@ -149,27 +144,21 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
     return presentation;
   };
 
-  const saveTenantPresentation = (
-    presentation: PresenterPresentationPersistenceRecord,
-    tenantId: string
+  const savePresentation = (
+    presentation: PresenterPresentationPersistenceRecord
   ): PresenterPresentationPersistenceRecord => {
-    if (presentation.tenantId !== tenantId) {
-      throw new Error("Presenter presentation tenant must match operation tenant.");
-    }
+    const parsedPresentation = clonePresentation(presentation);
+    presentations.set(parsedPresentation.presentationId, parsedPresentation);
+    themes.set(parsedPresentation.theme.themeId, cloneTheme(parsedPresentation.theme));
 
-    const savedPresentation = clonePresentation(presentation);
-    presentations.set(savedPresentation.presentationId, savedPresentation);
-    themes.set(savedPresentation.theme.themeId, cloneTheme(savedPresentation.theme));
-
-    return clonePresentation(savedPresentation);
+    return clonePresentation(parsedPresentation);
   };
 
   const queryRepository: PresenterQueryPersistenceRepository = {
     getPresentation: (rawOperation): Promise<PresenterPresentationPersistenceRecord | null> =>
       Promise.resolve().then(() => {
-        const operation =
-          GetPresenterPresentationPersistenceOperationSchema.parse(rawOperation);
-        recordReadOperation("getPresentation", operation.options.context);
+        const operation = GetPresenterPresentationPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("getPresentation", operation.options);
         const presentation = presentations.get(operation.input.presentationId);
 
         return presentation !== undefined &&
@@ -183,11 +172,8 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
     ): Promise<PresenterPresentationPersistenceRecord | null> =>
       Promise.resolve().then(() => {
         const operation =
-          GetPresenterPresentationForServicePersistenceOperationSchema.parse(
-            rawOperation
-          );
-        recordReadOperation("getPresentationForService", operation.options.context);
-
+          GetPresenterPresentationForServicePersistenceOperationSchema.parse(rawOperation);
+        recordOperation("getPresentationForService", operation.options);
         const presentation =
           [...presentations.values()].find(
             (candidate) =>
@@ -202,9 +188,8 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
       rawOperation
     ): Promise<readonly PresenterOutputTargetPersistenceRecord[]> =>
       Promise.resolve().then(() => {
-        const operation =
-          ListPresenterOutputTargetsPersistenceOperationSchema.parse(rawOperation);
-        recordReadOperation("listOutputTargets", operation.options.context);
+        const operation = ListPresenterOutputTargetsPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("listOutputTargets", operation.options);
 
         if (operation.input.presentationId !== undefined) {
           findTenantPresentation(
@@ -219,11 +204,11 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
             : presentationOutputTargetIds.get(operation.input.presentationId) ?? new Set();
 
         return [...outputTargets.values()]
+          .filter((outputTarget) => outputTarget.tenantId === operation.options.context.tenantId)
           .filter(
             (outputTarget) =>
-              outputTarget.tenantId === operation.options.context.tenantId &&
-              (allowedOutputTargetIds === undefined ||
-                allowedOutputTargetIds.has(outputTarget.outputTargetId))
+              allowedOutputTargetIds === undefined ||
+              allowedOutputTargetIds.has(outputTarget.outputTargetId)
           )
           .map(cloneOutputTarget);
       }),
@@ -233,20 +218,16 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
     ): Promise<readonly PresenterThemePersistenceRecord[]> =>
       Promise.resolve().then(() => {
         const operation = ListPresenterThemesPersistenceOperationSchema.parse(rawOperation);
-        recordReadOperation("listPresenterThemes", operation.options.context);
+        recordOperation("listPresenterThemes", operation.options);
         const normalizedQuery = operation.input.filter?.query?.toLocaleLowerCase();
 
         return [...themes.values()]
-          .filter((theme) => {
-            if (theme.tenantId !== operation.options.context.tenantId) {
-              return false;
-            }
-
-            return (
-              normalizedQuery === undefined ||
-              theme.name.toLocaleLowerCase().includes(normalizedQuery)
-            );
-          })
+          .filter(
+            (theme) =>
+              theme.tenantId === operation.options.context.tenantId &&
+              (normalizedQuery === undefined ||
+                theme.name.toLocaleLowerCase().includes(normalizedQuery))
+          )
           .map(cloneTheme);
       }),
 
@@ -254,9 +235,8 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
       rawOperation
     ): Promise<readonly PresenterPresentationPersistenceRecord[]> =>
       Promise.resolve().then(() => {
-        const operation =
-          ListPresenterPresentationsPersistenceOperationSchema.parse(rawOperation);
-        recordReadOperation("listPresentations", operation.options.context);
+        const operation = ListPresenterPresentationsPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("listPresentations", operation.options);
 
         return [...presentations.values()]
           .filter(
@@ -273,140 +253,139 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
     addSlide: (rawOperation): Promise<PresenterSlidePersistenceRecord> =>
       Promise.resolve().then(() => {
         const operation = AddPresenterSlidePersistenceOperationSchema.parse(rawOperation);
-        recordWriteOperation("addSlide", operation.options);
+        recordOperation("addSlide", operation.options);
         const presentation = findTenantPresentation(
           operation.input.presentationId,
           operation.options.context.tenantId
         );
+        const slide = cloneSlide(operation.input.slide);
 
         if (
-          operation.input.slide.tenantId !== operation.options.context.tenantId ||
-          operation.input.slide.presentationId !== presentation.presentationId
+          slide.presentationId !== presentation.presentationId ||
+          slide.tenantId !== operation.options.context.tenantId
         ) {
-          throw new Error("Presenter slide tenant and presentation must match operation.");
+          throw new Error("Presenter slide must belong to the target presentation tenant.");
         }
 
-        if (
-          presentation.slides.some(
-            (candidate) => candidate.slideId === operation.input.slide.slideId
-          )
-        ) {
+        if (presentation.slides.some((existingSlide) => existingSlide.slideId === slide.slideId)) {
           throw new Error("Presenter slide already exists for presentation.");
         }
 
-        const insertAfterIndex =
-          operation.input.afterSlideId === undefined
-            ? presentation.slides.length - 1
-            : presentation.slides.findIndex(
-                (slide) => slide.slideId === operation.input.afterSlideId
-              );
+        const nextSlides = [...presentation.slides.map(cloneSlide)];
 
-        if (insertAfterIndex < 0) {
-          throw new Error("Presenter slide insertion point not found for tenant.");
+        if (operation.input.afterSlideId === undefined) {
+          nextSlides.push(slide);
+        } else {
+          const afterIndex = nextSlides.findIndex(
+            (existingSlide) => existingSlide.slideId === operation.input.afterSlideId
+          );
+
+          if (afterIndex === -1) {
+            throw new Error("Presenter slide insertion point not found for tenant.");
+          }
+
+          nextSlides.splice(afterIndex + 1, 0, slide);
         }
 
-        const slides = [
-          ...presentation.slides.slice(0, insertAfterIndex + 1),
-          operation.input.slide,
-          ...presentation.slides.slice(insertAfterIndex + 1)
-        ].map(reorderSlide);
-        const updatedPresentation = clonePresentation({
+        const updatedPresentation = savePresentation({
           ...presentation,
-          slides
+          slides: normalizeSlideOrder(nextSlides)
         });
-        presentations.set(updatedPresentation.presentationId, updatedPresentation);
-        const insertedSlide = slides[insertAfterIndex + 1];
+        const addedSlide = updatedPresentation.slides.find(
+          (existingSlide) => existingSlide.slideId === slide.slideId
+        );
 
-        if (insertedSlide === undefined) {
-          throw new Error("Presenter slide insertion failed.");
+        if (addedSlide === undefined) {
+          throw new Error("Presenter slide add failed.");
         }
 
-        return cloneSlide(insertedSlide);
+        return cloneSlide(addedSlide);
       }),
 
-    removeSlide: (
-      rawOperation
-    ): Promise<PresenterPresentationPersistenceRecord> =>
+    removeSlide: (rawOperation): Promise<PresenterPresentationPersistenceRecord> =>
       Promise.resolve().then(() => {
         const operation = RemovePresenterSlidePersistenceOperationSchema.parse(rawOperation);
-        recordWriteOperation("removeSlide", operation.options);
+        recordOperation("removeSlide", operation.options);
         const presentation = findTenantPresentation(
           operation.input.presentationId,
           operation.options.context.tenantId
         );
 
-        if (presentation.slides.length === 1) {
+        if (presentation.slides.length <= 1) {
           throw new Error("Presenter presentation must keep at least one slide.");
         }
 
-        const remainingSlides = presentation.slides.filter(
-          (slide) => slide.slideId !== operation.input.slideId
-        );
-
-        if (remainingSlides.length === presentation.slides.length) {
+        if (
+          !presentation.slides.some((slide) => slide.slideId === operation.input.slideId)
+        ) {
           throw new Error("Presenter slide not found for tenant.");
         }
 
-        const updatedPresentation = clonePresentation({
-          ...presentation,
-          mediaCues: presentation.mediaCues.filter(
-            (cue) => cue.slideId !== operation.input.slideId
-          ),
-          slides: remainingSlides.map(reorderSlide)
-        });
-        presentations.set(updatedPresentation.presentationId, updatedPresentation);
+        const nextSlides = presentation.slides.filter(
+          (slide) => slide.slideId !== operation.input.slideId
+        );
+        const nextMediaCues = presentation.mediaCues.filter(
+          (mediaCue) => mediaCue.slideId !== operation.input.slideId
+        );
 
-        return clonePresentation(updatedPresentation);
+        return savePresentation({
+          ...presentation,
+          mediaCues: nextMediaCues,
+          slides: normalizeSlideOrder(nextSlides)
+        });
       }),
 
     reorderSlides: (
       rawOperation
     ): Promise<readonly PresenterSlidePersistenceRecord[]> =>
       Promise.resolve().then(() => {
-        const operation =
-          ReorderPresenterSlidesPersistenceOperationSchema.parse(rawOperation);
-        recordWriteOperation("reorderSlides", operation.options);
+        const operation = ReorderPresenterSlidesPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("reorderSlides", operation.options);
         const presentation = findTenantPresentation(
           operation.input.presentationId,
           operation.options.context.tenantId
         );
+        const currentSlideIds = new Set(presentation.slides.map((slide) => slide.slideId));
 
-        if (operation.input.orderedSlideIds.length !== presentation.slides.length) {
+        if (
+          currentSlideIds.size !== operation.input.orderedSlideIds.length ||
+          !operation.input.orderedSlideIds.every((slideId) => currentSlideIds.has(slideId))
+        ) {
           throw new Error("Presenter slide order must include every slide exactly once.");
         }
 
-        const reorderedSlides = operation.input.orderedSlideIds.map((slideId, order) => {
-          const slide = presentation.slides.find(
-            (candidate) => candidate.slideId === slideId
-          );
+        const slideById = new Map(
+          presentation.slides.map((slide) => [slide.slideId, cloneSlide(slide)] as const)
+        );
+        const nextSlides = operation.input.orderedSlideIds.map((slideId) => {
+          const slide = slideById.get(slideId);
 
           if (slide === undefined) {
             throw new Error("Presenter slide not found for tenant.");
           }
 
-          return cloneSlide({ ...slide, order });
+          return slide;
         });
-        const updatedPresentation = clonePresentation({
+        const updatedPresentation = savePresentation({
           ...presentation,
-          slides: reorderedSlides
+          slides: normalizeSlideOrder(nextSlides)
         });
-        presentations.set(updatedPresentation.presentationId, updatedPresentation);
 
-        return reorderedSlides.map(cloneSlide);
+        return updatedPresentation.slides.map(cloneSlide);
       }),
 
     savePresentation: (
       rawOperation
     ): Promise<PresenterPresentationPersistenceRecord> =>
       Promise.resolve().then(() => {
-        const operation =
-          SavePresenterPresentationPersistenceOperationSchema.parse(rawOperation);
-        recordWriteOperation("savePresentation", operation.options);
+        const operation = SavePresenterPresentationPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("savePresentation", operation.options);
 
-        return saveTenantPresentation(
-          operation.input,
-          operation.options.context.tenantId
-        );
+        if (operation.input.tenantId !== operation.options.context.tenantId) {
+          throw new Error("Presenter presentation tenant must match operation tenant.");
+        }
+
+        return savePresentation(operation.input);
       }),
 
     savePresenterTheme: (
@@ -414,13 +393,13 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
     ): Promise<PresenterThemePersistenceRecord> =>
       Promise.resolve().then(() => {
         const operation = SavePresenterThemePersistenceOperationSchema.parse(rawOperation);
-        recordWriteOperation("savePresenterTheme", operation.options);
+        recordOperation("savePresenterTheme", operation.options);
+        const theme = cloneTheme(operation.input);
 
-        if (operation.input.tenantId !== operation.options.context.tenantId) {
+        if (theme.tenantId !== operation.options.context.tenantId) {
           throw new Error("Presenter theme tenant must match operation tenant.");
         }
 
-        const theme = cloneTheme(operation.input);
         themes.set(theme.themeId, theme);
 
         return cloneTheme(theme);
@@ -430,22 +409,21 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
       rawOperation
     ): Promise<PresenterOutputTargetPersistenceRecord> =>
       Promise.resolve().then(() => {
-        const operation =
-          SetPresenterOutputTargetPersistenceOperationSchema.parse(rawOperation);
-        recordWriteOperation("setOutputTarget", operation.options);
+        const operation = SetPresenterOutputTargetPersistenceOperationSchema.parse(rawOperation);
+        recordOperation("setOutputTarget", operation.options);
         findTenantPresentation(
           operation.input.presentationId,
           operation.options.context.tenantId
         );
+        const outputTarget = cloneOutputTarget(operation.input.outputTarget);
 
-        if (operation.input.outputTarget.tenantId !== operation.options.context.tenantId) {
+        if (outputTarget.tenantId !== operation.options.context.tenantId) {
           throw new Error("Presenter output target tenant must match operation tenant.");
         }
 
-        const outputTarget = cloneOutputTarget(operation.input.outputTarget);
         outputTargets.set(outputTarget.outputTargetId, outputTarget);
         const targetIds =
-          presentationOutputTargetIds.get(operation.input.presentationId) ?? new Set();
+          presentationOutputTargetIds.get(operation.input.presentationId) ?? new Set<string>();
         targetIds.add(outputTarget.outputTargetId);
         presentationOutputTargetIds.set(operation.input.presentationId, targetIds);
 
@@ -455,34 +433,40 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
     updateSlide: (rawOperation): Promise<PresenterSlidePersistenceRecord> =>
       Promise.resolve().then(() => {
         const operation = UpdatePresenterSlidePersistenceOperationSchema.parse(rawOperation);
-        recordWriteOperation("updateSlide", operation.options);
+        recordOperation("updateSlide", operation.options);
         const presentation = findTenantPresentation(
           operation.input.presentationId,
           operation.options.context.tenantId
         );
-        const existingSlide = presentation.slides.find(
-          (slide) => slide.slideId === operation.input.slide.slideId
-        );
+        const slide = cloneSlide(operation.input.slide);
 
         if (
-          existingSlide === undefined ||
-          operation.input.slide.presentationId !== presentation.presentationId ||
-          operation.input.slide.tenantId !== operation.options.context.tenantId
+          slide.presentationId !== presentation.presentationId ||
+          slide.tenantId !== operation.options.context.tenantId
         ) {
+          throw new Error("Presenter slide must belong to the target presentation tenant.");
+        }
+
+        const slideIndex = presentation.slides.findIndex(
+          (existingSlide) => existingSlide.slideId === slide.slideId
+        );
+
+        if (slideIndex === -1) {
           throw new Error("Presenter slide not found for tenant.");
         }
 
-        const updatedSlide = cloneSlide({
-          ...operation.input.slide,
-          order: existingSlide.order
-        });
-        const updatedPresentation = clonePresentation({
+        const nextSlides = presentation.slides.map((existingSlide, index) =>
+          index === slideIndex ? slide : cloneSlide(existingSlide)
+        );
+        const updatedPresentation = savePresentation({
           ...presentation,
-          slides: presentation.slides.map((slide) =>
-            slide.slideId === updatedSlide.slideId ? updatedSlide : slide
-          )
+          slides: normalizeSlideOrder(nextSlides)
         });
-        presentations.set(updatedPresentation.presentationId, updatedPresentation);
+        const updatedSlide = updatedPresentation.slides[slideIndex];
+
+        if (updatedSlide === undefined) {
+          throw new Error("Presenter slide update failed.");
+        }
 
         return cloneSlide(updatedSlide);
       })
@@ -491,53 +475,46 @@ export const createInMemoryPresenterPersistenceRepositoryAdapter = (
   return {
     commandRepository,
     queryRepository,
-    readOperations: () => [...operations],
-    readOutputTargets: () => [...outputTargets.values()].map(cloneOutputTarget),
-    readPresentationOutputTargetIds: (presentationId) => [
+    readOperations: (): readonly RecordedInMemoryPresenterPersistenceOperation[] =>
+      operations.map((operation) => ({ ...operation })),
+    readOutputTargets: (): readonly PresenterOutputTargetPersistenceRecord[] =>
+      [...outputTargets.values()].map(cloneOutputTarget),
+    readPresentationOutputTargetIds: (presentationId): readonly string[] => [
       ...(presentationOutputTargetIds.get(presentationId) ?? [])
     ],
-    readPresentations: () => [...presentations.values()].map(clonePresentation),
-    readThemes: () => [...themes.values()].map(cloneTheme)
+    readPresentations: (): readonly PresenterPresentationPersistenceRecord[] =>
+      [...presentations.values()].map(clonePresentation),
+    readThemes: (): readonly PresenterThemePersistenceRecord[] =>
+      [...themes.values()].map(cloneTheme)
   };
 };
 
-const requireActorId = (context: PresenterPersistenceContext): string => {
-  if (context.actorId === undefined) {
-    throw new Error("Presenter persistence context requires an actor ID.");
-  }
-
-  return context.actorId;
-};
-
-const reorderSlide = (
-  slide: PresenterSlidePersistenceRecord,
-  order: number
-): PresenterSlidePersistenceRecord =>
-  cloneSlide({
-    ...slide,
-    order
-  });
+const normalizeSlideOrder = (
+  slides: readonly PresenterSlidePersistenceRecord[]
+): PresenterSlidePersistenceRecord[] =>
+  slides.map((slide, order) =>
+    cloneSlide({
+      ...slide,
+      order
+    })
+  );
 
 const clonePresentation = (
   presentation: PresenterPresentationPersistenceRecord
 ): PresenterPresentationPersistenceRecord =>
-  PresenterPresentationPersistenceRecordSchema.parse(
-    globalThis.structuredClone(presentation)
-  );
-
-const cloneTheme = (
-  theme: PresenterThemePersistenceRecord
-): PresenterThemePersistenceRecord =>
-  PresenterThemePersistenceRecordSchema.parse(globalThis.structuredClone(theme));
-
-const cloneOutputTarget = (
-  outputTarget: PresenterOutputTargetPersistenceRecord
-): PresenterOutputTargetPersistenceRecord =>
-  PresenterOutputTargetPersistenceRecordSchema.parse(
-    globalThis.structuredClone(outputTarget)
-  );
+  PresenterPresentationPersistenceRecordSchema.parse(structuredClone(presentation));
 
 const cloneSlide = (
   slide: PresenterSlidePersistenceRecord
 ): PresenterSlidePersistenceRecord =>
-  PresenterSlidePersistenceRecordSchema.parse(globalThis.structuredClone(slide));
+  PresenterSlidePersistenceRecordSchema.parse(structuredClone(slide));
+
+const cloneTheme = (
+  theme: PresenterThemePersistenceRecord
+): PresenterThemePersistenceRecord =>
+  PresenterThemePersistenceRecordSchema.parse(structuredClone(theme));
+
+const cloneOutputTarget = (
+  outputTarget: PresenterOutputTargetPersistenceRecord
+): PresenterOutputTargetPersistenceRecord =>
+  PresenterOutputTargetPersistenceRecordSchema.parse(structuredClone(outputTarget));
