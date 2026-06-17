@@ -1,25 +1,28 @@
 # NOW
 
 ## Task
-Play module, slice 5: the Play GraphQL surface + in-memory service — `apps/api/src/domain/play/{contracts,errors}.ts`, `apps/api/src/services/play/in-memory.ts`, and `apps/api/src/graphql/play.ts`, merged into the executable schema. Mirror the Charts slice 5. (Play slices 1–4 done + green at `46fed50`.)
+Play module, slice 6: the persistence-backed Play service over the slice-4 SQLite adapter + a composition that applies `PlayInitialSchemaMigration` via the migration runner. Mirror Charts slice 6. (Play slices 1–5 done + green at `5e36886`.)
 
 ## Module / authority
 Building Play from `05-plans/play-module-plan.md` (authoritative; slices 1–10 backend, 11–12 UI). Backend-first.
 
 ## Session protocol (in force)
-`agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the Play plan + this NOW.md + `docs/session-summary.md`. Ceremony streamlined to NOW.md + summary + commit/push per backend slice (consolidated release check at the Play-backend milestone); gates are the per-slice verification.
+`agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the Play plan + this NOW.md + `docs/session-summary.md`. Ceremony streamlined to NOW.md + summary + commit/push per backend slice; consolidated release check at the Play-backend milestone; gates are the per-slice verification.
 
-## In scope (slice 5)
+## In scope (slice 6)
 - Continue on `feature/presenter-domain-contracts`
-- Mirror the Charts slice-5 files exactly: `apps/api/src/domain/charts/contracts.ts` + `errors.ts`, `apps/api/src/services/charts/in-memory.ts`, `apps/api/src/graphql/charts.ts`, and how charts merges into `apps/api/src/graphql/presenter-schema.ts` + maps errors in `transport.ts`
-- Add `apps/api/src/domain/play/contracts.ts` (service operation envelopes `{ actor, requestId, input }` + `PlayQueryService`/`PlayCommandService` interfaces; reuse the slice-1 domain records + the resolved-sequence projection) and `errors.ts` (`PlayDomainError` + `PLAY_DOMAIN_ERROR_CODES`: TRACK_SET/ARRANGEMENT/SECTION/CUE/PAD_LAYER/PLAYBACK_STATE_NOT_FOUND, VALIDATION_FAILED, AUTHORIZATION_FAILED)
-- Add `apps/api/src/services/play/in-memory.ts` (tenant-scoped, Zod-validated, injected clock + id generator; per-musician/role checks where applicable; `removePlayCue` requires explicit confirmation intent), the test double
-- Add `apps/api/src/graphql/play.ts` (SDL: enums + 9 types + 9 queries + 10 mutations from the plan) + resolvers, merged into the executable schema; map `PlayDomainError → extensions.code` in `transport.ts`
-- In-memory only this slice (persistence-backed service is slice 6)
-- Tests: service unit tests (tenant isolation, validation→typed error, CRUD round-trips, confirmation gate on removePlayCue) + resolver/schema tests (a query, a mutation, an error→extensions.code path)
+- Mirror `apps/api/src/services/charts/persistence.ts` + `composition.ts` (+ their tests) exactly
+- Add `apps/api/src/services/play/persistence.ts`: a persistence-backed `PlayQueryService`/`PlayCommandService` delegating to `createPlayQuerySqlRepository`/`createPlayCommandSqlRepository` over an injected executor; translate domain ops → persistence ops and persistence records → domain records (field-by-field; the domain records are branded, persistence are plain — re-apply brands via the domain schemas on read); preserve tenant scope, role checks, typed `PlayDomainError`; inject the clock
+- Add `apps/api/src/services/play/composition.ts`: `createPlayPersistenceSelection` (in-memory vs sql by config) + `migratePlaySqliteSchema` applying `PlayInitialSchemaMigration` via `createSqliteMigrationRunner`
+- Keep the in-memory service as the test double; do not change the GraphQL surface
+- Export from the play services barrel
+- Tests: a recording/fake-executor service test (domain↔persistence mapping, tenant scope, not-found → typed error) + a `node:sqlite` integration test (migrate via runner → service CRUD round-trip)
 
 ## Done when
-The Play GraphQL surface is served by an in-memory tenant-scoped Zod-validated service wired into the executable schema with typed error mapping, covered by service + resolver tests, gates green, committed and pushed.
+A persistence-backed Play service satisfies the Play service interfaces over the slice-4 adapter with tenant scope + validation + typed errors, the migration is applied via the runner, covered by a fake-executor test + a `node:sqlite` integration test, gates green, committed and pushed.
 
 ## Next task after this
-Play slice 6: persistence-backed Play service over the slice-4 adapter + composition/migration usage (mirror Charts slice 6). Then 7 (offline queue), 8 (replay), 9 (events), 10 (desktop replay runtime). UI 11–12 await the scaffold decision.
+Play slice 7: the Play offline-sync queue (contracts + SQLite/in-memory repo + queue migration), mirroring the Charts queue. Then 8 (replay decision + coordinator), 9 (WebSocket events), 10 (desktop replay runtime). UI 11–12 await the scaffold decision.
+
+## Known follow-up (flagged as a background task)
+GraphQL enum hyphen/underscore mismatch affects BOTH Charts and Play: SDL enum values are underscored (`pad_change`, `click_toggle`, Charts `section_marker`) but the Zod/domain enums use hyphens (`pad-change`, `click-toggle`, `section-marker`), so those values can't round-trip through GraphQL. Needs a normalization layer (resolver-level map or aligned enums) + tests, across both modules. Not blocking Play backend slices.

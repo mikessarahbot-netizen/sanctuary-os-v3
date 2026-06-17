@@ -2,6 +2,18 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Play slice 5: GraphQL + in-memory service
+
+Tasks completed:
+- Play slice 5 (delegated; parent verified gates): `apps/api/src/domain/play/{contracts,errors}.ts`, `apps/api/src/services/play/in-memory.ts`, `apps/api/src/graphql/play.ts` (9 queries, 10 mutations) merged into the executable schema with `PlayDomainError → extensions.code` mapping; confirmation-gated removePlayCue. In-memory only. +29 api tests. Gates green: db 275 / api 368 + 2 skipped / desktop 54 / church-context 5. Committed `5e36886`.
+
+Next task:
+- Play slice 6: persistence-backed Play service + composition/migration usage (mirror Charts slice 6).
+
+Open questions / follow-ups:
+- DEFECT (flagged as background task): GraphQL enum hyphen/underscore mismatch in BOTH Charts and Play (`pad_change`/`pad-change`, `click_toggle`/`click-toggle`, `section_marker`/`section-marker`) — those values can't round-trip through GraphQL; needs a normalization layer + tests across both modules.
+- Play scope assumptions; UI awaits scaffold; live /goal hook forces continuation (building with safe commits/pushes).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Play slice 4: SQLite adapter
 
 Tasks completed:
