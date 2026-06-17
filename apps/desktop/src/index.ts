@@ -15,6 +15,8 @@ export * from "./replay-scheduler.js";
 export * from "./runtime-bootstrap.js";
 export * from "./sidecar-config.js";
 export * from "./sidecar-entry.js";
+export * from "./sidecar-main.js";
+export * from "./sidecar-runtime-env.js";
 
 /**
  * Entry point for the Sanctuary OS desktop app workspace.

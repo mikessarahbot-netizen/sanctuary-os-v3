@@ -16,12 +16,12 @@ Add the desktop sidecar process entry: wire a real `node:sqlite` database and `f
 Tauri sidecar spawn/supervision config · desktop UI screens · deployment/packaging · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets
 
 ## Progress
-- [ ] Re-sync with the sidecar entry, config, and adapters
-- [ ] Add the `globalThis.fetch` → `PresenterFetchLike` adapter with tests
-- [ ] Add `startPresenterDesktopSidecarFromEnv` wiring `node:sqlite` + fetch
-- [ ] Add a thin runnable `sidecar-main` entry with signal handling
-- [ ] Add a `node:sqlite` availability-guarded smoke
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the sidecar entry, config, and adapters
+- [x] No fetch adapter needed — `globalThis.fetch` is structurally assignable to `PresenterFetchLike`
+- [x] Add `startPresenterDesktopSidecarFromEnv` wiring `node:sqlite` (dynamic import, injectable) + fetch
+- [x] Add a thin runnable `sidecar-main` entry with `SIGINT`/`SIGTERM` handling (no auto-run on import)
+- [x] Add a `node:sqlite` availability-guarded smoke (parse env → open SQLite → replay → synced)
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push the process-entry slice
 - [ ] Session handoff
 
