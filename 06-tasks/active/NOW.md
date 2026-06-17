@@ -18,10 +18,10 @@ Create the next product module plan after Planning persistence readiness.
 Module implementation code · UI screens · database migrations · vendor SDK integration · OBS control implementation · Auth0 integration · deployment config · checked-in secrets · GraphQL contract changes outside plan documentation
 
 ## Progress
-- [ ] Re-sync with required docs, existing plans, and architecture reviews
-- [ ] Decide the next product module after Planning persistence readiness
-- [ ] Add the next module plan in `05-plans/`
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with required docs, existing plans, and architecture reviews
+- [x] Decide the next product module after Planning persistence readiness
+- [x] Add the next module plan in `05-plans/`
+- [x] Run lint, typecheck, and tests
 - [ ] Commit and push slice
 - [ ] Session handoff
 
