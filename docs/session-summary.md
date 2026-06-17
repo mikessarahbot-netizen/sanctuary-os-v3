@@ -19,6 +19,20 @@ Next task:
 Open questions:
 - None.
 
+## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue repository contracts
+
+- Added Presenter local sync queue persistence repository contracts in `packages/db/src/presenter-repository-contracts.ts`.
+- Added strict Zod schemas/types for queue storage schema version, approved queued operations, queue entry persistence records, conflict details, status transitions, enqueue/read/list/transition/conflict/failure/cleanup operation shapes, and cleanup results.
+- Added `PresenterLocalSyncQueuePersistenceRepository` plus the adapter-free `listPresenterLocalSyncQueueEntriesReadyForReplay` helper for replay ordering and stale-data blocking behind conflict/failed entries.
+- Added focused tests for enqueue validation, tenant/presentation mismatch rejection, duplicate reorder rejection, secret-like field rejection, transition validation, conflict/failure/cleanup operation shapes, replay ordering/stale-data blocking, retry metadata preservation, request/base-revision preservation, and adapter-free repository interface shape.
+- Kept the slice contract-only with no SQLite schema/migrations, concrete local adapter, production queue runner, desktop UI, Tauri command, desktop event bus, GraphQL/API replay changes, OBS/stream automation, vendor SDK, Auth0 integration, AI execution, deployment config, or checked-in secrets.
+- Validation passed: `pnpm --filter @sanctuary-os/db test -- presenter-repository-contracts.test.ts`, `pnpm --filter @sanctuary-os/db typecheck`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+- Pushed implementation commit `f621ff4` (`feat(presenter): add local sync queue repository contracts`) to `feature/presenter-domain-contracts`.
+- Next task: run a focused release check for Presenter local sync queue repository contracts.
+
+Open questions:
+- None.
+
 ## 2026-06-16 - feature/presenter-domain-contracts - Presenter local sync queue storage plan
 
 - Added `05-plans/presenter-local-sync-queue-storage-plan.md`.
