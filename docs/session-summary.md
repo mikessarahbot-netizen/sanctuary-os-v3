@@ -2,6 +2,19 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 7: offline-sync queue (contracts + repo)
+
+Tasks completed:
+- Built the Charts local sync queue (delegated to a sub-agent; parent independently re-ran gates before committing). Added `packages/db/src/charts-local-sync-queue-repository-contracts.ts` (tenant-scoped queue entry record, 7-op discriminated union reusing the Charts command input schemas as payloads, pending/in-flight/failed/synced status + attempt/backoff), `charts-local-sync-queue-sql-repository.ts` (SQLite queue repo), `charts-local-sync-queue-in-memory-repository.ts` (double), and a `ChartsLocalSyncQueueMigration` table in `charts-migrations.ts`.
+- Tests: +53 db (contracts 22, sql 14, in-memory 9, queue migration +8, node:sqlite smoke). Gates green: lint clean, typecheck all 4, tests db 219 / api 276 + 2 skipped / desktop 54 / church-context 5.
+- Committed `feat(db): add the Charts offline-sync queue contracts and repository` (`1a37a1e`). Wrote the release check + the slice-7b handoff note.
+
+Next task:
+- Charts slice 7b: replay decision (backoff/attempt limits) + coordinator (queued op → ChartsCommandService) + status summary (mirror the presenter replay slices).
+
+Open questions:
+- The live `/goal` Stop hook still forces continuation; re-issue `/goal` with the session-handoff wording (or `/clear`) for a true fresh-session handoff. Multiple Charts slices have been built this session under the hook with safe commits at each breakpoint.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 6: persistence-backed service
 
 Tasks completed:

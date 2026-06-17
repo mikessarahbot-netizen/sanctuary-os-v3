@@ -1,37 +1,36 @@
 # NOW
 
 ## Task
-Charts module, slice 7: the Charts offline-sync queue — contracts + repository (in-memory + SQLite), the first increment of the offline-sync surface, mirroring the presenter local sync queue's contracts + repository slices.
+Charts module, slice 7b: the Charts offline-sync replay decision (backoff/attempt limits) + coordinator (queued op → online command) + status summary — building on the slice-7 queue, mirroring the presenter replay slices.
 
 ## Session protocol (in force)
-Keep context small: at clean breakpoints commit + push all work, write the handoff, then hand off to a fresh session. See `agents.md` › "Session continuity protocol". Charts slices 1–6 are DONE and green (ChordPro core, persistence contracts, migration, SQLite adapter, GraphQL + in-memory service, persistence-backed service).
+Keep context small: at clean breakpoints commit + push all work, write the handoff, then hand off to a fresh session. See `agents.md` › "Session continuity protocol". Charts slices 1–7 are DONE and green (through the offline-sync queue contracts + repository).
 
 ## In scope
 - Continue on `feature/presenter-domain-contracts`
-- Mirror the presenter local sync queue's EARLY slices for style/shape:
-  - `packages/db/src/presenter-local-sync-queue-repository-contracts.ts` (queue entry record + queue repository contracts)
-  - `packages/db/src/presenter-local-sync-queue-sql-repository.ts` (the SQLite queue repository)
-  - `packages/db/src/presenter-in-memory-repository.ts` (the in-memory double)
-  - `packages/db/src/presenter-migrations.ts` (if a queue table/migration is needed) and the existing `packages/db/src/charts-migrations.ts`
-- Define a Charts offline-sync queue entry record (Zod, tenant-scoped, branded IDs): the queued local Charts mutation (op kind + payload + status + attempt/backoff metadata + timestamps), and the queue repository contracts (enqueue, list-pending, mark-status, etc.)
-- Implement the SQLite queue repository over `createChartsSqlRepository`-style executor usage (or a new `charts-local-sync-queue-sql-repository.ts`) + an in-memory queue double
-- If a new queue table is required, add it as a Charts queue migration artifact (mirror the presenter queue migration), or extend `charts-migrations.ts` — keep SQLite-compatible (TEXT/INTEGER/REAL)
-- Tests: contract schema tests + recording-executor repository tests + a `node:sqlite` smoke
+- Mirror the presenter replay slices for style/shape:
+  - `packages/db/src/presenter-local-sync-queue-replay.ts` (the replay decision: which entries are ready, backoff/attempt-limit logic)
+  - `packages/db/src/presenter-local-sync-queue-status.ts` (status summary / countByStatus)
+  - the presenter replay coordinator + network executor on the consumer side: `apps/desktop/src/replay-*.ts` (e.g. replay-pass, replay-scheduler, replay-error-classifier, network-command-service) and `apps/api/src/services/presenter/local-sync-queue-replay-coordinator.ts`
+  - the slice-7 queue: `packages/db/src/charts-local-sync-queue-repository-contracts.ts`, `charts-local-sync-queue-sql-repository.ts`, `charts-local-sync-queue-in-memory-repository.ts`
+- Build the Charts replay decision (pure function over a queue entry + clock → replay/backoff/give-up), a `countByStatus`-style status summary on the queue repositories, and a coordinator that maps a queued Charts op → the corresponding Charts command service call (reuse the slice-5/6 `ChartsCommandService`), classifying success / retryable failure / terminal failure and updating queue status accordingly
+- Keep the network/transport boundary injected (like presenter), so it is unit-testable without a live server
+- Tests: pure replay-decision tests, status-summary tests, and coordinator tests (success → synced; retryable → requeue with backoff; terminal → failed) with a fake command service
 
 ## Out of scope
-Replay decision / coordinator / network executor / status summary (slices 7b+) · Charts mobile UI · the Play/Community+/OBS modules
+A Charts conflict round-trip UI · the desktop runtime wiring/composition root for Charts replay (can be a later slice) · Charts mobile UI · Play/Community+/OBS
 
 ## Progress
-- [ ] Re-sync with the presenter local sync queue contracts + SQL repository + in-memory double
-- [ ] Charts offline-sync queue entry record + queue repository contracts
-- [ ] SQLite queue repository + in-memory double (+ queue migration if needed)
-- [ ] Contract tests + recording-executor tests + `node:sqlite` smoke
+- [ ] Re-sync with the presenter replay decision / status / coordinator and the slice-7 queue
+- [ ] Charts replay decision (pure) + status summary on the queue repositories
+- [ ] Charts replay coordinator (queued op → ChartsCommandService) with status updates
+- [ ] Replay-decision + status + coordinator tests
 - [ ] Run lint, typecheck, test green
 - [ ] Release check + handoff + session-summary + NOW.md advance
 - [ ] Commit + push the slice
 
 ## Done when
-The Charts offline-sync queue contracts + repository (SQLite + in-memory) exist with tenant scope, validated records, and tests (contracts + recording-executor + `node:sqlite` smoke), default gates green, committed and pushed.
+The Charts replay decision + status summary + coordinator exist (queued op → command service, with backoff/attempt-limit handling and status transitions), covered by pure-decision + coordinator tests, default gates green, committed and pushed.
 
 ## Next task after this
-Charts slice 7b: the replay decision (backoff/attempt limits) + coordinator (op→command) + status summary for the Charts offline queue (mirror the presenter replay slices); then slice 8: the Charts mobile UI. After Charts: author and build the Play module (plan from vision + system map, then slice-by-slice), then Community+, then OBS.
+Charts slice 8: the Charts mobile UI (offline-first editor/list over the GraphQL surface + local queue). After Charts: author and build the Play module (plan from vision + system map, then slice-by-slice), then Community+, then OBS.
