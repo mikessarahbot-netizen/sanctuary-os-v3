@@ -58,6 +58,38 @@
         font-size: 0.8rem;
         opacity: 0.6;
       }
+      .actions {
+        margin-top: 1.5rem;
+        display: grid;
+        gap: 0.5rem;
+      }
+      .actions input {
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        border: 1px solid #2b3a48;
+        background: #0c141b;
+        color: #f7f7f2;
+      }
+      .actions .buttons {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+      }
+      .actions button {
+        flex: 1;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        border: 0;
+        cursor: pointer;
+        font-weight: 600;
+        background: #2b3a48;
+        color: #f7f7f2;
+      }
+      #action-result {
+        font-size: 0.8rem;
+        opacity: 0.7;
+        min-height: 1rem;
+      }
     </style>
   </head>
   <body>
@@ -71,6 +103,14 @@
         <div class="status-card attention"><div class="value" id="needsAttention">—</div><div class="label">Needs attention</div></div>
       </div>
       <div id="connection">Connecting to the replay sidecar…</div>
+      <div class="actions">
+        <input id="entry-id" type="text" placeholder="Queue entry id" aria-label="Queue entry id" />
+        <div class="buttons">
+          <button id="requeue-btn" type="button">Requeue</button>
+          <button id="cancel-btn" type="button">Cancel</button>
+        </div>
+        <div id="action-result"></div>
+      </div>
     </main>
     <script>
       const STATUS_PORT = "7421";
@@ -97,6 +137,33 @@
           connection.textContent = "Replay sidecar is offline.";
         }
       };
+
+      const ACTION_URL = `http://127.0.0.1:${STATUS_PORT}/actions`;
+
+      const postAction = async (action) => {
+        const queueEntryId = document.getElementById("entry-id").value.trim();
+        const result = document.getElementById("action-result");
+        if (queueEntryId === "") {
+          result.textContent = "Enter a queue entry id.";
+          return;
+        }
+        try {
+          const response = await fetch(ACTION_URL, {
+            body: JSON.stringify({ action, queueEntryId }),
+            headers: { "content-type": "application/json" },
+            method: "POST"
+          });
+          result.textContent = response.ok
+            ? `${action} applied to ${queueEntryId}.`
+            : `Could not ${action} ${queueEntryId} (HTTP ${response.status}).`;
+          poll();
+        } catch {
+          result.textContent = "Replay sidecar is offline.";
+        }
+      };
+
+      document.getElementById("requeue-btn").addEventListener("click", () => postAction("requeue"));
+      document.getElementById("cancel-btn").addEventListener("click", () => postAction("cancel"));
 
       poll();
       setInterval(poll, 5000);

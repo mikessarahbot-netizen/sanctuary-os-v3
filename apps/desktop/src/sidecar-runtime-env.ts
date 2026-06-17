@@ -53,7 +53,9 @@ export const startPresenterDesktopSidecarFromEnv = async (
   }
 
   const statusServer = createPresenterStatusHttpServer({
-    getStatus: () => handle.runtime.getStatus()
+    cancelEntry: (queueEntryId) => handle.runtime.cancelEntry(queueEntryId),
+    getStatus: () => handle.runtime.getStatus(),
+    requeueEntry: (queueEntryId) => handle.runtime.requeueEntry(queueEntryId)
   });
 
   await new Promise<void>((resolve) => {

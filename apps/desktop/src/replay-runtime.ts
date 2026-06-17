@@ -1,10 +1,13 @@
 import {
   summarizePresenterLocalSyncQueue,
   type MigrationRunStep,
+  type PresenterLocalSyncQueueEntryMutationResult,
   type PresenterLocalSyncQueuePersistenceRepository,
   type PresenterLocalSyncQueuePersistenceRuntimeConfigInput,
   type PresenterLocalSyncQueueReplayPolicyInput,
   type PresenterLocalSyncQueueStatusSummary,
+  type PresenterPersistenceReadOptions,
+  type PresenterPersistenceWriteOptions,
   type SqliteMigrationDatabaseClient
 } from "@sanctuary-os/db";
 import type { AuthenticatedActor } from "@sanctuary-os/api";
@@ -52,9 +55,15 @@ export interface PresenterDesktopReplayStatus {
 }
 
 export interface PresenterDesktopReplayRuntime {
+  readonly cancelEntry: (
+    queueEntryId: string
+  ) => Promise<PresenterLocalSyncQueueEntryMutationResult>;
   readonly getStatus: () => Promise<PresenterDesktopReplayStatus>;
   readonly migrations: readonly MigrationRunStep[];
   readonly repository: PresenterLocalSyncQueuePersistenceRepository;
+  readonly requeueEntry: (
+    queueEntryId: string
+  ) => Promise<PresenterLocalSyncQueueEntryMutationResult>;
   readonly scheduler: PresenterDesktopReplayScheduler<PresenterDesktopReplayPassResult>;
 }
 
@@ -97,16 +106,22 @@ export const createPresenterDesktopReplayRuntime = async <THandle>(
     ...(dependencies.onError !== undefined ? { onError: dependencies.onError } : {})
   });
 
+  const readOptionsFor = (requestId: string): PresenterPersistenceReadOptions => ({
+    context: {
+      actorId: dependencies.actor.actorId,
+      requestId,
+      tenantId: dependencies.actor.tenantId
+    }
+  });
+  const writeOptionsFor = (requestId: string): PresenterPersistenceWriteOptions => ({
+    ...readOptionsFor(requestId),
+    intent: "update"
+  });
+
   const getStatus = async (): Promise<PresenterDesktopReplayStatus> => {
     const counts = await store.repository.countByStatus({
       input: {},
-      options: {
-        context: {
-          actorId: dependencies.actor.actorId,
-          requestId: `presenter-status:${dependencies.clock()}`,
-          tenantId: dependencies.actor.tenantId
-        }
-      }
+      options: readOptionsFor(`presenter-status:${dependencies.clock()}`)
     });
 
     return {
@@ -115,10 +130,42 @@ export const createPresenterDesktopReplayRuntime = async <THandle>(
     };
   };
 
+  const transitionEntry = async (
+    queueEntryId: string,
+    to: "queued" | "cancelled",
+    requestPrefix: string
+  ): Promise<PresenterLocalSyncQueueEntryMutationResult> => {
+    const now = dependencies.clock();
+    const entry = await store.repository.getById({
+      input: { queueEntryId },
+      options: readOptionsFor(`${requestPrefix}-read:${now}`)
+    });
+
+    if (entry === null) {
+      throw new Error(`Presenter queue entry ${queueEntryId} was not found.`);
+    }
+
+    const operation = {
+      input: {
+        queueEntryId,
+        transition: { from: entry.status, to, transitionedAt: now }
+      },
+      options: writeOptionsFor(`${requestPrefix}:${now}`)
+    };
+
+    return to === "queued"
+      ? store.repository.requeue(operation)
+      : store.repository.cancel(operation);
+  };
+
   return {
+    cancelEntry: (queueEntryId) =>
+      transitionEntry(queueEntryId, "cancelled", "presenter-cancel"),
     getStatus,
     migrations: store.migrations,
     repository: store.repository,
+    requeueEntry: (queueEntryId) =>
+      transitionEntry(queueEntryId, "queued", "presenter-requeue"),
     scheduler
   };
 };

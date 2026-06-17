@@ -16,12 +16,12 @@ Add operator retry/cancel for conflict/failed queue entries: a sidecar action en
 Packaging · deployment · OBS control · stream start/stop · vendor SDKs · Auth0 integration · AI prompt execution · checked-in secrets · planning/other modules
 
 ## Progress
-- [ ] Re-sync with the status server, runtime, and transition contracts
-- [ ] Add the pure action handler (requeue/cancel) with Zod body validation
-- [ ] Wire the action endpoint into the localhost server + env starter
-- [ ] Add UI controls to web/index.html
-- [ ] Add handler tests (fake repository) + a `node:sqlite` requeue smoke
-- [ ] Run lint, typecheck, and tests
+- [x] Re-sync with the status server, runtime, and transition contracts
+- [x] Add `requeueEntry`/`cancelEntry` to the runtime (getById → transition → requeue/cancel) and a pure action handler (Zod body, 200/400/405/409)
+- [x] Route the action endpoint in the combined localhost server; env starter passes the runtime actions
+- [x] Add requeue/cancel UI controls to web/index.html
+- [x] Add 5 action-handler tests + a `node:sqlite` requeue smoke (conflict → requeueEntry → queued)
+- [x] Run lint, typecheck, and tests; the sidecar bundle still builds
 - [ ] Commit and push the operator-actions slice
 - [ ] Session handoff
 

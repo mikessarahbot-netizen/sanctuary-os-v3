@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { z } from "zod";
 import type { PresenterDesktopReplayStatus } from "./replay-runtime.js";
 
 /**
@@ -52,29 +53,102 @@ export const handlePresenterStatusHttpInvocation = async (
   return { body: JSON.stringify(status), headers: JSON_HEADERS, status: 200 };
 };
 
-export interface PresenterStatusHttpServerDependencies {
+export type PresenterEntryAction = (
+  queueEntryId: string
+) => Promise<unknown>;
+
+export interface PresenterActionDependencies {
+  readonly cancelEntry: PresenterEntryAction;
+  readonly requeueEntry: PresenterEntryAction;
+}
+
+const ActionBodySchema = z
+  .object({
+    action: z.enum(["requeue", "cancel"]),
+    queueEntryId: z.string().min(1)
+  })
+  .strip();
+
+export const handlePresenterActionHttpInvocation = async (
+  dependencies: PresenterActionDependencies,
+  invocation: PresenterStatusHttpInvocation & { readonly rawBody: string },
+  options: { readonly path: string }
+): Promise<PresenterStatusHttpResult> => {
+  if (pathOf(invocation.path) !== options.path) {
+    return { body: JSON.stringify({ error: "Not found." }), headers: JSON_HEADERS, status: 404 };
+  }
+
+  if ((invocation.method ?? "").toUpperCase() !== "POST") {
+    return {
+      body: JSON.stringify({ error: "Method not allowed." }),
+      headers: JSON_HEADERS,
+      status: 405
+    };
+  }
+
+  let body;
+  try {
+    body = ActionBodySchema.parse(JSON.parse(invocation.rawBody));
+  } catch {
+    return { body: JSON.stringify({ error: "Invalid action body." }), headers: JSON_HEADERS, status: 400 };
+  }
+
+  try {
+    if (body.action === "requeue") {
+      await dependencies.requeueEntry(body.queueEntryId);
+    } else {
+      await dependencies.cancelEntry(body.queueEntryId);
+    }
+
+    return { body: JSON.stringify({ ok: true }), headers: JSON_HEADERS, status: 200 };
+  } catch {
+    return {
+      body: JSON.stringify({ error: "The action could not be applied to this entry." }),
+      headers: JSON_HEADERS,
+      status: 409
+    };
+  }
+};
+
+export interface PresenterStatusHttpServerDependencies extends PresenterActionDependencies {
+  readonly actionPath?: string;
   readonly getStatus: PresenterStatusProvider;
-  readonly path?: string;
+  readonly statusPath?: string;
 }
 
 export const createPresenterStatusHttpServer = (
   dependencies: PresenterStatusHttpServerDependencies
 ): Server => {
-  const path = dependencies.path ?? "/status";
+  const statusPath = dependencies.statusPath ?? "/status";
+  const actionPath = dependencies.actionPath ?? "/actions";
 
   return createServer((request, response) => {
-    void handlePresenterStatusHttpInvocation(
-      dependencies.getStatus,
-      { method: request.method, path: request.url },
-      { path }
-    )
-      .then((result) => {
-        response.writeHead(result.status, result.headers);
-        response.end(result.body);
-      })
-      .catch(() => {
-        response.writeHead(500, JSON_HEADERS);
-        response.end(JSON.stringify({ error: "Internal server error." }));
-      });
+    const chunks: Buffer[] = [];
+
+    request.on("data", (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    request.on("end", () => {
+      const rawBody = Buffer.concat(chunks).toString("utf8");
+      const invocation = { method: request.method, path: request.url };
+      const routed =
+        pathOf(request.url) === actionPath
+          ? handlePresenterActionHttpInvocation(dependencies, { ...invocation, rawBody }, {
+              path: actionPath
+            })
+          : handlePresenterStatusHttpInvocation(dependencies.getStatus, invocation, {
+              path: statusPath
+            });
+
+      routed
+        .then((result) => {
+          response.writeHead(result.status, result.headers);
+          response.end(result.body);
+        })
+        .catch(() => {
+          response.writeHead(500, JSON_HEADERS);
+          response.end(JSON.stringify({ error: "Internal server error." }));
+        });
+    });
   });
 };

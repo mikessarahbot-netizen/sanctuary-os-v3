@@ -188,4 +188,57 @@ describe("createPresenterDesktopReplayRuntime", () => {
       database.close();
     }
   });
+
+  liveIt("requeues a conflicted entry through requeueEntry", async () => {
+    if (nodeSqlite === undefined) {
+      throw new Error("node:sqlite is unavailable.");
+    }
+
+    const database = new nodeSqlite.DatabaseSync(":memory:");
+
+    try {
+      const runtime = await createPresenterDesktopReplayRuntime({
+        actor,
+        clock: () => "2026-06-17T07:10:00.000Z",
+        commandService: createFakeCommandService().service,
+        database: wrapMigrationClient(database),
+        interval: noopInterval,
+        intervalMs: 1000,
+        isOnline: () => true,
+        policy
+      });
+
+      const writeOptions = {
+        context: { actorId: actor.actorId, requestId: "request_write", tenantId },
+        intent: "update"
+      } as const;
+
+      await runtime.repository.enqueue({ input: { entry: queuedEntry }, options: writeOptions });
+      await runtime.repository.markReplaying({
+        input: {
+          queueEntryId: "queue_entry_runtime_1",
+          transition: { from: "queued", to: "replaying", transitionedAt: "2026-06-17T07:08:00.000Z" }
+        },
+        options: writeOptions
+      });
+      await runtime.repository.markConflict({
+        input: {
+          conflict: {
+            conflictKind: "stale-presentation",
+            localBaseRevision: "revision_1",
+            safeMessage: "Server changed since this edit was queued.",
+            serverRevision: "revision_2"
+          },
+          queueEntryId: "queue_entry_runtime_1",
+          transition: { from: "replaying", to: "conflict", transitionedAt: "2026-06-17T07:09:00.000Z" }
+        },
+        options: writeOptions
+      });
+
+      const requeued = await runtime.requeueEntry("queue_entry_runtime_1");
+      expect(requeued.entry.status).toBe("queued");
+    } finally {
+      database.close();
+    }
+  });
 });
