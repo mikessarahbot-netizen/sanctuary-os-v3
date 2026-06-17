@@ -70,3 +70,13 @@ State the blocker. Propose 2-3 safe options. Write to `06-tasks/blocked/` if nee
   - Example: `feat(planning): add volunteer assignment mutation`
 - Push branch after committing. Do not open a PR unless explicitly asked.
 - If unsure whether to commit, finish the current task scope first.
+
+## Session continuity protocol
+The build spans many sessions. Keep each session's context window small and token usage low by handing off to a fresh session at clean breakpoints instead of growing one context indefinitely.
+
+- **Commit before handoff — always.** Never begin a new session with uncommitted work. Immediately before handing off: `git add -A`, commit, `git push`, and confirm `git status` is clean. Use a normal `feat`/`chore`/`docs` commit for a finished slice; use `chore(wip): <slice> — <what remains>` when stopping mid-slice. This WIP commit is the one sanctioned exception to "commit after each completed task scope, not mid-implementation".
+- **Breakpoints.** Prefer to hand off between slices, just after a slice's full ceremony (code + tests + gates + release check + handoff note + `NOW.md`) is complete and pushed. If context grows large mid-slice, stop at the next safe point, commit a labelled WIP, and hand off anyway.
+- **When to hand off.** Trigger a handoff when any of these holds: the context window is getting large; a slice is fully done and pushed; or several slices have accumulated in one session.
+- **Handoff package.** Update `06-tasks/active/NOW.md` (next slice, in-scope steps, "Done when") and write `06-tasks/blocked/<date>-<slice>-handoff.md` (resume command + read order + exact remaining steps). A fresh session must be able to resume from `agents.md` + `NOW.md` alone, with no memory of the prior session.
+- **End the session.** After committing, pushing, and writing the handoff, print `🔄 SESSION HANDOFF — resume in a fresh session from 06-tasks/active/NOW.md` and stop.
+- **Goal continuity.** The standing goal — complete the Sanctuary OS build, module by module in sequence, slice by slice, without stopping — carries across sessions via `NOW.md`. The `/goal` Stop hook is per-session runtime state; a fresh session must have the goal re-established to keep building unattended.

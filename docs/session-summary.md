@@ -2,6 +2,18 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Session-continuity protocol + Charts slice 4 (WIP)
+
+Tasks completed:
+- Adopted a session-continuity protocol (user directive: keep context windows small, low token usage; commit before each new session). Encoded durably in `agents.md` › "Session continuity protocol": always commit + push before a handoff, hand off at clean breakpoints, `chore(wip)` commits sanctioned mid-slice, fresh session resumes from `agents.md` + `NOW.md`, print `🔄 SESSION HANDOFF` and stop.
+- Drafted `packages/db/src/charts-sql-repository.ts` (Charts slice 4 adapter: query + command repositories, tenant filtering, row↔contract mapping, upserts, `RETURNING` source update). Committed as WIP — does not compile yet (imports per-operation type aliases the contracts don't export; the contracts use generic `ChartsReadPersistenceOperation<TInput>` / `ChartsPersistenceOperation<TInput>` wrappers). Reconciliation steps captured in `NOW.md` + the slice-4 handoff note.
+
+Next task:
+- Finish Charts slice 4: reconcile the adapter to the real contract surface, barrel export, tests + `node:sqlite` smoke, gates green.
+
+Open questions:
+- The live `/goal` Stop hook is per-session runtime state (not a file). Re-issue `/goal` with the session-handoff wording so the live hook permits clean stops at breakpoints.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Charts slice 3: SQLite migration artifact
 
 Tasks completed:
