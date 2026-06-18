@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 9: WebSocket events (PII-free)
+
+Tasks completed:
+- Community+ slice 9 (delegated; parent verified gates): community.memberUpdated / community.attendanceRecorded / community.communicationStatusChanged added to the API event union with .strict() PII-free payloads (opaque refs + status/counts; tests reject name/contact/body keys) + tenant/aggregate scope superRefines, emitted after durable commits in the in-memory service (play/presenter emission scope). Used the plan's authoritative event set over NOW.md's looser wording. +7 api tests. Gates green: db 403 / api 560 + 2 skipped / desktop 89 / church-context 5. Committed `7f07105`.
+
+Next task:
+- Community+ slice 10 (final backend slice): AI assist (PII-free projection, Zod-validated output, injected AI port, draft-only via the confirm gate). Then the consolidated Community+ backend release check → the OBS module.
+
+Open questions / follow-ups: standing (network-executor JSON gap; enum task_85338bf7; UI surface decision still with the user; live /goal hook driving the build).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 8: engagement rollup recompute
 
 Tasks completed:

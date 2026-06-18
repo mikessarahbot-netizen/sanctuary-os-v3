@@ -1,27 +1,28 @@
 # NOW
 
 ## Task
-Community+ module, slice 9: the Community WebSocket events — add the module's events (member/household/group/attendance/communication) to the API event union with `.strict()` payloads + tenant/aggregate scope superRefines, emitted after durable commits. PII-FREE payloads (refs/counts only — never names/contact values). Mirror the presenter/play events. (Community+ slices 1–8 done + green at `1ba26ff`.)
+Community+ module, slice 10 (final backend slice): AI assist — reviewable draft suggestions (e.g. a communication draft) using the smallest PII-free ChurchContext projection, Zod-validated AI output, that NEVER auto-sends (drafts enter the human-confirm gate as origin="ai-drafted"). (Community+ slices 1–9 done + green at `7f07105`.)
 
 ## Module / authority
-Building Community+ from `05-plans/community-plus-module-plan.md` (authoritative). Strictest-privacy module. Charts + Play backends complete.
+Building Community+ from `05-plans/community-plus-module-plan.md` (authoritative). Strictest-privacy module. Charts + Play backends complete. AFTER this slice the Community+ backend is complete → write the consolidated release check.
 
-## Privacy non-negotiable (this slice especially)
-Event payloads must carry NO PII — only opaque refs (memberRef, groupId, messageId, occasionRef) + status/counts. A subscriber must not learn names/contact values from an event. Add a test asserting the event payloads reject/῀omit PII keys.
+## Privacy / AI non-negotiables (this slice)
+- AI receives only the smallest PII-free ChurchContext projection; NO PII unless `aiPolicyProfile.piiSharingAllowed = true` (and even then, prefer PII-free). Respect `bannedOrPausedSongIds`/equivalent exclusions if relevant.
+- AI output is Zod-validated before use. AI may DRAFT, never SEND: a drafted communication is `origin="ai-drafted"`, status `draft`, and must pass through the existing human-confirmation gate (slice 5) to be queued/sent.
+- The AI provider is behind an INJECTED port (fake in tests) — do not make real API calls in tests. Default to the latest Claude model in any real wiring, but keep it injected/config-driven.
 
 ## Session protocol (in force)
-`agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`. Ceremony streamlined per backend slice; consolidated release check at the Community+-backend milestone (after slice 10).
+`agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`.
 
-## In scope (slice 9)
+## In scope (slice 10)
 - Continue on `feature/presenter-domain-contracts`
-- Mirror the presenter/play events: read `apps/api/src/events/index.ts` (the union + the presenter/play event payloads + scope superRefines + how play emits after durable commits in `services/play/in-memory.ts`) and `apps/api/src/services/community/in-memory.ts` (the commit points to hook emission)
-- Add `.strict()` PII-FREE Community event payloads per the plan (e.g. `member.updated`, `communityGroup.updated`, `attendance.recorded`, `communication.queued`, `communication.sent` — match the plan's exact event set) to the API event union, each with the tenant/aggregate scope superRefine
-- Wire emission via the injected event publisher (same mechanism play uses) after the relevant durable commits in the in-memory service; do NOT emit on the persistence path if play doesn't (match the established scope)
-- Tests: event payload validation (valid + scope-mismatch rejected) + a PII-FREE payload assertion + emit-after-commit wiring tests
-- Do not change the GraphQL surface
+- Read the plan's "AI assist" section + `02-standards/ai-prompt-standards.md` + `04-prompts/` (existing versioned prompt specs — mirror their format) + `packages/ai-engine` (if it has an injected AI port / output-validation pattern to reuse) + any existing AI-assist usage in other modules (search the repo) to mirror the established pattern
+- Add the Community+ AI-assist capability: a prompt spec in `04-prompts/` (versioned), a Zod output schema for the suggestion (e.g. a communication draft: subject?/body refs — PII-free inputs), and a service operation (`draftCommunicationWithAi` or per the plan) that builds the smallest PII-free projection, calls the injected AI port, Zod-validates the result, and creates a `draft` message with `origin="ai-drafted"` (which CANNOT self-send — enforced by the slice-5/7 gate)
+- Wire it where appropriate (service + optionally a GraphQL mutation that returns the reviewable draft, marked clearly as draft-only). Mirror how other modules expose AI assist if they do.
+- Tests: the AI port is faked; assert (a) the projection handed to AI is PII-free, (b) malformed AI output is rejected by Zod, (c) the produced message is origin="ai-drafted" + draft and CANNOT be queued/sent without a human confirmation (the gate still blocks it), (d) tenant scope
 
 ## Done when
-The Community+ events are in the API event union with strict PII-free payloads + scope superRefines, emitted after durable commits, covered by validation + PII-free + wiring tests, gates green, committed and pushed.
+The Community+ AI-assist draft capability exists (PII-free projection, Zod-validated output, injected AI port, draft-only via the confirm gate), covered by faked-port tests proving PII-free + validation + the no-auto-send gate, gates green, committed and pushed. Then write `07-reviews/architecture/community-backend-release-check.md` (consolidated, slices 1–10).
 
 ## Next task after this
-Community+ slice 10: AI assist — reviewable draft suggestions (e.g. a communication draft) using the smallest PII-free ChurchContext projection, Zod-validated output, NEVER auto-sending (drafts go through the human-confirm gate; origin="ai-drafted"); mirror `04-prompts/` spec conventions + the ai-prompt-standards. After slice 10 the COMMUNITY+ BACKEND IS COMPLETE → write `07-reviews/architecture/community-backend-release-check.md`. Then the OBS module (final; obs-websocket + human-confirm gates). UI slices await the user's surface decision.
+The OBS module (final module): author `05-plans/obs-module-plan.md` (note: OBS involves obs-websocket v5 + obs-agent; stream-start/stop + scene/source changes REQUIRE human-confirm gates per the non-negotiables — model these as confirmation-gated, never-auto operations), then build its backend slice-by-slice. There is an `obs-integrator` skill that may help. UI slices for all modules await the user's surface decision.
