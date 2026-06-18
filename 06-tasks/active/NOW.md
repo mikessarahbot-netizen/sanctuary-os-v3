@@ -1,26 +1,25 @@
 # NOW
 
 ## Task
-OBS module, slice 2: the persistence contracts (`packages/db/src/obs-repository-contracts.ts`) — tenant-scoped Zod persistence records + per-operation input schemas + read/write option guards + query/command repository interfaces, mirroring the Charts/Play/Community contracts. (OBS slice 1 — domain + pure logic — done + green at `72c7b0b`.)
+OBS module, slice 3: the migration artifact (`packages/db/src/obs-migrations.ts`) — `ObsInitialSchemaMigration` (tables for the 8 objects + indexes + CHECKs) via `defineSqlMigrationArtifact`, mirroring the other modules' migrations. (OBS slices 1–2 done + green at `3f26b5f`.)
 
 ## Module / authority
-Building OBS from `05-plans/obs-module-plan.md` (authoritative). Final module. NO secrets in records (opaque connectionRef only); online-only output actions; structural confirm-before-dispatch gate. Charts + Play + Community+ backends complete.
+Building OBS from `05-plans/obs-module-plan.md` (authoritative). Final module. NO secret columns (opaque connection_ref); coarse state only; schema_version literal `obs.v1`; confirm-before-dispatch CHECKs. Charts + Play + Community+ backends complete.
 
 ## Session protocol (in force)
 `agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`.
 
-## In scope (slice 2)
+## In scope (slice 3)
 - Continue on `feature/presenter-domain-contracts`
-- Mirror `packages/db/src/{charts,play,community}-repository-contracts.ts` exactly in shape
-- Add `packages/db/src/obs-repository-contracts.ts`: `ObsPersistenceReadOptions`/`WriteOptions` (reuse RepositoryReadOptions/WriteOptions + inlined superRefine requiring actorId); a `*PersistenceRecordSchema` per object (ObsConnectionProfile [opaque connectionRef — NO secret columns], Scene, Source, SceneItem, StreamState, RecordingState, ObsActionIntent, ObsActionLogEntry — durable storage shapes mirroring the slice-1 domain records; plain strings; JSON for array fields); a `ObsStorageSchemaVersionSchema = z.literal("obs.v1")`; per-operation `*PersistenceInputSchema`; readOperation/writeOperation wrappers; `ObsQueryPersistenceRepository` + `ObsCommandPersistenceRepository` interfaces (list/get per object, the connection-profile upsert, scene/source catalog snapshot upserts, stream/recording state upsert, the action-intent lifecycle writes [save/setStatus respecting the confirm-before-dispatch invariant], the append-only action-log insert)
-- Export from the db barrel
-- Contract tests mirroring the other modules' contract tests (round-trip parse, .strict() rejection, actor-id requirement, key invariants, and a NO-SECRETS assertion that ObsConnectionProfile rejects host/password/token/streamKey keys)
+- Mirror `packages/db/src/{charts,play,community}-migrations.ts` + their tests
+- Add `packages/db/src/obs-migrations.ts`: `ObsInitialSchemaMigration` creating the tables from the plan's persistence-model section (obs_connection_profiles, obs_scenes, obs_sources, obs_scene_items, obs_stream_state, obs_recording_state, obs_action_intents, obs_action_log_entries — match the plan's exact names) with PKs leading `tenant_id`, all CHECK constraints (schema_version='obs.v1', the action-status/origin/source-kind/stream-status enums, boolean IN (0,1), affects_live_output gate, the confirm-before-dispatch CHECKs [status IN ('confirmed','dispatched','succeeded') ⇒ confirmation cols present; requested ⇒ none], coarse-state-only), NO secret columns (connection_ref + opaque only), JSON columns for any arrays, tenant-scoped indexes, and rollback; SQLite-compatible (TEXT/INTEGER/REAL). Export name lists + `ObsSqlMigrations`. migrationId `…0008`
+- Tests: artifact shape, CREATE TABLE/INDEX presence, constraint strings (incl. a NO-SECRETS assertion that the DDL has no host/password/token/streamKey columns), rollback drops, checksum stability, and a `node:sqlite` smoke (apply → insert a valid connection profile + a valid requested intent → reject a bad schema_version AND a dispatched intent with no confirmation → rollback)
 
 ## Out of scope
-Migration (slice 3) · adapter (slice 4) · ObsControlPort · GraphQL/service · the action-gate flow · real obs-websocket · runtime/UI
+The adapter (slice 4) · ObsControlPort · GraphQL/service · the action-gate flow · real obs-websocket · runtime/UI · an offline queue (OBS output actions are online-only per the plan)
 
 ## Done when
-The OBS persistence contracts exist (records + per-op inputs + option guards + query/command interfaces, no secret columns) with contract tests (incl. no-secrets), gates green, committed and pushed.
+`ObsInitialSchemaMigration` creates the tables/indexes with all CHECKs + rollback (no secret columns; confirm-before-dispatch enforced at the DDL), covered by artifact tests + a `node:sqlite` smoke, gates green, committed and pushed.
 
 ## Next task after this
-OBS slice 3: the migration artifact (`packages/db/src/obs-migrations.ts`). Then slices 4–10 per `05-plans/obs-module-plan.md` (adapter → ObsControlPort+fake → GraphQL+service → action gate → persistence service → events → AI assist). Slices 11–13 await user decisions. After OBS backend: the autonomously-buildable backend is complete; remaining is UIs + live integrations (need the user).
+OBS slice 4: the SQLite adapter (`packages/db/src/obs-sql-repository.ts`). Then slices 5–10 per `05-plans/obs-module-plan.md` (ObsControlPort+fake → GraphQL+service → action gate → persistence service → events → AI assist). Slices 11–13 await user decisions. After OBS backend: the autonomously-buildable backend is complete; remaining is UIs + live integrations (need the user).

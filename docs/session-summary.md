@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 2: persistence contracts
+
+Tasks completed:
+- OBS slice 2 (delegated; parent verified gates): `packages/db/src/obs-repository-contracts.ts` — tenant-scoped persistence records for the 8 objects (no secret columns; coarse state rejects telemetry keys; ObsActionIntent encodes confirm-before-dispatch on record + setStatus write; append-only log; validated catalog-snapshot replace), per-op inputs, actor-required option guards, query/command repo interfaces. +26 db tests (incl. no-secrets). Gates green: db 429 / api 709 + 2 skipped / desktop 89 / church-context 5. Committed `3f26b5f`.
+
+Next task:
+- OBS slice 3: migration artifact (`packages/db/src/obs-migrations.ts`). Then slices 4–10 per the plan.
+
+Open questions / follow-ups: standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 1: domain + pure logic
 
 Tasks completed:
