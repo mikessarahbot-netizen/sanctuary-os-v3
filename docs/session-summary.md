@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 3: migration artifact
+
+Tasks completed:
+- OBS slice 3 (delegated; parent verified gates): `packages/db/src/obs-migrations.ts` — ObsInitialSchemaMigration (8 tenant-scoped tables + indexes + all CHECKs incl. confirm-before-dispatch matching the slice-2 contract + coarse-state-only; NO secret columns verified two ways; action log = audit table; migrationId ...0008). +14 db tests (incl. node:sqlite smoke). Gates green: db 443 / api 709 + 2 skipped / desktop 89 / church-context 5. Committed `95a65e2`.
+
+Next task:
+- OBS slice 4: SQLite adapter (`packages/db/src/obs-sql-repository.ts`). Then slices 5–10 per the plan.
+
+Open questions / follow-ups: standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 2: persistence contracts
 
 Tasks completed:
