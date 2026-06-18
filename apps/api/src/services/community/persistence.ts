@@ -25,6 +25,7 @@ import {
   CommunityGroupSchema,
   ConfirmCommunicationSendCommandSchema,
   DraftCommunicationMessageCommandSchema,
+  DraftCommunicationWithAiCommandSchema,
   EngagementSummarySchema,
   GetAttendanceTallyQuerySchema,
   GetCommunicationMessageQuerySchema,
@@ -77,8 +78,24 @@ import type {
   CommunicationSendPort,
   CommunicationSendResult
 } from "./in-memory.js";
+import {
+  CommunityAiDraftSuggestionSchema,
+  buildCommunityAiDraftPrompt,
+  type CommunityAiDraftPort,
+  type CommunityAiPolicyProfile
+} from "./ai-draft.js";
 
 const COMMUNITY_STORAGE_SCHEMA_VERSION = "community.v1";
+
+/**
+ * Default AI policy profile when a caller omits one: the safest posture, matching
+ * the in-memory adapter. PII is never shared; the comms-draft projection is
+ * PII-free regardless.
+ */
+const DEFAULT_PII_FREE_AI_POLICY: CommunityAiPolicyProfile = {
+  humanReviewRequiredFor: ["ai-drafted-communication"],
+  piiSharingAllowed: false
+};
 
 const communityQueryRoles = [
   "super_admin",
@@ -114,6 +131,7 @@ export interface PersistenceBackedCommunityServiceIds {
 }
 
 export interface PersistenceBackedCommunityServiceDependencies {
+  readonly aiDraftPort?: CommunityAiDraftPort;
   readonly clock?: () => string;
   readonly commandRepository: CommunityCommandPersistenceRepository;
   readonly ids?: Partial<PersistenceBackedCommunityServiceIds>;
@@ -161,6 +179,7 @@ export const createPersistenceBackedCommunityServicesAdapter = (
   const clock = dependencies.clock ?? ((): string => new Date().toISOString());
   const ids = createCommunityIds(dependencies.ids);
   const sendPort = dependencies.sendPort ?? defaultSendPort;
+  const aiDraftPort = dependencies.aiDraftPort;
   const { commandRepository, queryRepository } = dependencies;
 
   const requireTenantMessage = async (
@@ -1071,6 +1090,109 @@ export const createPersistenceBackedCommunityServicesAdapter = (
       );
 
       return toDomainMessage(stored);
+    },
+
+    draftCommunicationWithAi: async (rawCommand): Promise<CommunicationMessage> => {
+      const command = DraftCommunicationWithAiCommandSchema.parse(rawCommand);
+      assertCommunityCommsRole(command.actor);
+
+      if (aiDraftPort === undefined) {
+        throw new CommunityDomainError(
+          "VALIDATION_FAILED",
+          "The Community AI draft provider is not configured."
+        );
+      }
+
+      // Gather the AI-safe engagement summaries (PII-free by construction) and, for
+      // a group audience, the group's non-PII label — the only signals the
+      // projection draws from beyond the command's own non-PII hints.
+      const summaryRecords = await queryRepository.listEngagementSummaries({
+        input: {},
+        options: toReadOptions(command.actor, command.requestId)
+      });
+      const engagementSummaries = summaryRecords.map((record) =>
+        toDomainSummary(
+          assertTenantScopedPersistenceSummary(record, command.actor.tenantId)
+        )
+      );
+
+      const audience = command.input.audience;
+      let group: CommunityGroup | undefined;
+      if (audience.kind === "group") {
+        const groupRecord = await queryRepository.getCommunityGroup({
+          input: { groupId: audience.groupId },
+          options: toReadOptions(command.actor, command.requestId)
+        });
+        group =
+          groupRecord === null || groupRecord.tenantId !== command.actor.tenantId
+            ? undefined
+            : toDomainGroup(groupRecord);
+      }
+
+      const prompt = buildCommunityAiDraftPrompt({
+        aiPolicyProfile: command.input.aiPolicyProfile ?? DEFAULT_PII_FREE_AI_POLICY,
+        audience: command.input.audience,
+        campaignIntent: command.input.campaignIntent,
+        channel: command.input.channel,
+        churchToneSummary: command.input.churchToneSummary,
+        engagementSummaries,
+        forbiddenTopics: command.input.forbiddenTopics,
+        group,
+        requestId: command.requestId,
+        requiredPlaceholders: command.input.requiredPlaceholders,
+        tenantId: command.actor.tenantId
+      });
+
+      // The port returns untrusted output; re-validate before any persistence. A
+      // schema failure is surfaced as a typed VALIDATION_FAILED error (never a raw
+      // ZodError), and no message is persisted.
+      const parsed = CommunityAiDraftSuggestionSchema.safeParse(
+        await aiDraftPort.draftCommunication(prompt)
+      );
+
+      if (!parsed.success) {
+        throw new CommunityDomainError(
+          "VALIDATION_FAILED",
+          "The AI draft output failed validation."
+        );
+      }
+
+      const suggestion = parsed.data;
+
+      if (suggestion.status !== "drafted") {
+        throw new CommunityDomainError(
+          "VALIDATION_FAILED",
+          "The AI could not produce a usable communication draft."
+        );
+      }
+
+      const now = clock();
+      const messageId = ids.messageId();
+
+      // Persist a draft with origin="ai-drafted". The lifecycle gate binds this
+      // draft exactly like a human draft — it cannot self-advance past `draft`.
+      const record = await commandRepository.saveCommunicationMessage({
+        input: {
+          audience: command.input.audience,
+          bodyTemplate: suggestion.bodyTemplate,
+          channel: command.input.channel,
+          createdAt: now,
+          createdByRef: command.actor.actorId,
+          messageId,
+          origin: "ai-drafted",
+          status: "draft",
+          tenantId: command.actor.tenantId,
+          updatedAt: now,
+          ...(command.input.channel === "email" && suggestion.subject !== undefined
+            ? { subject: suggestion.subject }
+            : {})
+        },
+        options: toWriteOptions(command.actor, command.requestId, "create")
+      });
+
+      return toDomainMessage(
+        assertTenantScopedPersistenceMessage(record, command.actor.tenantId)
+      );
     },
 
     recomputeEngagementSummaries: async (

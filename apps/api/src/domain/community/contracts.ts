@@ -426,6 +426,38 @@ export const CancelCommunicationMessageCommandSchema =
       .strict()
   }).strict();
 
+/**
+ * AI-assist: request a reviewable AI-drafted communication (slice 10). The
+ * service builds the smallest PII-free projection (AI-safe engagement signals +
+ * a non-PII audience label + the `aiPolicyProfile`), calls the injected
+ * `CommunityAiDraftPort`, Zod-validates the suggestion, and creates a `draft`
+ * `CommunicationMessage` with `origin = "ai-drafted"`. That draft is bound by the
+ * same human-confirmation gate as any other draft — it can never self-advance
+ * past `draft`. The input carries no PII: only the channel, the audience
+ * descriptor (refs), non-PII campaign/tone hints, placeholder tokens, forbidden
+ * topics, and an optional policy override (which still defaults to PII-free).
+ */
+export const DraftCommunicationWithAiCommandSchema =
+  CommunityServiceRequestSchema.extend({
+    input: z
+      .object({
+        aiPolicyProfile: z
+          .object({
+            humanReviewRequiredFor: z.array(NonEmptyStringSchema),
+            piiSharingAllowed: z.boolean()
+          })
+          .strict()
+          .optional(),
+        audience: AudienceDescriptorInputSchema,
+        campaignIntent: NonEmptyStringSchema,
+        channel: CommunicationChannelSchema,
+        churchToneSummary: NonEmptyStringSchema,
+        forbiddenTopics: z.array(NonEmptyStringSchema).default([]),
+        requiredPlaceholders: z.array(NonEmptyStringSchema).default([])
+      })
+      .strict()
+  }).strict();
+
 // ---------------------------------------------------------------------------
 // Commands — engagement
 // ---------------------------------------------------------------------------
@@ -508,6 +540,9 @@ export type QueueConfirmedCommunicationCommand = z.infer<
 export type CancelCommunicationMessageCommand = z.infer<
   typeof CancelCommunicationMessageCommandSchema
 >;
+export type DraftCommunicationWithAiCommand = z.infer<
+  typeof DraftCommunicationWithAiCommandSchema
+>;
 export type RecomputeEngagementSummariesCommand = z.infer<
   typeof RecomputeEngagementSummariesCommandSchema
 >;
@@ -587,6 +622,9 @@ export interface CommunityCommandService {
   ) => Promise<CommunicationMessage>;
   readonly cancelCommunicationMessage: (
     command: CancelCommunicationMessageCommand
+  ) => Promise<CommunicationMessage>;
+  readonly draftCommunicationWithAi: (
+    command: DraftCommunicationWithAiCommand
   ) => Promise<CommunicationMessage>;
   readonly recomputeEngagementSummaries: (
     command: RecomputeEngagementSummariesCommand

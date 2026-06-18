@@ -11,6 +11,7 @@ import {
   CommunityGroupSchema,
   ConfirmCommunicationSendCommandSchema,
   DraftCommunicationMessageCommandSchema,
+  DraftCommunicationWithAiCommandSchema,
   EngagementSummarySchema,
   GetAttendanceTallyQuerySchema,
   GetCommunicationMessageQuerySchema,
@@ -59,6 +60,12 @@ import {
   type MessageTransition,
   type ResolvedAudience
 } from "../../domain/community/index.js";
+import {
+  CommunityAiDraftSuggestionSchema,
+  buildCommunityAiDraftPrompt,
+  type CommunityAiDraftPort,
+  type CommunityAiPolicyProfile
+} from "./ai-draft.js";
 
 /**
  * In-memory Community+ service adapter — the slice-5 test double.
@@ -162,12 +169,24 @@ export interface InMemoryCommunityServiceIds {
 }
 
 export interface InMemoryCommunityServiceDependencies {
+  readonly aiDraftPort?: CommunityAiDraftPort;
   readonly clock?: () => string;
   readonly eventPublisher?: EventPublisher;
   readonly ids?: Partial<InMemoryCommunityServiceIds>;
   readonly sendPort?: CommunicationSendPort;
   readonly seed?: InMemoryCommunityServiceSeed;
 }
+
+/**
+ * Default AI policy profile when a caller omits one: the safest posture. PII is
+ * never shared and human review is required for AI-drafted comms. The comms-draft
+ * projection is PII-free regardless, so this only governs the policy echoed to the
+ * prompt.
+ */
+const DEFAULT_PII_FREE_AI_POLICY: CommunityAiPolicyProfile = {
+  humanReviewRequiredFor: ["ai-drafted-communication"],
+  piiSharingAllowed: false
+};
 
 export interface InMemoryCommunityServicesAdapter {
   readonly commandService: CommunityCommandService;
@@ -207,6 +226,7 @@ export const createInMemoryCommunityServicesAdapter = (
   const eventPublisher = dependencies.eventPublisher;
   const ids = createCommunityIds(dependencies.ids);
   const sendPort = dependencies.sendPort ?? defaultSendPort;
+  const aiDraftPort = dependencies.aiDraftPort;
 
   const members = new Map<string, Member>();
   const households = new Map<string, Household>();
@@ -967,6 +987,102 @@ export const createInMemoryCommunityServicesAdapter = (
         const existing = requireMessage(command.input.messageId, command.actor);
 
         return advanceMessage(command.actor, command.requestId, existing, "cancel");
+      }),
+
+    draftCommunicationWithAi: (rawCommand): Promise<CommunicationMessage> =>
+      runCommunityOperation(async (): Promise<CommunicationMessage> => {
+        const command = DraftCommunicationWithAiCommandSchema.parse(rawCommand);
+        assertCommunityCommsRole(command.actor);
+
+        if (aiDraftPort === undefined) {
+          throw new CommunityDomainError(
+            "VALIDATION_FAILED",
+            "The Community AI draft provider is not configured."
+          );
+        }
+
+        const tenantId = command.actor.tenantId;
+        const tenantSummaries = [...summaries.values()].filter(
+          (summary) => summary.tenantId === tenantId
+        );
+        const group =
+          command.input.audience.kind === "group"
+            ? groups.get(scopedKey(tenantId, command.input.audience.groupId))
+            : undefined;
+
+        // Build the smallest PII-free projection (refs + counts + labels + policy),
+        // structurally guarded against PII inside the builder.
+        const prompt = buildCommunityAiDraftPrompt({
+          aiPolicyProfile: command.input.aiPolicyProfile ?? DEFAULT_PII_FREE_AI_POLICY,
+          audience: command.input.audience,
+          campaignIntent: command.input.campaignIntent,
+          channel: command.input.channel,
+          churchToneSummary: command.input.churchToneSummary,
+          engagementSummaries: tenantSummaries,
+          forbiddenTopics: command.input.forbiddenTopics,
+          group,
+          requestId: command.requestId,
+          requiredPlaceholders: command.input.requiredPlaceholders,
+          tenantId
+        });
+
+        // The port returns untrusted output; re-validate before any persistence.
+        // A schema failure is surfaced as a typed VALIDATION_FAILED error (never a
+        // raw ZodError), and no message is created.
+        const parsed = CommunityAiDraftSuggestionSchema.safeParse(
+          await aiDraftPort.draftCommunication(prompt)
+        );
+
+        if (!parsed.success) {
+          throw new CommunityDomainError(
+            "VALIDATION_FAILED",
+            "The AI draft output failed validation."
+          );
+        }
+
+        const suggestion = parsed.data;
+
+        if (suggestion.status !== "drafted") {
+          throw new CommunityDomainError(
+            "VALIDATION_FAILED",
+            "The AI could not produce a usable communication draft."
+          );
+        }
+
+        const now = clock();
+        const messageId = ids.messageId();
+
+        // Create a draft with origin="ai-drafted". The CommunicationMessage schema
+        // rejects a subject on a non-email channel; the lifecycle gate then binds
+        // this draft exactly like a human draft — it cannot self-advance past
+        // `draft` without an explicit human confirmation.
+        const message = CommunicationMessageSchema.parse({
+          audience: command.input.audience,
+          bodyTemplate: suggestion.bodyTemplate,
+          channel: command.input.channel,
+          createdAt: now,
+          createdByRef: command.actor.actorId,
+          messageId,
+          origin: "ai-drafted",
+          status: "draft",
+          tenantId,
+          updatedAt: now,
+          ...(command.input.channel === "email" && suggestion.subject !== undefined
+            ? { subject: suggestion.subject }
+            : {})
+        });
+        messages.set(scopedKey(message.tenantId, message.messageId), message);
+
+        await publishCommunityEvents(eventPublisher, [
+          createCommunityCommunicationStatusChangedEvent({
+            actor: command.actor,
+            message,
+            occurredAt: message.updatedAt,
+            requestId: command.requestId
+          })
+        ]);
+
+        return message;
       }),
 
     recomputeEngagementSummaries: (rawCommand): Promise<readonly EngagementSummary[]> =>

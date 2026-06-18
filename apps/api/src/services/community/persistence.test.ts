@@ -14,6 +14,10 @@ import {
   type PersistenceBackedCommunityServiceIds
 } from "./persistence.js";
 import type { CommunicationSendPort } from "./in-memory.js";
+import type {
+  CommunityAiDraftPort,
+  CommunityAiDraftPrompt
+} from "./ai-draft.js";
 
 const TENANT = "tenant_1";
 
@@ -190,6 +194,7 @@ const single = (
 const createAdapter = (
   rowsByName: Readonly<Record<string, readonly (readonly PlanningSqlRow[])[]>>,
   options: {
+    readonly aiDraftPort?: CommunityAiDraftPort;
     readonly clock?: () => string;
     readonly ids?: Partial<PersistenceBackedCommunityServiceIds>;
     readonly sendPort?: CommunicationSendPort;
@@ -204,6 +209,7 @@ const createAdapter = (
     clock,
     commandRepository: createCommunityCommandSqlRepository({ clock, executor }),
     queryRepository: createCommunityQuerySqlRepository({ executor }),
+    ...(options.aiDraftPort !== undefined ? { aiDraftPort: options.aiDraftPort } : {}),
     ...(options.ids !== undefined ? { ids: options.ids } : {}),
     ...(options.sendPort !== undefined ? { sendPort: options.sendPort } : {})
   });
@@ -804,6 +810,184 @@ describe("createPersistenceBackedCommunityServicesAdapter (recording executor)",
       "AUTHORIZATION_FAILED"
     );
     // The role gate rejects before any persistence read is issued.
+    expect(statements).toHaveLength(0);
+  });
+});
+
+const summaryRow = (
+  overrides: Readonly<Record<string, unknown>> = {}
+): PlanningSqlRow => ({
+  attendance_streak: 4,
+  comms_response_count: 2,
+  computed_at: TS,
+  last_present_occasion_ref: null,
+  member_ref: null,
+  scope_kind: "segment",
+  segment_ref: "segment_a",
+  serving_count: 1,
+  summary_id: "summary_1",
+  tenant_id: TENANT,
+  window_end: TS,
+  window_start: "2026-05-17T08:00:00.000Z",
+  ...overrides
+});
+
+const aiGroupRow = (
+  overrides: Readonly<Record<string, unknown>> = {}
+): PlanningSqlRow => ({
+  archived: 0,
+  created_at: TS,
+  group_id: "group_welcome",
+  kind: "ministry",
+  label: "Welcome Team",
+  leader_member_ref: null,
+  tenant_id: TENANT,
+  updated_at: TS,
+  ...overrides
+});
+
+const validAiSuggestion = {
+  bodyTemplate: "Hi {{firstName}}, join us on {{serviceDate}}.",
+  needsReview: true,
+  omittedDueToMissingData: [],
+  rationale: "Re-engagement nudge from engagement aggregates only.",
+  status: "drafted",
+  usedPlaceholders: ["firstName", "serviceDate"]
+};
+
+const createCapturingPort = (
+  suggestion: unknown
+): { readonly port: CommunityAiDraftPort; readonly received: CommunityAiDraftPrompt[] } => {
+  const received: CommunityAiDraftPrompt[] = [];
+
+  return {
+    port: {
+      draftCommunication: (prompt): Promise<unknown> => {
+        received.push(prompt);
+
+        return Promise.resolve(suggestion);
+      }
+    },
+    received
+  };
+};
+
+describe("createPersistenceBackedCommunityServicesAdapter — AI draft parity", () => {
+  it("builds a PII-free projection over persistence reads and persists an ai-drafted draft", async () => {
+    const { port, received } = createCapturingPort(validAiSuggestion);
+    const { adapter, statements } = createAdapter(
+      single({
+        "community.engagement.list": [summaryRow()],
+        "community.groups.get": [aiGroupRow()],
+        "community.messages.upsert": [
+          messageRow({
+            body_template: validAiSuggestion.bodyTemplate,
+            channel: "email",
+            message_id: "message_ai",
+            origin: "ai-drafted"
+          })
+        ]
+      }),
+      { aiDraftPort: port, ids: { messageId: (): string => "message_ai" } }
+    );
+
+    const drafted = await adapter.commandService.draftCommunicationWithAi({
+      actor: leader,
+      input: {
+        audience: { groupId: "group_welcome", kind: "group" },
+        campaignIntent: "Invite the welcome team segment back.",
+        channel: "email",
+        churchToneSummary: "Warm and concise.",
+        forbiddenTopics: ["fundraising"],
+        requiredPlaceholders: ["firstName", "serviceDate"]
+      },
+      requestId: "request_ai_persist"
+    });
+
+    expect(drafted).toMatchObject({
+      channel: "email",
+      messageId: "message_ai",
+      origin: "ai-drafted",
+      status: "draft",
+      tenantId: TENANT
+    });
+
+    // The projection handed to the port carries only refs/counts/labels + policy.
+    const prompt = received[0];
+    expect(prompt).toBeDefined();
+    if (prompt !== undefined) {
+      expect(prompt.tenantId).toBe(TENANT);
+      expect(prompt.engagementSignals).toEqual([
+        {
+          attendanceStreak: 4,
+          commsResponseCount: 2,
+          scopeKind: "segment",
+          scopeRef: "segment_a",
+          servingCount: 1
+        }
+      ]);
+      expect(prompt.audienceLabel).toBe("Welcome Team");
+      expect(prompt.aiPolicyProfile.piiSharingAllowed).toBe(false);
+    }
+
+    // The status persisted on the upserted message row is `draft` — never advanced.
+    const upsert = statements.find(
+      (statement) => statement.name === "community.messages.upsert"
+    );
+    expect(upsert?.parameters).toContain("ai-drafted");
+    expect(upsert?.parameters).toContain("draft");
+  });
+
+  it("rejects malformed AI output via Zod and never reaches the message upsert", async () => {
+    const { port } = createCapturingPort({ bogus: true });
+    const { adapter, statements } = createAdapter(
+      single({
+        "community.engagement.list": [summaryRow()],
+        "community.groups.get": [aiGroupRow()]
+      }),
+      { aiDraftPort: port, ids: { messageId: (): string => "message_bad" } }
+    );
+
+    await expectDomainErrorCode(
+      adapter.commandService.draftCommunicationWithAi({
+        actor: leader,
+        input: {
+          audience: { groupId: "group_welcome", kind: "group" },
+          campaignIntent: "Invite back.",
+          channel: "email",
+          churchToneSummary: "Warm.",
+          forbiddenTopics: [],
+          requiredPlaceholders: []
+        },
+        requestId: "request_ai_bad"
+      }),
+      "VALIDATION_FAILED"
+    );
+
+    expect(
+      statements.some((statement) => statement.name === "community.messages.upsert")
+    ).toBe(false);
+  });
+
+  it("rejects a non-comms role before any persistence read", async () => {
+    const { port } = createCapturingPort(validAiSuggestion);
+    const { adapter, statements } = createAdapter(single({}), { aiDraftPort: port });
+
+    await expectDomainErrorCode(
+      adapter.commandService.draftCommunicationWithAi({
+        actor: planner,
+        input: {
+          audience: { groupId: "group_welcome", kind: "group" },
+          campaignIntent: "Invite back.",
+          channel: "email",
+          churchToneSummary: "Warm.",
+          forbiddenTopics: [],
+          requiredPlaceholders: []
+        },
+        requestId: "request_ai_role"
+      }),
+      "AUTHORIZATION_FAILED"
+    );
     expect(statements).toHaveLength(0);
   });
 });

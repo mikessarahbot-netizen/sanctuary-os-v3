@@ -135,6 +135,9 @@ const createCommunityCommandService = (
   draftCommunicationMessage: vi.fn<
     CommunityCommandService["draftCommunicationMessage"]
   >(() => Promise.resolve(message)),
+  draftCommunicationWithAi: vi.fn<
+    CommunityCommandService["draftCommunicationWithAi"]
+  >(() => Promise.resolve(message)),
   markCommunicationReviewed: vi.fn<
     CommunityCommandService["markCommunicationReviewed"]
   >(() => Promise.resolve(message)),

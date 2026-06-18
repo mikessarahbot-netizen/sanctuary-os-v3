@@ -10,6 +10,7 @@ import {
   type MigrationRunStep,
   type SqliteMigrationDatabaseClient
 } from "@sanctuary-os/db";
+import type { CommunityAiDraftPort } from "./ai-draft.js";
 import {
   createInMemoryCommunityServicesAdapter,
   type CommunicationSendPort,
@@ -54,6 +55,7 @@ export interface CommunityPersistenceRepositories {
 }
 
 export interface CommunitySqlPersistenceDependencies {
+  readonly aiDraftPort?: CommunityAiDraftPort;
   readonly clock: () => string;
   readonly executor: CommunitySqlExecutor;
   readonly ids?: Partial<PersistenceBackedCommunityServiceIds>;
@@ -152,6 +154,9 @@ const createSqlCommunityPersistenceSelection = (
       clock: dependencies.clock,
       commandRepository,
       queryRepository,
+      ...(dependencies.aiDraftPort !== undefined
+        ? { aiDraftPort: dependencies.aiDraftPort }
+        : {}),
       ...(dependencies.ids !== undefined ? { ids: dependencies.ids } : {}),
       ...(dependencies.sendPort !== undefined ? { sendPort: dependencies.sendPort } : {})
     })
