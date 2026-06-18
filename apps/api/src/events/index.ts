@@ -10,7 +10,10 @@ export const ApiEventTypeSchema = z.enum([
   "presenter.outputRestored",
   "trackSet.updated",
   "play.playbackStateChanged",
-  "play.cueFired"
+  "play.cueFired",
+  "community.memberUpdated",
+  "community.attendanceRecorded",
+  "community.communicationStatusChanged"
 ]);
 
 export const ApiEventEnvelopeSchema = z.object({
@@ -115,6 +118,60 @@ export const PlayCueFiredEventPayloadSchema = z
   })
   .strict();
 
+/**
+ * Community+ is the strictest PII surface in the system, so its event payloads
+ * carry **only opaque references, coarse status/change fields, and counts** —
+ * never a name, contact value, message body, household label, custom-field
+ * value, or any free text. `.strict()` rejects every unrecognized key, so a
+ * subscriber can never learn PII from a Community+ event: `memberId`,
+ * `householdRef`, `memberRef`, `occasionRef`, and `messageId` are opaque IDs,
+ * and the only non-ID fields are enums (`status`, `changeKind`, `recordKind`,
+ * `channel`, `origin`) and a positive-integer `headcount`.
+ */
+export const CommunityMemberUpdatedEventPayloadSchema = z
+  .object({
+    changeKind: z.enum(["created", "updated", "archived"]),
+    householdRef: z.string().min(1).optional(),
+    memberId: z.string().min(1),
+    status: z.enum(["active", "inactive", "visitor", "archived"]),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
+export const CommunityAttendanceRecordedEventPayloadSchema = z
+  .object({
+    attendanceId: z.string().min(1),
+    changeKind: z.enum(["created", "updated"]),
+    headcount: z.number().int().positive().optional(),
+    memberRef: z.string().min(1).optional(),
+    occasionRef: z.string().min(1),
+    recordKind: z.enum(["member", "headcount"]),
+    status: z.enum(["present", "absent", "excused"]).optional(),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
+export const CommunityCommunicationStatusChangedEventPayloadSchema = z
+  .object({
+    channel: z.enum(["sms", "email", "push"]),
+    messageId: z.string().min(1),
+    origin: z.enum(["human", "ai-drafted"]),
+    status: z.enum([
+      "draft",
+      "reviewed",
+      "confirmed",
+      "queued",
+      "sent",
+      "failed",
+      "canceled"
+    ]),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
 const validatePresenterEventScope = (
   event: {
     readonly aggregateId: string;
@@ -171,6 +228,90 @@ const validatePlayEventScope = (
   }
 };
 
+const validateCommunityMemberEventScope = (
+  event: {
+    readonly aggregateId: string;
+    readonly payload: {
+      readonly memberId: string;
+      readonly tenantId: string;
+    };
+    readonly tenantId: string;
+  },
+  context: z.RefinementCtx
+): void => {
+  if (event.tenantId !== event.payload.tenantId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Community event tenant must match payload tenant.",
+      path: ["payload", "tenantId"]
+    });
+  }
+
+  if (event.aggregateId !== event.payload.memberId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Community event aggregate must match member ID.",
+      path: ["aggregateId"]
+    });
+  }
+};
+
+const validateCommunityAttendanceEventScope = (
+  event: {
+    readonly aggregateId: string;
+    readonly payload: {
+      readonly attendanceId: string;
+      readonly tenantId: string;
+    };
+    readonly tenantId: string;
+  },
+  context: z.RefinementCtx
+): void => {
+  if (event.tenantId !== event.payload.tenantId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Community event tenant must match payload tenant.",
+      path: ["payload", "tenantId"]
+    });
+  }
+
+  if (event.aggregateId !== event.payload.attendanceId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Community event aggregate must match attendance ID.",
+      path: ["aggregateId"]
+    });
+  }
+};
+
+const validateCommunityCommunicationEventScope = (
+  event: {
+    readonly aggregateId: string;
+    readonly payload: {
+      readonly messageId: string;
+      readonly tenantId: string;
+    };
+    readonly tenantId: string;
+  },
+  context: z.RefinementCtx
+): void => {
+  if (event.tenantId !== event.payload.tenantId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Community event tenant must match payload tenant.",
+      path: ["payload", "tenantId"]
+    });
+  }
+
+  if (event.aggregateId !== event.payload.messageId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Community event aggregate must match message ID.",
+      path: ["aggregateId"]
+    });
+  }
+};
+
 const ValidatedApiEventEnvelopeBaseSchema = z.discriminatedUnion("eventType", [
   ApiEventEnvelopeSchema.extend({
     eventType: z.literal("service.published"),
@@ -221,6 +362,21 @@ const ValidatedApiEventEnvelopeBaseSchema = z.discriminatedUnion("eventType", [
     eventType: z.literal("play.cueFired"),
     payload: PlayCueFiredEventPayloadSchema,
     schemaVersion: z.literal("play-cue-fired.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("community.memberUpdated"),
+    payload: CommunityMemberUpdatedEventPayloadSchema,
+    schemaVersion: z.literal("community-member-updated.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("community.attendanceRecorded"),
+    payload: CommunityAttendanceRecordedEventPayloadSchema,
+    schemaVersion: z.literal("community-attendance-recorded.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("community.communicationStatusChanged"),
+    payload: CommunityCommunicationStatusChangedEventPayloadSchema,
+    schemaVersion: z.literal("community-communication-status-changed.v1")
   })
 ]);
 
@@ -241,6 +397,18 @@ export const ValidatedApiEventEnvelopeSchema =
       event.eventType === "play.cueFired"
     ) {
       validatePlayEventScope(event, context);
+    }
+
+    if (event.eventType === "community.memberUpdated") {
+      validateCommunityMemberEventScope(event, context);
+    }
+
+    if (event.eventType === "community.attendanceRecorded") {
+      validateCommunityAttendanceEventScope(event, context);
+    }
+
+    if (event.eventType === "community.communicationStatusChanged") {
+      validateCommunityCommunicationEventScope(event, context);
     }
   });
 
@@ -271,6 +439,15 @@ export type PlayPlaybackStateChangedEventPayload = z.infer<
   typeof PlayPlaybackStateChangedEventPayloadSchema
 >;
 export type PlayCueFiredEventPayload = z.infer<typeof PlayCueFiredEventPayloadSchema>;
+export type CommunityMemberUpdatedEventPayload = z.infer<
+  typeof CommunityMemberUpdatedEventPayloadSchema
+>;
+export type CommunityAttendanceRecordedEventPayload = z.infer<
+  typeof CommunityAttendanceRecordedEventPayloadSchema
+>;
+export type CommunityCommunicationStatusChangedEventPayload = z.infer<
+  typeof CommunityCommunicationStatusChangedEventPayloadSchema
+>;
 
 export interface EventPublisher {
   readonly publishAfterCommit: (event: ApiEventEnvelope) => Promise<void>;

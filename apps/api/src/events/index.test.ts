@@ -497,6 +497,265 @@ describe("createInMemoryEventPublisher", () => {
       })
     ).toThrow("Unrecognized key");
   });
+
+  it("validates Community event payload contracts and schema versions", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "member_1",
+      actorId: "actor_1",
+      eventType: "community.memberUpdated",
+      occurredAt: "2026-06-21T14:30:00.000Z",
+      payload: {
+        changeKind: "updated",
+        householdRef: "household_1",
+        memberId: "member_1",
+        status: "active",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T14:30:00.000Z"
+      },
+      requestId: "request_member_updated",
+      schemaVersion: "community-member-updated.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "attendance_1",
+      actorId: "actor_1",
+      eventType: "community.attendanceRecorded",
+      occurredAt: "2026-06-21T14:31:00.000Z",
+      payload: {
+        attendanceId: "attendance_1",
+        changeKind: "created",
+        memberRef: "member_1",
+        occasionRef: "occasion_1",
+        recordKind: "member",
+        status: "present",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T14:31:00.000Z"
+      },
+      requestId: "request_attendance_recorded",
+      schemaVersion: "community-attendance-recorded.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "attendance_2",
+      actorId: "actor_1",
+      eventType: "community.attendanceRecorded",
+      occurredAt: "2026-06-21T14:32:00.000Z",
+      payload: {
+        attendanceId: "attendance_2",
+        changeKind: "created",
+        headcount: 42,
+        occasionRef: "occasion_1",
+        recordKind: "headcount",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T14:32:00.000Z"
+      },
+      requestId: "request_headcount_recorded",
+      schemaVersion: "community-attendance-recorded.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "message_1",
+      actorId: "actor_1",
+      eventType: "community.communicationStatusChanged",
+      occurredAt: "2026-06-21T14:33:00.000Z",
+      payload: {
+        channel: "sms",
+        messageId: "message_1",
+        origin: "human",
+        status: "queued",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T14:33:00.000Z"
+      },
+      requestId: "request_comms_status",
+      schemaVersion: "community-communication-status-changed.v1",
+      tenantId: "tenant_1"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        eventType: event.eventType,
+        schemaVersion: event.schemaVersion
+      }))
+    ).toEqual([
+      {
+        eventType: "community.memberUpdated",
+        schemaVersion: "community-member-updated.v1"
+      },
+      {
+        eventType: "community.attendanceRecorded",
+        schemaVersion: "community-attendance-recorded.v1"
+      },
+      {
+        eventType: "community.attendanceRecorded",
+        schemaVersion: "community-attendance-recorded.v1"
+      },
+      {
+        eventType: "community.communicationStatusChanged",
+        schemaVersion: "community-communication-status-changed.v1"
+      }
+    ]);
+  });
+
+  it("rejects Community event tenant and aggregate mismatches", () => {
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "member_1",
+        actorId: "actor_1",
+        eventType: "community.memberUpdated",
+        occurredAt: "2026-06-21T14:30:00.000Z",
+        payload: {
+          changeKind: "updated",
+          memberId: "member_1",
+          status: "active",
+          tenantId: "tenant_2",
+          updatedAt: "2026-06-21T14:30:00.000Z"
+        },
+        requestId: "request_member_updated",
+        schemaVersion: "community-member-updated.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("Community event tenant must match payload tenant.");
+
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "member_2",
+        actorId: "actor_1",
+        eventType: "community.memberUpdated",
+        occurredAt: "2026-06-21T14:30:00.000Z",
+        payload: {
+          changeKind: "updated",
+          memberId: "member_1",
+          status: "active",
+          tenantId: "tenant_1",
+          updatedAt: "2026-06-21T14:30:00.000Z"
+        },
+        requestId: "request_member_updated",
+        schemaVersion: "community-member-updated.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("Community event aggregate must match member ID.");
+
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "attendance_2",
+        actorId: "actor_1",
+        eventType: "community.attendanceRecorded",
+        occurredAt: "2026-06-21T14:31:00.000Z",
+        payload: {
+          attendanceId: "attendance_1",
+          changeKind: "created",
+          memberRef: "member_1",
+          occasionRef: "occasion_1",
+          recordKind: "member",
+          status: "present",
+          tenantId: "tenant_1",
+          updatedAt: "2026-06-21T14:31:00.000Z"
+        },
+        requestId: "request_attendance_recorded",
+        schemaVersion: "community-attendance-recorded.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("Community event aggregate must match attendance ID.");
+
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "message_2",
+        actorId: "actor_1",
+        eventType: "community.communicationStatusChanged",
+        occurredAt: "2026-06-21T14:33:00.000Z",
+        payload: {
+          channel: "sms",
+          messageId: "message_1",
+          origin: "human",
+          status: "queued",
+          tenantId: "tenant_1",
+          updatedAt: "2026-06-21T14:33:00.000Z"
+        },
+        requestId: "request_comms_status",
+        schemaVersion: "community-communication-status-changed.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("Community event aggregate must match message ID.");
+  });
+
+  it("rejects Community event payloads carrying any name, contact, or body PII field", () => {
+    const memberBaseEvent = {
+      aggregateId: "member_1",
+      actorId: "actor_1",
+      eventType: "community.memberUpdated" as const,
+      occurredAt: "2026-06-21T14:30:00.000Z",
+      payload: {
+        changeKind: "updated" as const,
+        memberId: "member_1",
+        status: "active" as const,
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T14:30:00.000Z"
+      },
+      requestId: "request_member_updated",
+      schemaVersion: "community-member-updated.v1" as const,
+      tenantId: "tenant_1"
+    };
+
+    for (const piiKey of [
+      "name",
+      "displayName",
+      "phone",
+      "email",
+      "address",
+      "contact"
+    ]) {
+      expect(() =>
+        validateApiEventEnvelope({
+          ...memberBaseEvent,
+          payload: {
+            ...memberBaseEvent.payload,
+            [piiKey]: "Jane Doe"
+          }
+        })
+      ).toThrow("Unrecognized key");
+    }
+
+    // The communications event is status + ids only: it must reject a message
+    // body, subject, or recipient contact value just as hard.
+    const commsBaseEvent = {
+      aggregateId: "message_1",
+      actorId: "actor_1",
+      eventType: "community.communicationStatusChanged" as const,
+      occurredAt: "2026-06-21T14:33:00.000Z",
+      payload: {
+        channel: "sms" as const,
+        messageId: "message_1",
+        origin: "human" as const,
+        status: "queued" as const,
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T14:33:00.000Z"
+      },
+      requestId: "request_comms_status",
+      schemaVersion: "community-communication-status-changed.v1" as const,
+      tenantId: "tenant_1"
+    };
+
+    for (const leakKey of [
+      "bodyTemplate",
+      "subject",
+      "displayName",
+      "phone",
+      "email",
+      "recipientContact"
+    ]) {
+      expect(() =>
+        validateApiEventEnvelope({
+          ...commsBaseEvent,
+          payload: {
+            ...commsBaseEvent.payload,
+            [leakKey]: "leaked"
+          }
+        })
+      ).toThrow("Unrecognized key");
+    }
+  });
 });
 
 describe("API event transport", () => {

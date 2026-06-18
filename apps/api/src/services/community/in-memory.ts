@@ -1,4 +1,5 @@
 import type { AuthenticatedActor } from "../../auth/index.js";
+import type { ApiEventEnvelope, EventPublisher } from "../../events/index.js";
 import {
   ArchiveMemberCommandSchema,
   AttendanceRecordSchema,
@@ -162,6 +163,7 @@ export interface InMemoryCommunityServiceIds {
 
 export interface InMemoryCommunityServiceDependencies {
   readonly clock?: () => string;
+  readonly eventPublisher?: EventPublisher;
   readonly ids?: Partial<InMemoryCommunityServiceIds>;
   readonly sendPort?: CommunicationSendPort;
   readonly seed?: InMemoryCommunityServiceSeed;
@@ -202,6 +204,7 @@ export const createInMemoryCommunityServicesAdapter = (
   dependencies: InMemoryCommunityServiceDependencies = {}
 ): InMemoryCommunityServicesAdapter => {
   const clock = dependencies.clock ?? (() => new Date().toISOString());
+  const eventPublisher = dependencies.eventPublisher;
   const ids = createCommunityIds(dependencies.ids);
   const sendPort = dependencies.sendPort ?? defaultSendPort;
 
@@ -271,11 +274,13 @@ export const createInMemoryCommunityServicesAdapter = (
     return message;
   };
 
-  const advanceMessage = (
+  const advanceMessage = async (
+    actor: AuthenticatedActor,
+    requestId: string,
     message: CommunicationMessage,
     transition: MessageTransition,
     confirmation?: CommunicationConfirmation
-  ): CommunicationMessage => {
+  ): Promise<CommunicationMessage> => {
     const result = applyMessageTransition(message, transition, confirmation);
 
     if (!result.ok) {
@@ -292,6 +297,15 @@ export const createInMemoryCommunityServicesAdapter = (
       updatedAt: clock()
     });
     messages.set(scopedKey(stored.tenantId, stored.messageId), stored);
+
+    await publishCommunityEvents(eventPublisher, [
+      createCommunityCommunicationStatusChangedEvent({
+        actor,
+        message: stored,
+        occurredAt: stored.updatedAt,
+        requestId
+      })
+    ]);
 
     return stored;
   };
@@ -500,7 +514,7 @@ export const createInMemoryCommunityServicesAdapter = (
 
   const commandService: CommunityCommandService = {
     saveMember: (rawCommand): Promise<Member> =>
-      runCommunityOperation((): Member => {
+      runCommunityOperation(async (): Promise<Member> => {
         const command = SaveMemberCommandSchema.parse(rawCommand);
         assertCommunityCommandRole(command.actor);
         const now = clock();
@@ -523,11 +537,21 @@ export const createInMemoryCommunityServicesAdapter = (
         });
         members.set(scopedKey(member.tenantId, member.memberId), member);
 
+        await publishCommunityEvents(eventPublisher, [
+          createCommunityMemberUpdatedEvent({
+            actor: command.actor,
+            changeKind: existing === undefined ? "created" : "updated",
+            member,
+            occurredAt: member.updatedAt,
+            requestId: command.requestId
+          })
+        ]);
+
         return member;
       }),
 
     archiveMember: (rawCommand): Promise<Member> =>
-      runCommunityOperation((): Member => {
+      runCommunityOperation(async (): Promise<Member> => {
         const command = ArchiveMemberCommandSchema.parse(rawCommand);
         assertCommunityCommandRole(command.actor);
         const existing = members.get(
@@ -547,6 +571,16 @@ export const createInMemoryCommunityServicesAdapter = (
           updatedAt: clock()
         });
         members.set(scopedKey(member.tenantId, member.memberId), member);
+
+        await publishCommunityEvents(eventPublisher, [
+          createCommunityMemberUpdatedEvent({
+            actor: command.actor,
+            changeKind: "archived",
+            member,
+            occurredAt: member.updatedAt,
+            requestId: command.requestId
+          })
+        ]);
 
         return member;
       }),
@@ -647,7 +681,7 @@ export const createInMemoryCommunityServicesAdapter = (
       }),
 
     recordAttendance: (rawCommand): Promise<AttendanceRecord> =>
-      runCommunityOperation((): AttendanceRecord => {
+      runCommunityOperation(async (): Promise<AttendanceRecord> => {
         const command = RecordAttendanceCommandSchema.parse(rawCommand);
         assertCommunityCommandRole(command.actor);
         const now = clock();
@@ -672,11 +706,21 @@ export const createInMemoryCommunityServicesAdapter = (
         });
         attendance.set(scopedKey(record.tenantId, record.attendanceId), record);
 
+        await publishCommunityEvents(eventPublisher, [
+          createCommunityAttendanceRecordedEvent({
+            actor: command.actor,
+            changeKind: "created",
+            occurredAt: record.updatedAt,
+            record,
+            requestId: command.requestId
+          })
+        ]);
+
         return record;
       }),
 
     updateAttendance: (rawCommand): Promise<AttendanceRecord> =>
-      runCommunityOperation((): AttendanceRecord => {
+      runCommunityOperation(async (): Promise<AttendanceRecord> => {
         const command = UpdateAttendanceCommandSchema.parse(rawCommand);
         assertCommunityCommandRole(command.actor);
         const existing = attendance.get(
@@ -709,11 +753,21 @@ export const createInMemoryCommunityServicesAdapter = (
         });
         attendance.set(scopedKey(record.tenantId, record.attendanceId), record);
 
+        await publishCommunityEvents(eventPublisher, [
+          createCommunityAttendanceRecordedEvent({
+            actor: command.actor,
+            changeKind: "updated",
+            occurredAt: record.updatedAt,
+            record,
+            requestId: command.requestId
+          })
+        ]);
+
         return record;
       }),
 
     draftCommunicationMessage: (rawCommand): Promise<CommunicationMessage> =>
-      runCommunityOperation((): CommunicationMessage => {
+      runCommunityOperation(async (): Promise<CommunicationMessage> => {
         const command = DraftCommunicationMessageCommandSchema.parse(rawCommand);
         assertCommunityCommsRole(command.actor);
         const now = clock();
@@ -735,6 +789,15 @@ export const createInMemoryCommunityServicesAdapter = (
             : {})
         });
         messages.set(scopedKey(message.tenantId, message.messageId), message);
+
+        await publishCommunityEvents(eventPublisher, [
+          createCommunityCommunicationStatusChangedEvent({
+            actor: command.actor,
+            message,
+            occurredAt: message.updatedAt,
+            requestId: command.requestId
+          })
+        ]);
 
         return message;
       }),
@@ -767,16 +830,16 @@ export const createInMemoryCommunityServicesAdapter = (
       }),
 
     markCommunicationReviewed: (rawCommand): Promise<CommunicationMessage> =>
-      runCommunityOperation((): CommunicationMessage => {
+      runCommunityOperation(async (): Promise<CommunicationMessage> => {
         const command = MarkCommunicationReviewedCommandSchema.parse(rawCommand);
         assertCommunityCommsRole(command.actor);
         const existing = requireMessage(command.input.messageId, command.actor);
 
-        return advanceMessage(existing, "review");
+        return advanceMessage(command.actor, command.requestId, existing, "review");
       }),
 
     confirmCommunicationSend: (rawCommand): Promise<CommunicationMessage> =>
-      runCommunityOperation((): CommunicationMessage => {
+      runCommunityOperation(async (): Promise<CommunicationMessage> => {
         const command = ConfirmCommunicationSendCommandSchema.parse(rawCommand);
         assertCommunityCommsRole(command.actor);
         const existing = requireMessage(command.input.messageId, command.actor);
@@ -787,7 +850,13 @@ export const createInMemoryCommunityServicesAdapter = (
           reason: command.input.confirmationIntent.reason
         });
 
-        return advanceMessage(existing, "confirm", confirmation);
+        return advanceMessage(
+          command.actor,
+          command.requestId,
+          existing,
+          "confirm",
+          confirmation
+        );
       }),
 
     queueConfirmedCommunication: (rawCommand): Promise<CommunicationMessage> =>
@@ -845,7 +914,12 @@ export const createInMemoryCommunityServicesAdapter = (
           );
         }
 
-        const queued = advanceMessage(existing, "queue");
+        const queued = await advanceMessage(
+          command.actor,
+          command.requestId,
+          existing,
+          "queue"
+        );
 
         const sendResults = await sendPort.send({
           channel: queued.channel,
@@ -883,16 +957,16 @@ export const createInMemoryCommunityServicesAdapter = (
           );
         }
 
-        return advanceMessage(queued, "send");
+        return advanceMessage(command.actor, command.requestId, queued, "send");
       }),
 
     cancelCommunicationMessage: (rawCommand): Promise<CommunicationMessage> =>
-      runCommunityOperation((): CommunicationMessage => {
+      runCommunityOperation(async (): Promise<CommunicationMessage> => {
         const command = CancelCommunicationMessageCommandSchema.parse(rawCommand);
         assertCommunityCommsRole(command.actor);
         const existing = requireMessage(command.input.messageId, command.actor);
 
-        return advanceMessage(existing, "cancel");
+        return advanceMessage(command.actor, command.requestId, existing, "cancel");
       }),
 
     recomputeEngagementSummaries: (rawCommand): Promise<readonly EngagementSummary[]> =>
@@ -1010,6 +1084,126 @@ const hasAllowedRole = (
   actor: AuthenticatedActor,
   allowedRoles: readonly string[]
 ): boolean => actor.roles.some((role) => allowedRoles.includes(role));
+
+/**
+ * Awaited fan-out of Community+ events after a durable commit. No-ops when no
+ * publisher is injected (the persistence/composition path and most tests),
+ * exactly like the Play in-memory adapter — emission is an in-memory-service-
+ * only concern. Events are published in array order.
+ */
+const publishCommunityEvents = (
+  eventPublisher: EventPublisher | undefined,
+  events: readonly ApiEventEnvelope[]
+): Promise<void> => {
+  if (eventPublisher === undefined) {
+    return Promise.resolve();
+  }
+
+  return events.reduce(
+    (previousPublish, event) =>
+      previousPublish.then(() => eventPublisher.publishAfterCommit(event)),
+    Promise.resolve()
+  );
+};
+
+/**
+ * Build the PII-free `community.memberUpdated` envelope. The payload carries
+ * only the opaque `memberId`/`householdRef`, the coarse `changeKind`, and the
+ * member `status` enum — never `displayName`, contact refs, or custom-field
+ * values. The aggregate is the member.
+ */
+const createCommunityMemberUpdatedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly changeKind: "created" | "updated" | "archived";
+  readonly member: Member;
+  readonly occurredAt: string;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.member.memberId,
+  actorId: input.actor.actorId,
+  eventType: "community.memberUpdated",
+  occurredAt: input.occurredAt,
+  payload: {
+    changeKind: input.changeKind,
+    memberId: input.member.memberId,
+    status: input.member.status,
+    tenantId: input.member.tenantId,
+    updatedAt: input.member.updatedAt,
+    ...(input.member.householdRef !== undefined
+      ? { householdRef: input.member.householdRef }
+      : {})
+  },
+  requestId: input.requestId,
+  schemaVersion: "community-member-updated.v1",
+  tenantId: input.member.tenantId
+});
+
+/**
+ * Build the PII-free `community.attendanceRecorded` envelope. The payload
+ * carries the opaque `attendanceId`/`occasionRef`/`memberRef`, the coarse
+ * `changeKind`/`recordKind`, the attendance `status` enum, and the anonymous
+ * `headcount` count — refs + enums + a count only. The aggregate is the record.
+ */
+const createCommunityAttendanceRecordedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly changeKind: "created" | "updated";
+  readonly occurredAt: string;
+  readonly record: AttendanceRecord;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.record.attendanceId,
+  actorId: input.actor.actorId,
+  eventType: "community.attendanceRecorded",
+  occurredAt: input.occurredAt,
+  payload: {
+    attendanceId: input.record.attendanceId,
+    changeKind: input.changeKind,
+    occasionRef: input.record.occasionRef,
+    recordKind: input.record.memberRef !== undefined ? "member" : "headcount",
+    tenantId: input.record.tenantId,
+    updatedAt: input.record.updatedAt,
+    ...(input.record.memberRef !== undefined
+      ? { memberRef: input.record.memberRef }
+      : {}),
+    ...(input.record.status !== undefined ? { status: input.record.status } : {}),
+    ...(input.record.headcount !== undefined
+      ? { headcount: input.record.headcount }
+      : {})
+  },
+  requestId: input.requestId,
+  schemaVersion: "community-attendance-recorded.v1",
+  tenantId: input.record.tenantId
+});
+
+/**
+ * Build the PII-free `community.communicationStatusChanged` envelope. The
+ * payload carries **status + ids only** — the opaque `messageId`, the `channel`
+ * and `origin` enums, and the lifecycle `status` — never `bodyTemplate`,
+ * `subject`, the audience descriptor, or any recipient contact value. The
+ * aggregate is the message.
+ */
+const createCommunityCommunicationStatusChangedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly message: CommunicationMessage;
+  readonly occurredAt: string;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.message.messageId,
+  actorId: input.actor.actorId,
+  eventType: "community.communicationStatusChanged",
+  occurredAt: input.occurredAt,
+  payload: {
+    channel: input.message.channel,
+    messageId: input.message.messageId,
+    origin: input.message.origin,
+    status: input.message.status,
+    tenantId: input.message.tenantId,
+    updatedAt: input.message.updatedAt
+  },
+  requestId: input.requestId,
+  schemaVersion: "community-communication-status-changed.v1",
+  tenantId: input.message.tenantId
+});
 
 const runCommunityOperation = <TResult>(
   operation: () => TResult | Promise<TResult>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AuthenticatedActor } from "../../auth/index.js";
+import { createInMemoryEventPublisher } from "../../events/index.js";
 import {
   MemberSchema,
   isCommunityDomainError,
@@ -645,5 +646,347 @@ describe("createInMemoryCommunityServicesAdapter", () => {
     // The summary projection carries only refs + counts — no name or contact data.
     expect(JSON.stringify(first)).not.toContain("Granted Member");
     expect(JSON.stringify(first)).not.toContain("channel_");
+  });
+});
+
+describe("Community+ event emission", () => {
+  it("publishes PII-free community.memberUpdated events after durable member commits", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryCommunityServicesAdapter({
+      clock: () => timestamp,
+      eventPublisher,
+      ids: { memberId: () => "member_evt" }
+    });
+
+    await adapter.commandService.saveMember({
+      actor: leader,
+      input: {
+        contactChannelRefs: [
+          { channelRef: "channel_sms_evt", consentStatus: "granted", kind: "sms" }
+        ],
+        customFieldValues: [{ fieldRef: "field_dob", value: "1990-01-01" }],
+        displayName: "Evented Member",
+        householdRef: "household_evt",
+        segmentRefs: ["segment_a"],
+        status: "active"
+      },
+      requestId: "request_member_create"
+    });
+    await adapter.commandService.saveMember({
+      actor: leader,
+      input: {
+        contactChannelRefs: [],
+        customFieldValues: [],
+        displayName: "Evented Member",
+        memberId: "member_evt",
+        segmentRefs: [],
+        status: "inactive"
+      },
+      requestId: "request_member_update"
+    });
+    await adapter.commandService.archiveMember({
+      actor: leader,
+      input: {
+        confirmationIntent: { confirmed: true, reason: "Left the church" },
+        memberId: "member_evt"
+      },
+      requestId: "request_member_archive"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        aggregateId: event.aggregateId,
+        actorId: event.actorId,
+        eventType: event.eventType,
+        payload: event.payload,
+        requestId: event.requestId,
+        schemaVersion: event.schemaVersion,
+        tenantId: event.tenantId
+      }))
+    ).toEqual([
+      {
+        aggregateId: "member_evt",
+        actorId: "leader_1",
+        eventType: "community.memberUpdated",
+        payload: {
+          changeKind: "created",
+          householdRef: "household_evt",
+          memberId: "member_evt",
+          status: "active",
+          tenantId: "tenant_1",
+          updatedAt: timestamp
+        },
+        requestId: "request_member_create",
+        schemaVersion: "community-member-updated.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "member_evt",
+        actorId: "leader_1",
+        eventType: "community.memberUpdated",
+        payload: {
+          changeKind: "updated",
+          memberId: "member_evt",
+          status: "inactive",
+          tenantId: "tenant_1",
+          updatedAt: timestamp
+        },
+        requestId: "request_member_update",
+        schemaVersion: "community-member-updated.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        // The prior update dropped householdRef, so the archived snapshot — and
+        // thus this event's payload — correctly omits it (conditional spread).
+        aggregateId: "member_evt",
+        actorId: "leader_1",
+        eventType: "community.memberUpdated",
+        payload: {
+          changeKind: "archived",
+          memberId: "member_evt",
+          status: "archived",
+          tenantId: "tenant_1",
+          updatedAt: timestamp
+        },
+        requestId: "request_member_archive",
+        schemaVersion: "community-member-updated.v1",
+        tenantId: "tenant_1"
+      }
+    ]);
+
+    // The PII (displayName, the custom-field value) never enters the event stream.
+    const serialized = JSON.stringify(eventPublisher.readPublishedEvents());
+    expect(serialized).not.toContain("Evented Member");
+    expect(serialized).not.toContain("1990-01-01");
+    expect(serialized).not.toContain("channel_sms_evt");
+  });
+
+  it("publishes PII-free community.attendanceRecorded events for member and headcount rows", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryCommunityServicesAdapter({
+      clock: () => timestamp,
+      eventPublisher,
+      ids: {
+        attendanceId: (() => {
+          let next = 0;
+          return () => {
+            next += 1;
+            return `attendance_${String(next)}`;
+          };
+        })()
+      }
+    });
+
+    await adapter.commandService.recordAttendance({
+      actor: leader,
+      input: {
+        memberRef: "member_yes",
+        occasionRef: "occasion_1",
+        status: "present"
+      },
+      requestId: "request_attendance_member"
+    });
+    await adapter.commandService.updateAttendance({
+      actor: leader,
+      input: {
+        attendanceId: "attendance_1",
+        memberRef: "member_yes",
+        occasionRef: "occasion_1",
+        status: "excused"
+      },
+      requestId: "request_attendance_update"
+    });
+    await adapter.commandService.recordAttendance({
+      actor: leader,
+      input: {
+        headcount: 73,
+        occasionRef: "occasion_1"
+      },
+      requestId: "request_attendance_headcount"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        aggregateId: event.aggregateId,
+        eventType: event.eventType,
+        payload: event.payload,
+        requestId: event.requestId,
+        schemaVersion: event.schemaVersion,
+        tenantId: event.tenantId
+      }))
+    ).toEqual([
+      {
+        aggregateId: "attendance_1",
+        eventType: "community.attendanceRecorded",
+        payload: {
+          attendanceId: "attendance_1",
+          changeKind: "created",
+          memberRef: "member_yes",
+          occasionRef: "occasion_1",
+          recordKind: "member",
+          status: "present",
+          tenantId: "tenant_1",
+          updatedAt: timestamp
+        },
+        requestId: "request_attendance_member",
+        schemaVersion: "community-attendance-recorded.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "attendance_1",
+        eventType: "community.attendanceRecorded",
+        payload: {
+          attendanceId: "attendance_1",
+          changeKind: "updated",
+          memberRef: "member_yes",
+          occasionRef: "occasion_1",
+          recordKind: "member",
+          status: "excused",
+          tenantId: "tenant_1",
+          updatedAt: timestamp
+        },
+        requestId: "request_attendance_update",
+        schemaVersion: "community-attendance-recorded.v1",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "attendance_2",
+        eventType: "community.attendanceRecorded",
+        payload: {
+          attendanceId: "attendance_2",
+          changeKind: "created",
+          headcount: 73,
+          occasionRef: "occasion_1",
+          recordKind: "headcount",
+          tenantId: "tenant_1",
+          updatedAt: timestamp
+        },
+        requestId: "request_attendance_headcount",
+        schemaVersion: "community-attendance-recorded.v1",
+        tenantId: "tenant_1"
+      }
+    ]);
+  });
+
+  it("publishes status + ids only community.communicationStatusChanged events across the lifecycle", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryCommunityServicesAdapter({
+      clock: () => timestamp,
+      eventPublisher,
+      ids: {
+        messageId: () => "message_evt",
+        recipientId: (() => {
+          let next = 0;
+          return () => {
+            next += 1;
+            return `recipient_${String(next)}`;
+          };
+        })()
+      },
+      seed: { members: [consentedMember] }
+    });
+
+    await draftSmsMessage(adapter);
+    await adapter.commandService.markCommunicationReviewed({
+      actor: leader,
+      input: { messageId: "message_evt" },
+      requestId: "request_review"
+    });
+    await adapter.commandService.confirmCommunicationSend({
+      actor: leader,
+      input: {
+        confirmationIntent: { confirmed: true, reason: "Approved by a human" },
+        confirmedByRef: "leader_1",
+        messageId: "message_evt"
+      },
+      requestId: "request_confirm"
+    });
+    await adapter.commandService.queueConfirmedCommunication({
+      actor: leader,
+      input: {
+        confirmationIntent: { confirmed: true, reason: "Queue it" },
+        messageId: "message_evt"
+      },
+      requestId: "request_queue"
+    });
+
+    const commsEvents = eventPublisher.readPublishedEvents();
+
+    // draft, reviewed, confirmed, then queued + sent from queueConfirmedCommunication.
+    expect(
+      commsEvents.map((event) => ({
+        eventType: event.eventType,
+        requestId: event.requestId,
+        status:
+          event.eventType === "community.communicationStatusChanged"
+            ? event.payload.status
+            : undefined
+      }))
+    ).toEqual([
+      { eventType: "community.communicationStatusChanged", requestId: "request_draft", status: "draft" },
+      { eventType: "community.communicationStatusChanged", requestId: "request_review", status: "reviewed" },
+      { eventType: "community.communicationStatusChanged", requestId: "request_confirm", status: "confirmed" },
+      { eventType: "community.communicationStatusChanged", requestId: "request_queue", status: "queued" },
+      { eventType: "community.communicationStatusChanged", requestId: "request_queue", status: "sent" }
+    ]);
+
+    // Every comms event is the messageId aggregate, status + ids only.
+    for (const event of commsEvents) {
+      expect(event.aggregateId).toBe("message_evt");
+      expect(event.tenantId).toBe("tenant_1");
+      expect(Object.keys(event.payload).sort()).toEqual([
+        "channel",
+        "messageId",
+        "origin",
+        "status",
+        "tenantId",
+        "updatedAt"
+      ]);
+    }
+
+    // The message body template, audience, and recipient channel refs never leak
+    // into the event stream — the comms event is status + ids only.
+    const serialized = JSON.stringify(commsEvents);
+    expect(serialized).not.toContain("Hello {{firstName}}");
+    expect(serialized).not.toContain("segment_a");
+    expect(serialized).not.toContain("channel_sms_yes");
+  });
+
+  it("does not publish Community events when a command is rejected before its state change", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const adapter = createInMemoryCommunityServicesAdapter({
+      clock: () => timestamp,
+      eventPublisher,
+      ids: { messageId: () => "message_unconfirmed" },
+      seed: { members: [consentedMember] }
+    });
+
+    // Archiving a member that does not exist rejects before any commit.
+    await expect(
+      adapter.commandService.archiveMember({
+        actor: leader,
+        input: {
+          confirmationIntent: { confirmed: true, reason: "Cleanup" },
+          memberId: "member_missing"
+        },
+        requestId: "request_archive_missing"
+      })
+    ).rejects.toThrow();
+
+    // Queueing a never-confirmed message rejects the lifecycle move before commit.
+    await draftSmsMessage(adapter);
+    eventPublisher.clear();
+    await expect(
+      adapter.commandService.queueConfirmedCommunication({
+        actor: leader,
+        input: {
+          confirmationIntent: { confirmed: true, reason: "Send it" },
+          messageId: "message_unconfirmed"
+        },
+        requestId: "request_queue_unconfirmed"
+      })
+    ).rejects.toThrow();
+
+    expect(eventPublisher.readPublishedEvents()).toEqual([]);
   });
 });
