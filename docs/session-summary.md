@@ -2,6 +2,17 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 10: AI assist (COMMUNITY+ BACKEND COMPLETE 1-10)
+
+Tasks completed:
+- Community+ slice 10 (delegated; parent verified gates): `apps/api/src/services/community/ai-draft.ts` + `04-prompts/comms-drafter-community.md` (v1) — draftCommunicationWithAi over an injected port (mirrors the planning AI pattern; ai-engine is still a stub), PII-free projection (EngagementSummary refs/counts + non-PII labels behind a structural guard), Zod-validated output (malformed → typed VALIDATION_FAILED), origin=ai-drafted draft that can't self-send (existing lifecycle gate). Both adapters + composition updated. +12 api tests. Gates green: db 403 / api 572 + 2 skipped / desktop 89 / church-context 5. Committed `3dc6ac3`.
+- MILESTONE: Community+ backend complete (1–10). ALL THREE module backends (Charts, Play, Community+) are now complete. Wrote `07-reviews/architecture/community-backend-release-check.md`.
+
+Next task:
+- Author the OBS module plan (final module; stream/scene actions human-confirm-gated; injected obs-websocket port), then build its backend.
+
+Open questions / follow-ups: after OBS backend, the remaining build is UIs + deferred integration slices — all need the user (surface decision, external accounts). Standing: network-executor JSON gap; enum task_85338bf7; UI surface decision; live /goal hook driving the build (no runnable UI yet — concern logged).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 9: WebSocket events (PII-free)
 
 Tasks completed:

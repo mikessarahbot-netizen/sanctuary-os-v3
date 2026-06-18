@@ -1,28 +1,28 @@
 # NOW
 
+## Milestone
+**All three module backends are complete: Charts, Play, Community+** (each domain → persistence → GraphQL → services → events, offline-sync where applicable, AI assist where applicable). All green and pushed at `3dc6ac3`. Gates: db 403 · api 572 (+2 skipped) · desktop 89 · church-context 5. See the three `*-backend-release-check.md` files in `07-reviews/architecture/`.
+
 ## Task
-Community+ module, slice 10 (final backend slice): AI assist — reviewable draft suggestions (e.g. a communication draft) using the smallest PII-free ChurchContext projection, Zod-validated AI output, that NEVER auto-sends (drafts enter the human-confirm gate as origin="ai-drafted"). (Community+ slices 1–9 done + green at `7f07105`.)
+Author the OBS module plan (`05-plans/obs-module-plan.md`) — the FINAL module — then begin its backend slice 1. Mirror the established plan format + backend rhythm.
 
-## Module / authority
-Building Community+ from `05-plans/community-plus-module-plan.md` (authoritative). Strictest-privacy module. Charts + Play backends complete. AFTER this slice the Community+ backend is complete → write the consolidated release check.
+## OBS non-negotiables (critical)
+OBS controls live streaming via obs-websocket v5. Per the engineering rules: **stream-start, stream-stop, and OBS scene/source automation REQUIRE a human-confirmation gate** — model every such action as a confirmation-gated, never-auto operation (like the Community+ comms send gate / Charts removeChartAnnotation intent). The OBS connection is an INJECTED port (faked in tests) — NO real obs-websocket calls in tests. Tenant-scope everything; no secrets/credentials (OBS host/password) in domain records — only opaque connection refs.
 
-## Privacy / AI non-negotiables (this slice)
-- AI receives only the smallest PII-free ChurchContext projection; NO PII unless `aiPolicyProfile.piiSharingAllowed = true` (and even then, prefer PII-free). Respect `bannedOrPausedSongIds`/equivalent exclusions if relevant.
-- AI output is Zod-validated before use. AI may DRAFT, never SEND: a drafted communication is `origin="ai-drafted"`, status `draft`, and must pass through the existing human-confirmation gate (slice 5) to be queued/sent.
-- The AI provider is behind an INJECTED port (fake in tests) — do not make real API calls in tests. Default to the latest Claude model in any real wiring, but keep it injected/config-driven.
+## Direction context
+All UIs remain deferred (no frontend exists; not autonomously gate-verifiable — needs the user to pick a surface). Per the standing `/goal` (never countermanded), proceeding hands-off with the last gate-verifiable backend module (OBS), then the build's remaining work is UIs + the deferred integration/UI slices — which need the user. Concern logged: there is still no runnable UI. Will switch to a UI or stop on the user's word ("runnable" / "stop").
 
 ## Session protocol (in force)
 `agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`.
 
-## In scope (slice 10)
+## In scope (this step)
 - Continue on `feature/presenter-domain-contracts`
-- Read the plan's "AI assist" section + `02-standards/ai-prompt-standards.md` + `04-prompts/` (existing versioned prompt specs — mirror their format) + `packages/ai-engine` (if it has an injected AI port / output-validation pattern to reuse) + any existing AI-assist usage in other modules (search the repo) to mirror the established pattern
-- Add the Community+ AI-assist capability: a prompt spec in `04-prompts/` (versioned), a Zod output schema for the suggestion (e.g. a communication draft: subject?/body refs — PII-free inputs), and a service operation (`draftCommunicationWithAi` or per the plan) that builds the smallest PII-free projection, calls the injected AI port, Zod-validates the result, and creates a `draft` message with `origin="ai-drafted"` (which CANNOT self-send — enforced by the slice-5/7 gate)
-- Wire it where appropriate (service + optionally a GraphQL mutation that returns the reviewable draft, marked clearly as draft-only). Mirror how other modules expose AI assist if they do.
-- Tests: the AI port is faked; assert (a) the projection handed to AI is PII-free, (b) malformed AI output is rejected by Zod, (c) the produced message is origin="ai-drafted" + draft and CANNOT be queued/sent without a human confirmation (the gate still blocks it), (d) tenant scope
+- Read `00-product/vision.md` + `01-architecture/system-map.md` + `01-architecture/` integrations (for OBS's role + obs-agent), `02-standards/engineering-rules.md` (the human-confirm non-negotiable), and `05-plans/{charts,play,community-plus}-module-plan.md` (format references). There is an `obs-integrator` skill + a `packages/obs-agent` workspace — check them.
+- Author `05-plans/obs-module-plan.md`: domain objects (OBS connection ref, scene, source, stream/recording state, scene-action intent), the human-confirm-gated command model, the injected obs-websocket port boundary, persistence model (SQLite, no secrets), GraphQL surface (confirmation-gated mutations), service shape, events, and a numbered backend slice breakdown (marking backend vs UI). Flag assumptions.
+- Then build OBS backend slice 1 (domain/pure-logic), tests + gates green, ceremony, commit/push
 
 ## Done when
-The Community+ AI-assist draft capability exists (PII-free projection, Zod-validated output, injected AI port, draft-only via the confirm gate), covered by faked-port tests proving PII-free + validation + the no-auto-send gate, gates green, committed and pushed. Then write `07-reviews/architecture/community-backend-release-check.md` (consolidated, slices 1–10).
+`05-plans/obs-module-plan.md` exists with a clear slice breakdown + the human-confirm-gate model, and OBS backend slice 1 is implemented, gate-green, committed, and pushed.
 
-## Next task after this
-The OBS module (final module): author `05-plans/obs-module-plan.md` (note: OBS involves obs-websocket v5 + obs-agent; stream-start/stop + scene/source changes REQUIRE human-confirm gates per the non-negotiables — model these as confirmation-gated, never-auto operations), then build its backend slice-by-slice. There is an `obs-integrator` skill that may help. UI slices for all modules await the user's surface decision.
+## Next
+OBS backend slices. After OBS: the remaining build is UIs (Charts/Play/Community+/OBS) + the deferred integration slices (live comms carrier, send transport) — all of which need the user (surface decision + visual verification + external-account/connection decisions). At that point the autonomously-buildable backend is essentially complete.
