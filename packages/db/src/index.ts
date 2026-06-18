@@ -11,6 +11,7 @@ export * from "./community-repository-contracts.js";
 export * from "./community-sql-repository.js";
 export * from "./config.js";
 export * from "./migrations.js";
+export * from "./obs-migrations.js";
 export * from "./obs-repository-contracts.js";
 export * from "./planning-ccli-usage-sql-repository.js";
 export * from "./planning-command-sql-repository.js";
