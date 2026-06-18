@@ -1,0 +1,624 @@
+import { describe, expect, it } from "vitest";
+import type { CommunitySqlExecutor, PlanningSqlRow } from "@sanctuary-os/db";
+import {
+  createCommunityCommandSqlRepository,
+  createCommunityQuerySqlRepository
+} from "@sanctuary-os/db";
+import type { AuthenticatedActor } from "../../auth/index.js";
+import {
+  isCommunityDomainError,
+  type CommunityDomainErrorCode
+} from "../../domain/community/index.js";
+import {
+  createPersistenceBackedCommunityServicesAdapter,
+  type PersistenceBackedCommunityServiceIds
+} from "./persistence.js";
+import type { CommunicationSendPort } from "./in-memory.js";
+
+const TENANT = "tenant_1";
+
+const leader: AuthenticatedActor = {
+  actorId: "leader_1",
+  roles: ["worship_leader"],
+  tenantId: TENANT
+};
+
+const otherTenantLeader: AuthenticatedActor = {
+  actorId: "leader_other",
+  roles: ["worship_leader"],
+  tenantId: "tenant_2"
+};
+
+const viewer: AuthenticatedActor = {
+  actorId: "viewer_1",
+  roles: ["viewer"],
+  tenantId: TENANT
+};
+
+const planner: AuthenticatedActor = {
+  actorId: "planner_1",
+  roles: ["planner"],
+  tenantId: TENANT
+};
+
+const TS = "2026-06-17T08:00:00.000Z";
+
+const memberRow = (
+  overrides: Readonly<Record<string, unknown>> = {}
+): PlanningSqlRow => ({
+  contact_channel_refs_json: JSON.stringify([
+    { channelRef: "channel_sms_yes", consentStatus: "granted", kind: "sms" }
+  ]),
+  created_at: TS,
+  custom_field_values_json: "[]",
+  display_name: "Granted Member",
+  household_ref: null,
+  member_id: "member_yes",
+  schema_version: "community.v1",
+  segment_refs_json: JSON.stringify(["segment_a"]),
+  status: "active",
+  tenant_id: TENANT,
+  updated_at: TS,
+  ...overrides
+});
+
+const deniedMemberRow = memberRow({
+  contact_channel_refs_json: JSON.stringify([
+    { channelRef: "channel_sms_no", consentStatus: "denied", kind: "sms" }
+  ]),
+  display_name: "Denied Member",
+  member_id: "member_no"
+});
+
+const membershipRow = (
+  overrides: Readonly<Record<string, unknown>> = {}
+): PlanningSqlRow => ({
+  active: 1,
+  group_id: "group_1",
+  joined_at: TS,
+  member_ref: "member_yes",
+  membership_id: "membership_1",
+  role_in_group: "member",
+  tenant_id: TENANT,
+  updated_at: TS,
+  ...overrides
+});
+
+const messageRow = (
+  overrides: Readonly<Record<string, unknown>> = {}
+): PlanningSqlRow => ({
+  audience_json: JSON.stringify({ kind: "segment", segmentRef: "segment_a" }),
+  body_template: "Hello {{firstName}}",
+  channel: "sms",
+  confirmation_reason: null,
+  confirmed: 0,
+  confirmed_at: null,
+  confirmed_by_ref: null,
+  created_at: TS,
+  created_by_ref: "leader_1",
+  message_id: "message_1",
+  origin: "human",
+  status: "draft",
+  subject: null,
+  tenant_id: TENANT,
+  updated_at: TS,
+  ...overrides
+});
+
+const confirmedFields = {
+  confirmation_reason: "Approved",
+  confirmed: 1,
+  confirmed_at: TS,
+  confirmed_by_ref: "leader_1"
+} as const;
+
+interface RecordedStatement {
+  readonly name: string;
+  readonly parameters: readonly unknown[];
+  readonly sql: string;
+}
+
+/**
+ * Recording executor that consumes row-sets FIFO per statement name, so a
+ * multi-step flow (e.g. set_status called for `queue` then `send`) can return the
+ * correct intermediate row at each call. When a name's queue is exhausted (or was
+ * never seeded) it returns no rows — matching a real "no match" result.
+ */
+const createRecordingExecutor = (
+  rowsByName: Readonly<Record<string, readonly (readonly PlanningSqlRow[])[]>>
+): {
+  readonly executor: CommunitySqlExecutor;
+  readonly statements: RecordedStatement[];
+} => {
+  const statements: RecordedStatement[] = [];
+  const queues = new Map<string, (readonly PlanningSqlRow[])[]>(
+    Object.entries(rowsByName).map(([name, sets]) => [name, [...sets]])
+  );
+  const executor: CommunitySqlExecutor = {
+    query: (statement) => {
+      statements.push({
+        name: statement.name,
+        parameters: statement.parameters,
+        sql: statement.sql
+      });
+      const queue = queues.get(statement.name);
+      const rows = queue?.shift() ?? [];
+
+      return Promise.resolve({ rows });
+    }
+  };
+
+  return { executor, statements };
+};
+
+const single = (
+  rowsByName: Readonly<Record<string, readonly PlanningSqlRow[]>>
+): Readonly<Record<string, readonly (readonly PlanningSqlRow[])[]>> =>
+  Object.fromEntries(
+    Object.entries(rowsByName).map(([name, rows]) => [name, [rows]])
+  );
+
+const createAdapter = (
+  rowsByName: Readonly<Record<string, readonly (readonly PlanningSqlRow[])[]>>,
+  options: {
+    readonly clock?: () => string;
+    readonly ids?: Partial<PersistenceBackedCommunityServiceIds>;
+    readonly sendPort?: CommunicationSendPort;
+  } = {}
+): {
+  readonly adapter: ReturnType<typeof createPersistenceBackedCommunityServicesAdapter>;
+  readonly statements: RecordedStatement[];
+} => {
+  const { executor, statements } = createRecordingExecutor(rowsByName);
+  const clock = options.clock ?? ((): string => "2026-06-17T09:00:00.000Z");
+  const adapter = createPersistenceBackedCommunityServicesAdapter({
+    clock,
+    commandRepository: createCommunityCommandSqlRepository({ clock, executor }),
+    queryRepository: createCommunityQuerySqlRepository({ executor }),
+    ...(options.ids !== undefined ? { ids: options.ids } : {}),
+    ...(options.sendPort !== undefined ? { sendPort: options.sendPort } : {})
+  });
+
+  return { adapter, statements };
+};
+
+const expectDomainErrorCode = async (
+  operation: Promise<unknown>,
+  code: CommunityDomainErrorCode
+): Promise<void> => {
+  const error: unknown = await operation.then(
+    () => undefined,
+    (caught: unknown) => caught
+  );
+
+  expect(isCommunityDomainError(error)).toBe(true);
+  if (isCommunityDomainError(error)) {
+    expect(error.code).toBe(code);
+  }
+};
+
+describe("createPersistenceBackedCommunityServicesAdapter (recording executor)", () => {
+  it("maps a persistence member row to a domain record on getMember", async () => {
+    const { adapter, statements } = createAdapter(
+      single({ "community.members.get": [memberRow()] })
+    );
+
+    const member = await adapter.queryService.getMember({
+      actor: leader,
+      input: { memberId: "member_yes" },
+      requestId: "request_get"
+    });
+
+    expect(member).toMatchObject({
+      displayName: "Granted Member",
+      memberId: "member_yes",
+      status: "active",
+      tenantId: TENANT
+    });
+    expect(member?.contactChannelRefs).toEqual([
+      { channelRef: "channel_sms_yes", consentStatus: "granted", kind: "sms" }
+    ]);
+    // The persistence-only schemaVersion field is dropped from the domain record.
+    expect(member === null || "schemaVersion" in member).toBe(false);
+    expect(statements[0]?.name).toBe("community.members.get");
+    expect(statements[0]?.parameters).toEqual([TENANT, "member_yes"]);
+  });
+
+  it("returns null for a cross-tenant getMember without leaking the row", async () => {
+    const { adapter } = createAdapter(
+      single({ "community.members.get": [memberRow()] })
+    );
+
+    await expect(
+      adapter.queryService.getMember({
+        actor: otherTenantLeader,
+        input: { memberId: "member_yes" },
+        requestId: "request_cross_tenant"
+      })
+    ).resolves.toBeNull();
+  });
+
+  it("derives the persistence schemaVersion and tenant when saving a member", async () => {
+    const { adapter, statements } = createAdapter(single({}), {
+      ids: { memberId: () => "member_created" }
+    });
+
+    const member = await adapter.commandService.saveMember({
+      actor: leader,
+      input: {
+        contactChannelRefs: [],
+        customFieldValues: [],
+        displayName: "New Member",
+        segmentRefs: [],
+        status: "active"
+      },
+      requestId: "request_save"
+    });
+
+    expect(member).toMatchObject({
+      displayName: "New Member",
+      memberId: "member_created",
+      status: "active",
+      tenantId: TENANT
+    });
+    const upsert = statements.find(
+      (statement) => statement.name === "community.members.upsert"
+    );
+    expect(upsert?.parameters).toEqual([
+      TENANT,
+      "member_created",
+      null,
+      "New Member",
+      "active",
+      "[]",
+      "[]",
+      "[]",
+      "community.v1",
+      "2026-06-17T09:00:00.000Z",
+      "2026-06-17T09:00:00.000Z"
+    ]);
+  });
+
+  it("throws MEMBER_NOT_FOUND when archiving an unknown member", async () => {
+    const { adapter } = createAdapter(single({ "community.members.get": [] }));
+
+    await expectDomainErrorCode(
+      adapter.commandService.archiveMember({
+        actor: leader,
+        input: {
+          confirmationIntent: { confirmed: true, reason: "Left the church" },
+          memberId: "member_missing"
+        },
+        requestId: "request_archive_missing"
+      }),
+      "MEMBER_NOT_FOUND"
+    );
+  });
+
+  it("rejects viewer mutations in the service layer", async () => {
+    const { adapter } = createAdapter(single({}));
+
+    await expectDomainErrorCode(
+      adapter.commandService.saveMember({
+        actor: viewer,
+        input: {
+          contactChannelRefs: [],
+          customFieldValues: [],
+          displayName: "Should Fail",
+          segmentRefs: [],
+          status: "active"
+        },
+        requestId: "request_viewer_write"
+      }),
+      "AUTHORIZATION_FAILED"
+    );
+  });
+
+  it("rejects a non-comms role from managing communications", async () => {
+    const { adapter } = createAdapter(single({}));
+
+    await expectDomainErrorCode(
+      adapter.commandService.draftCommunicationMessage({
+        actor: planner,
+        input: {
+          audience: { kind: "segment", segmentRef: "segment_a" },
+          bodyTemplate: "Hi",
+          channel: "sms",
+          origin: "human"
+        },
+        requestId: "request_planner_draft"
+      }),
+      "AUTHORIZATION_FAILED"
+    );
+  });
+
+  it("looks up the membership and throws MEMBERSHIP_NOT_FOUND when absent", async () => {
+    const { adapter, statements } = createAdapter(
+      single({ "community.memberships.get": [] })
+    );
+
+    await expectDomainErrorCode(
+      adapter.commandService.removeGroupMembership({
+        actor: leader,
+        input: {
+          confirmationIntent: { confirmed: true, reason: "Cleanup" },
+          membershipId: "membership_missing"
+        },
+        requestId: "request_remove_missing"
+      }),
+      "MEMBERSHIP_NOT_FOUND"
+    );
+    expect(
+      statements.some((statement) => statement.name === "community.memberships.remove")
+    ).toBe(false);
+  });
+
+  it("resolves the membership refs when removing a confirmed membership", async () => {
+    const { adapter, statements } = createAdapter(
+      single({ "community.memberships.get": [membershipRow()] })
+    );
+
+    await expect(
+      adapter.commandService.removeGroupMembership({
+        actor: leader,
+        input: {
+          confirmationIntent: { confirmed: true, reason: "No longer serving" },
+          membershipId: "membership_1"
+        },
+        requestId: "request_remove"
+      })
+    ).resolves.toBeUndefined();
+
+    const remove = statements.find(
+      (statement) => statement.name === "community.memberships.remove"
+    );
+    // tenant_id, membership_id, group_id, member_ref — group/member resolved from the row.
+    expect(remove?.parameters).toEqual([TENANT, "membership_1", "group_1", "member_yes"]);
+  });
+
+  it("throws ATTENDANCE_NOT_FOUND when updating an unknown attendance record", async () => {
+    const { adapter } = createAdapter(single({ "community.attendance.get": [] }));
+
+    await expectDomainErrorCode(
+      adapter.commandService.updateAttendance({
+        actor: leader,
+        input: {
+          attendanceId: "attendance_missing",
+          memberRef: "member_yes",
+          occasionRef: "service_1",
+          status: "present"
+        },
+        requestId: "request_update_missing"
+      }),
+      "ATTENDANCE_NOT_FOUND"
+    );
+  });
+
+  it("previews the consent-filtered audience over the persistence path", async () => {
+    const { adapter } = createAdapter(
+      single({
+        "community.messages.get": [messageRow()],
+        "community.members.list": [memberRow(), deniedMemberRow]
+      })
+    );
+
+    const audience = await adapter.queryService.getResolvedAudience({
+      actor: leader,
+      input: { messageId: "message_1" },
+      requestId: "request_preview"
+    });
+
+    expect(audience?.included).toEqual([
+      { channelRef: "channel_sms_yes", memberRef: "member_yes" }
+    ]);
+    expect(audience?.suppressed).toEqual([
+      { consentStatus: "denied", memberRef: "member_no", reason: "consent-not-granted" }
+    ]);
+  });
+
+  it("blocks queueing an unconfirmed (reviewed) message through the confirmation gate", async () => {
+    const { adapter, statements } = createAdapter(
+      single({
+        "community.messages.get": [messageRow({ status: "reviewed" })],
+        "community.members.list": [memberRow()]
+      })
+    );
+
+    await expectDomainErrorCode(
+      adapter.commandService.queueConfirmedCommunication({
+        actor: leader,
+        input: {
+          confirmationIntent: { confirmed: true, reason: "Send it" },
+          messageId: "message_1"
+        },
+        requestId: "request_queue_unconfirmed"
+      }),
+      "INVALID_LIFECYCLE_TRANSITION"
+    );
+    // The gate rejects before any send-intent (status change / recipient row) is produced.
+    expect(
+      statements.some(
+        (statement) =>
+          statement.name === "community.messages.set_status" ||
+          statement.name === "community.recipients.upsert"
+      )
+    ).toBe(false);
+  });
+
+  it("forbids an AI-drafted message from self-advancing toward send without a human confirmation", async () => {
+    const { adapter, statements } = createAdapter(
+      single({
+        "community.messages.get": [
+          messageRow({ origin: "ai-drafted", status: "reviewed" })
+        ],
+        "community.members.list": [memberRow()]
+      })
+    );
+
+    await expectDomainErrorCode(
+      adapter.commandService.queueConfirmedCommunication({
+        actor: leader,
+        input: {
+          confirmationIntent: { confirmed: true, reason: "auto" },
+          messageId: "message_1"
+        },
+        requestId: "request_ai_queue"
+      }),
+      "INVALID_LIFECYCLE_TRANSITION"
+    );
+    expect(
+      statements.some((statement) => statement.name === "community.messages.set_status")
+    ).toBe(false);
+  });
+
+  it("advances an AI-drafted message only with an explicit human confirmation", async () => {
+    const { adapter, statements } = createAdapter(
+      single({
+        "community.messages.get": [
+          messageRow({ origin: "ai-drafted", status: "reviewed" })
+        ],
+        "community.messages.set_status": [
+          messageRow({
+            ...confirmedFields,
+            confirmation_reason: "Reviewed by a human",
+            confirmed_at: "2026-06-17T09:00:00.000Z",
+            origin: "ai-drafted",
+            status: "confirmed"
+          })
+        ]
+      })
+    );
+
+    const confirmed = await adapter.commandService.confirmCommunicationSend({
+      actor: leader,
+      input: {
+        confirmationIntent: { confirmed: true, reason: "Reviewed by a human" },
+        confirmedByRef: "leader_1",
+        messageId: "message_1"
+      },
+      requestId: "request_ai_confirm"
+    });
+
+    expect(confirmed.status).toBe("confirmed");
+    expect(confirmed.confirmation).toMatchObject({
+      confirmed: true,
+      confirmedByRef: "leader_1",
+      reason: "Reviewed by a human"
+    });
+    // The status-change write carries the confirmation flag + actor + reason.
+    const setStatus = statements.find(
+      (statement) => statement.name === "community.messages.set_status"
+    );
+    expect(setStatus?.parameters).toEqual([
+      "confirmed",
+      "2026-06-17T09:00:00.000Z",
+      1,
+      "leader_1",
+      "Reviewed by a human",
+      "2026-06-17T09:00:00.000Z",
+      TENANT,
+      "message_1"
+    ]);
+  });
+
+  it("rejects queueing a confirmed message when no recipient has granted consent", async () => {
+    const { adapter, statements } = createAdapter(
+      single({
+        "community.messages.get": [messageRow({ ...confirmedFields, status: "confirmed" })],
+        "community.members.list": [deniedMemberRow]
+      })
+    );
+
+    await expectDomainErrorCode(
+      adapter.commandService.queueConfirmedCommunication({
+        actor: leader,
+        input: {
+          confirmationIntent: { confirmed: true, reason: "Queue it" },
+          messageId: "message_1"
+        },
+        requestId: "request_queue_blocked"
+      }),
+      "CONSENT_REQUIRED"
+    );
+    expect(
+      statements.some((statement) => statement.name === "community.messages.set_status")
+    ).toBe(false);
+  });
+
+  it("queues a confirmed message: consented recipient sent, non-consented suppressed", async () => {
+    const sendCalls: string[] = [];
+    const sendPort: CommunicationSendPort = {
+      send: (request) => {
+        for (const recipient of request.recipients) {
+          sendCalls.push(recipient.memberRef);
+        }
+
+        return Promise.resolve(
+          request.recipients.map((recipient) => ({
+            channelRef: recipient.channelRef,
+            memberRef: recipient.memberRef,
+            sendStatus: "delivered" as const
+          }))
+        );
+      }
+    };
+    const { adapter, statements } = createAdapter(
+      {
+        "community.messages.get": [
+          [messageRow({ ...confirmedFields, status: "confirmed" })]
+        ],
+        "community.members.list": [[memberRow(), deniedMemberRow]],
+        // suppressed-recipient channel lookup for the denied member
+        "community.members.get": [[deniedMemberRow]],
+        // set_status is called twice: queue, then send — consumed FIFO.
+        "community.messages.set_status": [
+          [messageRow({ ...confirmedFields, status: "queued" })],
+          [messageRow({ ...confirmedFields, status: "sent" })]
+        ]
+      },
+      {
+        ids: {
+          recipientId: (() => {
+            let next = 0;
+            return () => {
+              next += 1;
+              return `recipient_${String(next)}`;
+            };
+          })()
+        },
+        sendPort
+      }
+    );
+
+    const sent = await adapter.commandService.queueConfirmedCommunication({
+      actor: leader,
+      input: {
+        confirmationIntent: { confirmed: true, reason: "Queue it" },
+        messageId: "message_1"
+      },
+      requestId: "request_queue"
+    });
+
+    expect(sent.status).toBe("sent");
+    // Only the consented member is handed to the carrier port.
+    expect(sendCalls).toEqual(["member_yes"]);
+
+    const recipientUpserts = statements.filter(
+      (statement) => statement.name === "community.recipients.upsert"
+    );
+    // One suppressed row (denied member) + one delivered row (consented member).
+    expect(recipientUpserts).toHaveLength(2);
+    const sendStatusByMember = new Map(
+      recipientUpserts.map((statement) => [
+        statement.parameters[3] as string,
+        statement.parameters[5] as string
+      ])
+    );
+    expect(sendStatusByMember.get("member_yes")).toBe("delivered");
+    expect(sendStatusByMember.get("member_no")).toBe("suppressed");
+    // No raw contact value is ever bound — only opaque channel refs.
+    for (const statement of recipientUpserts) {
+      expect(String(statement.parameters[4]).startsWith("channel_")).toBe(true);
+    }
+  });
+});
