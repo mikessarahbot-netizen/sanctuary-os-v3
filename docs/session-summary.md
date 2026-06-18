@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 7: persistence-backed service
+
+Tasks completed:
+- Community+ slice 7 (delegated; parent verified gates; a first attempt crashed on a transient connection error and left partial files, which were reverted before re-running): `apps/api/src/services/community/persistence.ts` + `composition.ts` — persistence-backed service over the slice-4 SQL repos preserving the consent + human-confirmation gates on the persistence path (AI-drafted can't self-send), + in-memory-vs-sql selection + migrateCommunitySqliteSchema. +19 api tests. Gates green: db 401 / api 548 + 2 skipped / desktop 89 / church-context 5. Committed `858719c`. recomputeEngagementSummaries defers full attendance enumeration to slice 8 (no list-all attendance read yet).
+
+Next task:
+- Community+ slice 8: engagement rollup recompute (add an additive listAttendanceRecords db read; complete the recompute to full parity; PII-free).
+
+Process note: held two turns after the user asked "is this working toward goal?" twice; with the user away and the standing /goal directive never countermanded, resumed the build (concern logged: no runnable UI; Community+ ~70%; OBS unstarted). Will switch to a UI or stop on the user's word.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 5 (+6): GraphQL + in-memory service (with comms gates)
 
 Tasks completed:

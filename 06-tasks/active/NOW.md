@@ -1,28 +1,27 @@
 # NOW
 
 ## Task
-Community+ module, slice 7: the persistence-backed Community service over the slice-4 SQLite adapter + a composition that applies `CommunityInitialSchemaMigration` via the migration runner. Mirror Charts slice 6 / Play slice 6. (Community+ slices 1–5 done + green at `cbfe161`; slice 6's comms lifecycle + confirmation gate were delivered inside slice 5's in-memory service.)
+Community+ module, slice 8: the engagement rollup recompute — a tenant-scoped service operation that recomputes EngagementSummary rows over the persisted data (members' attendance/serving/comms-response signals), completing the parity gap slice 7 left. PII-free by construction. (Community+ slices 1–7 done + green at `858719c`.)
 
 ## Module / authority
-Building Community+ from `05-plans/community-plus-module-plan.md` (authoritative). Strictest-privacy module. Charts + Play backends complete.
+Building Community+ from `05-plans/community-plus-module-plan.md` (authoritative). Strictest-privacy module: EngagementSummary is refs/counts only — NO PII. Charts + Play backends complete.
 
-## Note on slice numbering
-Plan slice 6 ("Communications lifecycle + confirmation gate") was implemented within slice 5's in-memory service (full draft→reviewed→confirmed→queued→sent lifecycle, consent suppression, human-confirm gate, AI-can't-send — all tested). So this slice is the persistence-backed service (plan slice 7); any remaining comms hardening (recipient delivery-status tracking, bulk) folds into this + slice 9 (events).
+## Carried gap (from slice 7)
+The persistence-backed `recomputeEngagementSummaries` could not fully enumerate attendance because the slice-4 query repo has no list-all attendance read. Add a minimal, additive `listAttendanceRecords` read (tenant-scoped, optional member/occasion filter) to the db community contracts + SQL adapter (+ tests), then use it so the recompute reaches full parity with the in-memory service. Keep it additive (don't disturb existing methods).
 
 ## Session protocol (in force)
 `agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`. Ceremony streamlined per backend slice; consolidated release check at the Community+-backend milestone.
 
-## In scope (this slice)
+## In scope (slice 8)
 - Continue on `feature/presenter-domain-contracts`
-- Mirror `apps/api/src/services/charts/persistence.ts` + `composition.ts` and `apps/api/src/services/play/persistence.ts` + `composition.ts` (+ their tests) exactly
-- Add `apps/api/src/services/community/persistence.ts`: a persistence-backed `CommunityQueryService`/`CommunityCommandService` delegating to `createCommunityQuerySqlRepository`/`createCommunityCommandSqlRepository` over an injected executor; translate domain ops → persistence ops and persistence records → domain records (field-by-field; re-apply brands via the domain schemas on read); preserve tenant scope, role checks, typed `CommunityDomainError`, the consent gate (audience resolver) and the human-confirm gate (message lifecycle); inject the clock + id generator + the faked send port
-- Add `apps/api/src/services/community/composition.ts`: `createCommunityPersistenceSelection` (in-memory vs sql) + `migrateCommunitySqliteSchema` applying `CommunityInitialSchemaMigration` via `createSqliteMigrationRunner`
-- Keep the in-memory service as the test double; do not change the GraphQL surface
-- Export from the community services barrel
-- Tests: a recording/fake-executor service test (domain↔persistence mapping, tenant scope, not-found → typed error, consent + confirmation gates still enforced through the persistence path) + a `node:sqlite` integration test (migrate via runner → member/household/group/attendance + draft→confirm→queue message round-trip)
+- Reuse the pure `apps/api/src/domain/community/engagement.ts` rollup (slice 1) as the computation core; this slice is the SERVICE-level recompute that gathers the inputs from persistence and upserts the summaries
+- Add the additive `listAttendanceRecords` db read (contracts + `community-sql-repository.ts` + recording-executor test + a `node:sqlite` check) to enable full attendance enumeration
+- Complete `recomputeEngagementSummaries` in `apps/api/src/services/community/persistence.ts` (and confirm in-memory parity) so it gathers attendance + serving + comms-response signals fully and upserts PII-free EngagementSummary rows; tenant-scoped; injected clock/window
+- Tests: service recompute tests (correct counts from seeded data; PII-free output assertion; tenant isolation) + the new db read tests + a `node:sqlite` integration recompute round-trip
+- Do not change the GraphQL surface (the recompute mutation/query already exists from slice 5 if the plan put it there; otherwise expose it minimally per the plan)
 
 ## Done when
-A persistence-backed Community service satisfies the interfaces over the slice-4 adapter with tenant scope + validation + typed errors + the consent/confirmation gates, the migration is applied via the runner, covered by a fake-executor test + a `node:sqlite` integration test, gates green, committed and pushed.
+`recomputeEngagementSummaries` fully recomputes PII-free EngagementSummary rows over persisted attendance/serving/comms data (with the additive attendance read), covered by service + db tests + a `node:sqlite` integration test, gates green, committed and pushed.
 
 ## Next task after this
-Community+ slice 8: engagement rollup recompute (service-level, over the persisted data). Then 9 (WebSocket events: member/group/attendance/communication events into the API event union), 10 (AI assist: reviewable draft suggestions, PII-free projections, no auto-send). Slices 11–13 await user decisions. After Community+: the OBS module (final module; involves obs-websocket + human-confirm gates).
+Community+ slice 9: WebSocket events (member/household/group/attendance/communication events into the API event union with scope superRefines, emitted after durable commits; comms events must NOT leak PII). Then slice 10: AI assist (reviewable draft suggestions, smallest PII-free ChurchContext projection, no auto-send). Slices 11–13 await user decisions. After Community+: the OBS module (final; obs-websocket + human-confirm gates for stream/scene actions).
