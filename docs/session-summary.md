@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS module plan authored (final module)
+
+Tasks completed:
+- Authored `05-plans/obs-module-plan.md` (delegated). OBS = the tenant-scoped control surface for a church's own OBS Studio via obs-websocket v5 (control, not hosting). 8 domain objects (ObsConnectionProfile[opaque ref]/Scene/Source/SceneItem/StreamState/RecordingState/ObsActionIntent/ObsActionLogEntry); 13-slice breakdown (1–10 backend with a faked port; 11 real obs-websocket port, 12 desktop agent runtime, 13 operator UI — deferred). Safety model: structural 3-step request→confirm→dispatch gate (every output action gated; no auto-confirm/dispatch; AI only creates a requested suggestion); secrets only in a vault (opaque connectionRef, no secret columns, tested); online-only output actions (no offline queue); injected ObsControlPort (faked in tests).
+
+Next task:
+- OBS backend slice 1 (domain + pure logic: records, eligibility checker, the confirm-before-dispatch transition map, no-secrets test), then slices 2–10 per the plan.
+
+Open questions / follow-ups: OBS open questions (vault contract; uniform gate; failed-dispatch posture); obs-agent + obs-integrator are stubs; after OBS backend the remaining build is UIs + live integrations (need the user). Standing: UI surface decision; live /goal hook driving the build (no runnable UI yet — concern logged).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 10: AI assist (COMMUNITY+ BACKEND COMPLETE 1-10)
 
 Tasks completed:
