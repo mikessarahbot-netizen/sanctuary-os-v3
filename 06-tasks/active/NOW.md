@@ -1,27 +1,27 @@
 # NOW
 
 ## Task
-Community+ module, slice 8: the engagement rollup recompute — a tenant-scoped service operation that recomputes EngagementSummary rows over the persisted data (members' attendance/serving/comms-response signals), completing the parity gap slice 7 left. PII-free by construction. (Community+ slices 1–7 done + green at `858719c`.)
+Community+ module, slice 9: the Community WebSocket events — add the module's events (member/household/group/attendance/communication) to the API event union with `.strict()` payloads + tenant/aggregate scope superRefines, emitted after durable commits. PII-FREE payloads (refs/counts only — never names/contact values). Mirror the presenter/play events. (Community+ slices 1–8 done + green at `1ba26ff`.)
 
 ## Module / authority
-Building Community+ from `05-plans/community-plus-module-plan.md` (authoritative). Strictest-privacy module: EngagementSummary is refs/counts only — NO PII. Charts + Play backends complete.
+Building Community+ from `05-plans/community-plus-module-plan.md` (authoritative). Strictest-privacy module. Charts + Play backends complete.
 
-## Carried gap (from slice 7)
-The persistence-backed `recomputeEngagementSummaries` could not fully enumerate attendance because the slice-4 query repo has no list-all attendance read. Add a minimal, additive `listAttendanceRecords` read (tenant-scoped, optional member/occasion filter) to the db community contracts + SQL adapter (+ tests), then use it so the recompute reaches full parity with the in-memory service. Keep it additive (don't disturb existing methods).
+## Privacy non-negotiable (this slice especially)
+Event payloads must carry NO PII — only opaque refs (memberRef, groupId, messageId, occasionRef) + status/counts. A subscriber must not learn names/contact values from an event. Add a test asserting the event payloads reject/῀omit PII keys.
 
 ## Session protocol (in force)
-`agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`. Ceremony streamlined per backend slice; consolidated release check at the Community+-backend milestone.
+`agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`. Ceremony streamlined per backend slice; consolidated release check at the Community+-backend milestone (after slice 10).
 
-## In scope (slice 8)
+## In scope (slice 9)
 - Continue on `feature/presenter-domain-contracts`
-- Reuse the pure `apps/api/src/domain/community/engagement.ts` rollup (slice 1) as the computation core; this slice is the SERVICE-level recompute that gathers the inputs from persistence and upserts the summaries
-- Add the additive `listAttendanceRecords` db read (contracts + `community-sql-repository.ts` + recording-executor test + a `node:sqlite` check) to enable full attendance enumeration
-- Complete `recomputeEngagementSummaries` in `apps/api/src/services/community/persistence.ts` (and confirm in-memory parity) so it gathers attendance + serving + comms-response signals fully and upserts PII-free EngagementSummary rows; tenant-scoped; injected clock/window
-- Tests: service recompute tests (correct counts from seeded data; PII-free output assertion; tenant isolation) + the new db read tests + a `node:sqlite` integration recompute round-trip
-- Do not change the GraphQL surface (the recompute mutation/query already exists from slice 5 if the plan put it there; otherwise expose it minimally per the plan)
+- Mirror the presenter/play events: read `apps/api/src/events/index.ts` (the union + the presenter/play event payloads + scope superRefines + how play emits after durable commits in `services/play/in-memory.ts`) and `apps/api/src/services/community/in-memory.ts` (the commit points to hook emission)
+- Add `.strict()` PII-FREE Community event payloads per the plan (e.g. `member.updated`, `communityGroup.updated`, `attendance.recorded`, `communication.queued`, `communication.sent` — match the plan's exact event set) to the API event union, each with the tenant/aggregate scope superRefine
+- Wire emission via the injected event publisher (same mechanism play uses) after the relevant durable commits in the in-memory service; do NOT emit on the persistence path if play doesn't (match the established scope)
+- Tests: event payload validation (valid + scope-mismatch rejected) + a PII-FREE payload assertion + emit-after-commit wiring tests
+- Do not change the GraphQL surface
 
 ## Done when
-`recomputeEngagementSummaries` fully recomputes PII-free EngagementSummary rows over persisted attendance/serving/comms data (with the additive attendance read), covered by service + db tests + a `node:sqlite` integration test, gates green, committed and pushed.
+The Community+ events are in the API event union with strict PII-free payloads + scope superRefines, emitted after durable commits, covered by validation + PII-free + wiring tests, gates green, committed and pushed.
 
 ## Next task after this
-Community+ slice 9: WebSocket events (member/household/group/attendance/communication events into the API event union with scope superRefines, emitted after durable commits; comms events must NOT leak PII). Then slice 10: AI assist (reviewable draft suggestions, smallest PII-free ChurchContext projection, no auto-send). Slices 11–13 await user decisions. After Community+: the OBS module (final; obs-websocket + human-confirm gates for stream/scene actions).
+Community+ slice 10: AI assist — reviewable draft suggestions (e.g. a communication draft) using the smallest PII-free ChurchContext projection, Zod-validated output, NEVER auto-sending (drafts go through the human-confirm gate; origin="ai-drafted"); mirror `04-prompts/` spec conventions + the ai-prompt-standards. After slice 10 the COMMUNITY+ BACKEND IS COMPLETE → write `07-reviews/architecture/community-backend-release-check.md`. Then the OBS module (final; obs-websocket + human-confirm gates). UI slices await the user's surface decision.

@@ -2,6 +2,17 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 8: engagement rollup recompute
+
+Tasks completed:
+- Community+ slice 8 (delegated; parent verified gates): added an additive `listAttendanceRecordsForTenant` db read (existing required-occasion read untouched) and completed `recomputeEngagementSummaries` to full parity — enumerates attendance + serving + comms-response, feeds the pure rollup, upserts PII-free EngagementSummary rows (deterministic id, idempotent). Tests assert counts, PII-free output, tenant isolation + a node:sqlite recompute round-trip. +2 db, +5 api tests. Gates green: db 403 / api 553 + 2 skipped / desktop 89 / church-context 5. Committed `1ba26ff`.
+- Minor flagged risk: persistence recompute upserts without deleting stale summaries (diverges from in-memory only if a member loses all signals); deferred.
+
+Next task:
+- Community+ slice 9: WebSocket events (PII-free payloads). Then slice 10 (AI assist) → Community+ backend complete.
+
+Open questions / follow-ups: standing (network-executor JSON gap; enum task_85338bf7; UI surface decision still with the user; live /goal hook driving the build).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Community+ slice 7: persistence-backed service
 
 Tasks completed:
