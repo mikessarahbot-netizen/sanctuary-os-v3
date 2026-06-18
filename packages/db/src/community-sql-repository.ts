@@ -21,6 +21,7 @@ import {
   GetMemberPersistenceOperationSchema,
   GroupMembershipPersistenceRecordSchema,
   HouseholdPersistenceRecordSchema,
+  ListAttendanceRecordsForTenantPersistenceOperationSchema,
   ListAttendanceRecordsPersistenceOperationSchema,
   ListCommunicationMessagesPersistenceOperationSchema,
   ListCommunicationRecipientsPersistenceOperationSchema,
@@ -81,6 +82,9 @@ type GetGroupMembershipPersistenceOperation = z.infer<
 >;
 type ListAttendanceRecordsPersistenceOperation = z.infer<
   typeof ListAttendanceRecordsPersistenceOperationSchema
+>;
+type ListAttendanceRecordsForTenantPersistenceOperation = z.infer<
+  typeof ListAttendanceRecordsForTenantPersistenceOperationSchema
 >;
 type GetAttendanceRecordPersistenceOperation = z.infer<
   typeof GetAttendanceRecordPersistenceOperationSchema
@@ -616,6 +620,36 @@ SELECT ${ATTENDANCE_COLUMNS}
 FROM attendance_records
 WHERE tenant_id = ? AND occasion_ref = ?
 ORDER BY attendance_id
+`.trim(),
+      ...optionalTransaction(operation.options.transaction)
+    });
+
+    return z.array(AttendanceRecordSqlRowSchema).parse(result.rows);
+  },
+
+  listAttendanceRecordsForTenant: async (
+    rawOperation: ListAttendanceRecordsForTenantPersistenceOperation
+  ) => {
+    const operation =
+      ListAttendanceRecordsForTenantPersistenceOperationSchema.parse(rawOperation);
+    const memberRef = operation.input.memberRef ?? null;
+    const occasionRef = operation.input.occasionRef ?? null;
+    const result = await dependencies.executor.query({
+      name: "community.attendance.list_for_tenant",
+      parameters: [
+        operation.options.context.tenantId,
+        occasionRef,
+        occasionRef,
+        memberRef,
+        memberRef
+      ],
+      sql: `
+SELECT ${ATTENDANCE_COLUMNS}
+FROM attendance_records
+WHERE tenant_id = ?
+  AND (? IS NULL OR occasion_ref = ?)
+  AND (? IS NULL OR member_ref = ?)
+ORDER BY occasion_ref, attendance_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
     });

@@ -383,6 +383,212 @@ describe("Community persistence-backed service (node:sqlite integration)", () =>
   );
 
   liveIt(
+    "recomputes PII-free engagement summaries over persisted attendance, serving, and comms signals",
+    async () => {
+      if (nodeSqlite === undefined) {
+        throw new Error("node:sqlite is unavailable.");
+      }
+
+      const database = new nodeSqlite.DatabaseSync(":memory:");
+
+      try {
+        // The clock stamps every record (incl. delivered-recipient updatedAt) inside
+        // the recompute window below, so all signals are in-window.
+        const clock = (): string => "2026-06-17T12:00:00.000Z";
+        await migrateCommunitySqliteSchema({
+          clock,
+          database: wrapMigrationDatabase(database)
+        });
+
+        const { sendPort } = createRecordingSendPort();
+        let recipientCounter = 0;
+        let attendanceCounter = 0;
+        const selection = createCommunityPersistenceSelection(
+          { environment: "production" },
+          {
+            sql: {
+              clock,
+              executor: createSqliteExecutor({ database }),
+              ids: {
+                attendanceId: () => {
+                  attendanceCounter += 1;
+                  return `attendance_${String(attendanceCounter)}`;
+                },
+                groupId: () => "group_created",
+                messageId: () => "message_created",
+                memberId: () => "member_created",
+                membershipId: () => "membership_created",
+                recipientId: () => {
+                  recipientCounter += 1;
+                  return `recipient_${String(recipientCounter)}`;
+                }
+              },
+              sendPort
+            }
+          }
+        );
+        const { commandService, queryService } = selection.servicesAdapter;
+
+        // A consented member who serves on a team, attended two occasions, and had a
+        // delivered communication — one positive signal of each kind.
+        await commandService.saveMember({
+          actor: leader,
+          input: {
+            contactChannelRefs: [
+              { channelRef: "channel_sms_yes", consentStatus: "granted", kind: "sms" }
+            ],
+            customFieldValues: [{ fieldRef: "field_dob", value: "1990-01-01" }],
+            displayName: "Granted Member",
+            segmentRefs: ["segment_a"],
+            status: "active"
+          },
+          requestId: "request_member"
+        });
+
+        await commandService.saveCommunityGroup({
+          actor: leader,
+          input: { archived: false, kind: "serving-team", label: "Hospitality" },
+          requestId: "request_group"
+        });
+        await commandService.setGroupMembership({
+          actor: leader,
+          input: {
+            active: true,
+            groupId: "group_created",
+            memberRef: "member_created",
+            roleInGroup: "member"
+          },
+          requestId: "request_membership"
+        });
+
+        // Two present rows across two distinct occasions → an attendance streak of 2.
+        await commandService.recordAttendance({
+          actor: leader,
+          input: {
+            memberRef: "member_created",
+            occasionRef: "occasion_1",
+            status: "present"
+          },
+          requestId: "request_attendance_1"
+        });
+        await commandService.recordAttendance({
+          actor: leader,
+          input: {
+            memberRef: "member_created",
+            occasionRef: "occasion_2",
+            status: "present"
+          },
+          requestId: "request_attendance_2"
+        });
+
+        // Draft → review → confirm → queue a message; the recording send port reports
+        // the recipient `delivered`, the strongest comms-response signal.
+        await commandService.draftCommunicationMessage({
+          actor: leader,
+          input: {
+            audience: { kind: "segment", segmentRef: "segment_a" },
+            bodyTemplate: "Hello {{firstName}}",
+            channel: "sms",
+            origin: "human"
+          },
+          requestId: "request_draft"
+        });
+        await commandService.markCommunicationReviewed({
+          actor: leader,
+          input: { messageId: "message_created" },
+          requestId: "request_review"
+        });
+        await commandService.confirmCommunicationSend({
+          actor: leader,
+          input: {
+            confirmationIntent: { confirmed: true, reason: "Approved" },
+            confirmedByRef: "leader_1",
+            messageId: "message_created"
+          },
+          requestId: "request_confirm"
+        });
+        await commandService.queueConfirmedCommunication({
+          actor: leader,
+          input: {
+            confirmationIntent: { confirmed: true, reason: "Send it" },
+            messageId: "message_created"
+          },
+          requestId: "request_queue"
+        });
+
+        const window = {
+          windowEnd: "2026-06-30T00:00:00.000Z",
+          windowStart: "2026-06-01T00:00:00.000Z"
+        } as const;
+
+        const first = await commandService.recomputeEngagementSummaries({
+          actor: leader,
+          input: window,
+          requestId: "request_recompute_1"
+        });
+        expect(first).toHaveLength(1);
+        expect(first[0]).toMatchObject({
+          attendanceStreak: 2,
+          commsResponseCount: 1,
+          lastPresentOccasionRef: "occasion_2",
+          scope: { kind: "member", memberRef: "member_created" },
+          servingCount: 1
+        });
+
+        // Read the summaries back out of the database — the round-trip persisted them.
+        const readBack = await queryService.listEngagementSummaries({
+          actor: leader,
+          input: {},
+          requestId: "request_list_summaries"
+        });
+        expect(readBack).toHaveLength(1);
+        expect(readBack[0]).toMatchObject({
+          attendanceStreak: 2,
+          commsResponseCount: 1,
+          servingCount: 1,
+          summaryId: "engagement:member:member_created"
+        });
+        // PII-free by construction: no display name or contact ref reaches the summary.
+        const serialized = JSON.stringify(readBack);
+        expect(serialized).not.toContain("Granted Member");
+        expect(serialized).not.toContain("channel_");
+        expect(serialized).not.toContain("@");
+
+        // Idempotent recompute: re-running over the same data yields the same rows.
+        const second = await commandService.recomputeEngagementSummaries({
+          actor: leader,
+          input: window,
+          requestId: "request_recompute_2"
+        });
+        expect(second).toEqual(first);
+        const afterSecond = await queryService.listEngagementSummaries({
+          actor: leader,
+          input: {},
+          requestId: "request_list_summaries_2"
+        });
+        expect(afterSecond).toHaveLength(1);
+
+        // Tenant isolation: a foreign tenant recomputes nothing and sees no summaries.
+        const foreign = await commandService.recomputeEngagementSummaries({
+          actor: otherTenantLeader,
+          input: window,
+          requestId: "request_recompute_foreign"
+        });
+        expect(foreign).toEqual([]);
+        await expect(
+          queryService.listEngagementSummaries({
+            actor: otherTenantLeader,
+            input: {},
+            requestId: "request_list_summaries_foreign"
+          })
+        ).resolves.toEqual([]);
+      } finally {
+        database.close();
+      }
+    }
+  );
+
+  liveIt(
     "rejects queueing when no recipient has granted consent for the channel",
     async () => {
       if (nodeSqlite === undefined) {

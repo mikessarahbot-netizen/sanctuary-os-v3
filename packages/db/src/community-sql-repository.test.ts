@@ -280,6 +280,75 @@ describe("Community SQL repository (recording executor)", () => {
     expect(statements[0]?.parameters).toEqual([TENANT, null, null, null, null]);
   });
 
+  it("lists every tenant attendance row when listAttendanceRecordsForTenant is unfiltered", async () => {
+    const { executor, statements } = createRecordingExecutor({
+      "community.attendance.list_for_tenant": [
+        {
+          attendance_id: "attendance_1",
+          headcount: null,
+          member_ref: "member_1",
+          occasion_ref: "occasion_1",
+          recorded_at: "2026-06-17T08:00:00.000Z",
+          recorded_by_ref: "actor_1",
+          status: "present",
+          tenant_id: TENANT,
+          updated_at: "2026-06-17T08:00:00.000Z"
+        },
+        {
+          attendance_id: "attendance_2",
+          headcount: 42,
+          member_ref: null,
+          occasion_ref: "occasion_2",
+          recorded_at: "2026-06-17T08:00:00.000Z",
+          recorded_by_ref: "actor_1",
+          status: null,
+          tenant_id: TENANT,
+          updated_at: "2026-06-17T08:00:00.000Z"
+        }
+      ]
+    });
+    const repository = createCommunityQuerySqlRepository({ executor });
+
+    const records = await repository.listAttendanceRecordsForTenant({
+      input: {},
+      options: readOptions
+    });
+
+    expect(records).toHaveLength(2);
+    expect(records[0]?.memberRef).toBe("member_1");
+    expect(records[0]?.status).toBe("present");
+    expect(records[1]?.headcount).toBe(42);
+    expect(records[1]?.memberRef).toBeUndefined();
+    const [statement] = statements;
+    expect(statement?.name).toBe("community.attendance.list_for_tenant");
+    expect(statement?.sql).toContain("WHERE tenant_id = ?");
+    expect(statement?.sql).toContain("(? IS NULL OR occasion_ref = ?)");
+    expect(statement?.sql).toContain("(? IS NULL OR member_ref = ?)");
+    // tenant, then the occasion + member filters each repeated for the null guard.
+    expect(statement?.parameters).toEqual([TENANT, null, null, null, null]);
+  });
+
+  it("passes the optional occasion and member filters to listAttendanceRecordsForTenant", async () => {
+    const { executor, statements } = createRecordingExecutor({
+      "community.attendance.list_for_tenant": []
+    });
+    const repository = createCommunityQuerySqlRepository({ executor });
+
+    await repository.listAttendanceRecordsForTenant({
+      input: { memberRef: "member_1", occasionRef: "occasion_1" },
+      options: readOptions
+    });
+
+    // tenant_id, occasion_ref (x2 for the null guard), member_ref (x2).
+    expect(statements[0]?.parameters).toEqual([
+      TENANT,
+      "occasion_1",
+      "occasion_1",
+      "member_1",
+      "member_1"
+    ]);
+  });
+
   it("maps a confirmed message row, decoding the audience JSON and rebuilding confirmation", async () => {
     const { executor } = createRecordingExecutor({
       "community.messages.get": [confirmedMessageRow]
@@ -660,6 +729,43 @@ describe("Community SQL repository smoke", () => {
       expect(memberRow?.headcount).toBeUndefined();
       expect(anonRow?.headcount).toBe(42);
       expect(anonRow?.status).toBeUndefined();
+
+      // A second occasion lets the tenant-wide read prove it spans occasions.
+      await command.recordAttendance({
+        input: {
+          attendanceId: "attendance_3",
+          memberRef: "member_1",
+          occasionRef: "occasion_2",
+          recordedAt: "2026-06-18T08:00:00.000Z",
+          recordedByRef: "actor_1",
+          status: "present",
+          tenantId: TENANT,
+          updatedAt: "2026-06-18T08:00:00.000Z"
+        },
+        options: writeOptions
+      });
+      // Unfiltered: every attendance row across all occasions for the tenant.
+      const tenantWide = await query.listAttendanceRecordsForTenant({
+        input: {},
+        options: readOptions
+      });
+      expect(tenantWide).toHaveLength(3);
+      expect(new Set(tenantWide.map((row) => row.occasionRef))).toEqual(
+        new Set(["occasion_1", "occasion_2"])
+      );
+      // member filter narrows to just that member's rows across occasions.
+      const memberScoped = await query.listAttendanceRecordsForTenant({
+        input: { memberRef: "member_1" },
+        options: readOptions
+      });
+      expect(memberScoped).toHaveLength(2);
+      expect(memberScoped.every((row) => row.memberRef === "member_1")).toBe(true);
+      // occasion filter on the tenant-wide read matches the occasion-only read.
+      const occasionScoped = await query.listAttendanceRecordsForTenant({
+        input: { occasionRef: "occasion_1" },
+        options: readOptions
+      });
+      expect(occasionScoped).toHaveLength(2);
 
       // Draft → confirm (the confirmation gate) → queue.
       await command.saveCommunicationMessage({

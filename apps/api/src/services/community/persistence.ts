@@ -1080,22 +1080,17 @@ export const createPersistenceBackedCommunityServicesAdapter = (
       assertCommunityCommandRole(command.actor);
       const tenantId = command.actor.tenantId;
 
-      // Gather the rollup's inputs from the enumerable persistence reads. Serving
-      // memberships and comms-response recipients each have an enumerable parent
-      // (groups, messages), so they are gathered in full. Attendance has no
-      // enumerable parent in the slice-4 query repo, so it is gathered from the
-      // occasionRefs reachable via prior summaries — complete attendance
-      // enumeration is wired in slice 8 (the dedicated engagement-rollup slice).
-      const priorSummaries = await queryRepository.listEngagementSummaries({
+      // Gather the rollup's inputs from the enumerable persistence reads, reaching
+      // full parity with the in-memory service. Attendance is enumerated across the
+      // whole tenant via the additive `listAttendanceRecordsForTenant` read (slice
+      // 8); serving memberships and comms-response recipients each have an
+      // enumerable parent (groups, messages), so they too are gathered in full. The
+      // pure `rollupEngagement` then derives one PII-free summary per member that
+      // appears in any of these signals within the window.
+      const attendanceRecords = await queryRepository.listAttendanceRecordsForTenant({
         input: {},
         options: toReadOptions(command.actor, command.requestId)
       });
-      const attendanceRecords = await gatherTenantAttendance(
-        queryRepository,
-        command.actor,
-        command.requestId,
-        priorSummaries
-      );
       const membershipRecords = await gatherTenantMemberships(
         queryRepository,
         command.actor,
@@ -1175,40 +1170,6 @@ const defaultSendPort: CommunicationSendPort = {
         sendStatus: "sent" as const
       }))
     )
-};
-
-/**
- * Gather the tenant's in-scope attendance rows for the engagement rollup. The
- * slice-4 query repo lists attendance only by `occasionRef`, so occasions are
- * discovered from the `lastPresentOccasionRef`s on prior summaries — sufficient
- * for an idempotent recompute over already-rolled-up members. Full attendance
- * enumeration (a list-all read) is added in slice 8, the dedicated
- * engagement-rollup slice; this keeps slice 7 a faithful drop-in without
- * widening the query surface.
- */
-const gatherTenantAttendance = async (
-  queryRepository: CommunityQueryPersistenceRepository,
-  actor: AuthenticatedActor,
-  requestId: string,
-  priorSummaries: readonly EngagementSummaryPersistenceRecord[]
-): Promise<readonly AttendanceRecordPersistenceRecord[]> => {
-  const occasionRefs = new Set<string>();
-  for (const summary of priorSummaries) {
-    if (summary.lastPresentOccasionRef !== undefined) {
-      occasionRefs.add(summary.lastPresentOccasionRef);
-    }
-  }
-
-  const records: AttendanceRecordPersistenceRecord[] = [];
-  for (const occasionRef of occasionRefs) {
-    const occasionRecords = await queryRepository.listAttendanceRecords({
-      input: { occasionRef },
-      options: toReadOptions(actor, requestId)
-    });
-    records.push(...occasionRecords);
-  }
-
-  return records;
 };
 
 /**

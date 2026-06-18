@@ -463,6 +463,20 @@ export const GetGroupMembershipPersistenceInputSchema = z
 export const ListAttendanceRecordsPersistenceInputSchema = z
   .object({ occasionRef: NonEmptyStringSchema })
   .strict();
+/**
+ * Tenant-wide attendance enumeration with optional `memberRef`/`occasionRef`
+ * narrowing — the additive read that lets the engagement recompute gather **all**
+ * of a tenant's attendance, not just the rows for one occasion. Purely additive:
+ * the existing `listAttendanceRecords` (required `occasionRef`) is unchanged.
+ * Both filters are optional and may be combined; omitting both lists every
+ * attendance row in the tenant.
+ */
+export const ListAttendanceRecordsForTenantPersistenceInputSchema = z
+  .object({
+    memberRef: OptionalNonEmptyStringSchema,
+    occasionRef: OptionalNonEmptyStringSchema
+  })
+  .strict();
 export const GetAttendanceRecordPersistenceInputSchema = z
   .object({ attendanceId: NonEmptyStringSchema })
   .strict();
@@ -594,6 +608,9 @@ export const GetGroupMembershipPersistenceOperationSchema = readOperation(
 );
 export const ListAttendanceRecordsPersistenceOperationSchema = readOperation(
   ListAttendanceRecordsPersistenceInputSchema
+);
+export const ListAttendanceRecordsForTenantPersistenceOperationSchema = readOperation(
+  ListAttendanceRecordsForTenantPersistenceInputSchema
 );
 export const GetAttendanceRecordPersistenceOperationSchema = readOperation(
   GetAttendanceRecordPersistenceInputSchema
@@ -736,6 +753,9 @@ export type GetGroupMembershipPersistenceInput = z.infer<
 export type ListAttendanceRecordsPersistenceInput = z.infer<
   typeof ListAttendanceRecordsPersistenceInputSchema
 >;
+export type ListAttendanceRecordsForTenantPersistenceInput = z.infer<
+  typeof ListAttendanceRecordsForTenantPersistenceInputSchema
+>;
 export type GetAttendanceRecordPersistenceInput = z.infer<
   typeof GetAttendanceRecordPersistenceInputSchema
 >;
@@ -807,6 +827,9 @@ export interface CommunityQueryPersistenceRepository {
   ) => Promise<GroupMembershipPersistenceRecord | null>;
   readonly listAttendanceRecords: (
     operation: CommunityReadPersistenceOperation<ListAttendanceRecordsPersistenceInput>
+  ) => Promise<readonly AttendanceRecordPersistenceRecord[]>;
+  readonly listAttendanceRecordsForTenant: (
+    operation: CommunityReadPersistenceOperation<ListAttendanceRecordsForTenantPersistenceInput>
   ) => Promise<readonly AttendanceRecordPersistenceRecord[]>;
   readonly getAttendanceRecord: (
     operation: CommunityReadPersistenceOperation<GetAttendanceRecordPersistenceInput>

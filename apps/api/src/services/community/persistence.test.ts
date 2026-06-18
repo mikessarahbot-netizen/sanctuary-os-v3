@@ -112,6 +112,35 @@ const confirmedFields = {
   confirmed_by_ref: "leader_1"
 } as const;
 
+const attendanceRow = (
+  overrides: Readonly<Record<string, unknown>> = {}
+): PlanningSqlRow => ({
+  attendance_id: "attendance_1",
+  headcount: null,
+  member_ref: "member_yes",
+  occasion_ref: "occasion_1",
+  recorded_at: TS,
+  recorded_by_ref: "leader_1",
+  status: "present",
+  tenant_id: TENANT,
+  updated_at: TS,
+  ...overrides
+});
+
+const deliveredRecipientRow = (
+  overrides: Readonly<Record<string, unknown>> = {}
+): PlanningSqlRow => ({
+  channel_ref: "channel_sms_yes",
+  failure_reason: null,
+  member_ref: "member_yes",
+  message_id: "message_1",
+  recipient_id: "recipient_1",
+  send_status: "delivered",
+  tenant_id: TENANT,
+  updated_at: TS,
+  ...overrides
+});
+
 interface RecordedStatement {
   readonly name: string;
   readonly parameters: readonly unknown[];
@@ -620,5 +649,161 @@ describe("createPersistenceBackedCommunityServicesAdapter (recording executor)",
     for (const statement of recipientUpserts) {
       expect(String(statement.parameters[4]).startsWith("channel_")).toBe(true);
     }
+  });
+
+  const recomputeWindow = {
+    windowEnd: "2026-06-30T00:00:00.000Z",
+    windowStart: "2026-06-01T00:00:00.000Z"
+  } as const;
+
+  it("recomputes a member summary from full attendance + serving + comms signals", async () => {
+    const { adapter, statements } = createAdapter(
+      single({
+        // Full tenant attendance via the additive list_for_tenant read: two present
+        // rows for the same member across two occasions → a streak of 2.
+        "community.attendance.list_for_tenant": [
+          attendanceRow({ attendance_id: "attendance_1", occasion_ref: "occasion_1" }),
+          attendanceRow({
+            attendance_id: "attendance_2",
+            occasion_ref: "occasion_2",
+            recorded_at: "2026-06-18T08:00:00.000Z",
+            updated_at: "2026-06-18T08:00:00.000Z"
+          })
+        ],
+        // Serving: one active membership for the member → servingCount 1.
+        "community.groups.list": [
+          {
+            archived: 0,
+            created_at: TS,
+            group_id: "group_1",
+            kind: "small-group",
+            label: "Tuesday Group",
+            leader_member_ref: null,
+            tenant_id: TENANT,
+            updated_at: TS
+          }
+        ],
+        "community.memberships.list": [membershipRow()],
+        // Comms response: one delivered recipient in-window → commsResponseCount 1.
+        "community.messages.list": [messageRow({ ...confirmedFields, status: "sent" })],
+        "community.recipients.list": [deliveredRecipientRow()]
+      })
+    );
+
+    const summaries = await adapter.commandService.recomputeEngagementSummaries({
+      actor: leader,
+      input: recomputeWindow,
+      requestId: "request_recompute"
+    });
+
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({
+      attendanceStreak: 2,
+      commsResponseCount: 1,
+      lastPresentOccasionRef: "occasion_2",
+      scope: { kind: "member", memberRef: "member_yes" },
+      servingCount: 1,
+      summaryId: "engagement:member:member_yes",
+      tenantId: TENANT,
+      windowEnd: recomputeWindow.windowEnd,
+      windowStart: recomputeWindow.windowStart
+    });
+
+    // The recompute enumerates ALL tenant attendance via the additive read — not
+    // the legacy per-occasion walk over prior summaries.
+    expect(
+      statements.some(
+        (statement) => statement.name === "community.attendance.list_for_tenant"
+      )
+    ).toBe(true);
+    const upsert = statements.find(
+      (statement) => statement.name === "community.engagement.upsert"
+    );
+    // tenant_id, summary_id, scope_kind, member_ref, segment_ref, attendance_streak,
+    // serving_count, comms_response_count.
+    expect(upsert?.parameters[2]).toBe("member");
+    expect(upsert?.parameters[3]).toBe("member_yes");
+    expect(upsert?.parameters[5]).toBe(2);
+    expect(upsert?.parameters[6]).toBe(1);
+    expect(upsert?.parameters[7]).toBe(1);
+  });
+
+  it("produces PII-free engagement summaries (refs + counts only, no name or contact data)", async () => {
+    const { adapter, statements } = createAdapter(
+      single({
+        "community.attendance.list_for_tenant": [attendanceRow()],
+        "community.groups.list": [],
+        "community.messages.list": []
+      })
+    );
+
+    const summaries = await adapter.commandService.recomputeEngagementSummaries({
+      actor: leader,
+      input: recomputeWindow,
+      requestId: "request_recompute_pii"
+    });
+
+    // The summary projection carries only refs + counts + window timestamps. None of
+    // the member's PII (display name, custom-field values, contact channel refs)
+    // can appear in the EngagementSummary by construction.
+    const serialized = JSON.stringify(summaries);
+    expect(serialized).not.toContain("Granted Member");
+    expect(serialized).not.toContain("channel_");
+    expect(serialized).not.toContain("@");
+    expect(serialized).not.toContain("field_");
+
+    // Nor is any PII bound into the engagement upsert parameters.
+    const upsert = statements.find(
+      (statement) => statement.name === "community.engagement.upsert"
+    );
+    const upsertParams = JSON.stringify(upsert?.parameters ?? []);
+    expect(upsertParams).not.toContain("Granted Member");
+    expect(upsertParams).not.toContain("channel_");
+  });
+
+  it("scopes every recompute read to the actor tenant", async () => {
+    const { adapter, statements } = createAdapter(
+      single({
+        "community.attendance.list_for_tenant": [attendanceRow()],
+        "community.groups.list": [],
+        "community.messages.list": []
+      })
+    );
+
+    await adapter.commandService.recomputeEngagementSummaries({
+      actor: leader,
+      input: recomputeWindow,
+      requestId: "request_recompute_tenant"
+    });
+
+    // Every read/write statement leads with the actor's tenant_id as its first
+    // parameter — cross-tenant data can never enter the rollup.
+    const reads = statements.filter((statement) =>
+      [
+        "community.attendance.list_for_tenant",
+        "community.groups.list",
+        "community.messages.list",
+        "community.engagement.upsert"
+      ].includes(statement.name)
+    );
+    expect(reads.length).toBeGreaterThan(0);
+    for (const statement of reads) {
+      expect(statement.parameters[0]).toBe(TENANT);
+    }
+  });
+
+  it("rejects a non-command role from recomputing engagement summaries", async () => {
+    const { adapter, statements } = createAdapter(single({}));
+
+    await expectDomainErrorCode(
+      adapter.commandService.recomputeEngagementSummaries({
+        actor: viewer,
+        input: recomputeWindow,
+        requestId: "request_recompute_denied"
+      }),
+      "AUTHORIZATION_FAILED"
+    );
+    // The role gate rejects before any persistence read is issued.
+    expect(statements).toHaveLength(0);
   });
 });
