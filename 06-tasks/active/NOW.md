@@ -1,33 +1,26 @@
 # NOW
 
 ## Task
-OBS module (final module), slice 1: the OBS domain + pure logic — strict Zod records for the 8 objects + enums, and the pure logic (esp. the action-eligibility/precondition checker). Backend, no port/persistence/I/O. Mirror the Charts/Play/Community domain slices. (OBS plan authored at `dae2863`-next.)
+OBS module, slice 2: the persistence contracts (`packages/db/src/obs-repository-contracts.ts`) — tenant-scoped Zod persistence records + per-operation input schemas + read/write option guards + query/command repository interfaces, mirroring the Charts/Play/Community contracts. (OBS slice 1 — domain + pure logic — done + green at `72c7b0b`.)
 
 ## Module / authority
-Building OBS from `05-plans/obs-module-plan.md` (just authored; authoritative). OBS = the tenant-scoped control surface for a church's own OBS Studio via obs-websocket v5 (switch scenes, toggle sources, start/stop stream/recording). Charts + Play + Community+ backends complete.
-
-## OBS non-negotiables (critical)
-- Human-confirm gate is STRUCTURAL: the three-step `request → confirm → dispatch` model — every output action (`affectsLiveOutput=true`) must be confirmed before dispatch; no path (event/scheduled/AI) auto-confirms or auto-dispatches. AI may only create a `requested`, `origin="ai-suggested"` intent.
-- NO secrets in domain records: OBS host/port/password/token/stream-key live ONLY in a vault, referenced by an opaque `connectionRef`. No secret fields/columns anywhere (assert this in a test).
-- Online-only output actions (no offline queue — replaying start-stream could go live unattended). Coarse state only (no per-frame telemetry).
-- The obs-websocket connection is an INJECTED port (faked in tests) — NO real obs-websocket calls in tests.
+Building OBS from `05-plans/obs-module-plan.md` (authoritative). Final module. NO secrets in records (opaque connectionRef only); online-only output actions; structural confirm-before-dispatch gate. Charts + Play + Community+ backends complete.
 
 ## Session protocol (in force)
 `agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`.
 
-## In scope (slice 1)
+## In scope (slice 2)
 - Continue on `feature/presenter-domain-contracts`
-- Mirror `apps/api/src/domain/{charts,play,community}/` (schemas + pure logic + index + tests)
-- Add `apps/api/src/domain/obs/`: strict `.strict()` Zod records (branded IDs, tenant-scoped) for ObsConnectionProfile (opaque `connectionRef` only — NO host/password/secret fields), Scene, Source, SceneItem, StreamState, RecordingState, ObsActionIntent (confirmation-gated; `affectsLiveOutput`, status request→confirmed→dispatched/failed/cancelled, `origin`), ObsActionLogEntry (append-only audit) + enums, with the plan's invariants
-- Add the pure logic: an action-eligibility/precondition checker (pure: intent + current scene/source/stream state → eligible/ineligible-with-reason, flagged not thrown) + the pure action-status transition map (request→confirm→dispatch/fail/cancel; no skipping confirm)
-- Export via the domain barrel
-- Unit tests: schema validity/invariants, a NO-SECRETS assertion (ObsConnectionProfile/records reject host/password/token/streamKey keys), eligibility checker (eligible + flagged-ineligible), the transition map (confirm required before dispatch), determinism
+- Mirror `packages/db/src/{charts,play,community}-repository-contracts.ts` exactly in shape
+- Add `packages/db/src/obs-repository-contracts.ts`: `ObsPersistenceReadOptions`/`WriteOptions` (reuse RepositoryReadOptions/WriteOptions + inlined superRefine requiring actorId); a `*PersistenceRecordSchema` per object (ObsConnectionProfile [opaque connectionRef — NO secret columns], Scene, Source, SceneItem, StreamState, RecordingState, ObsActionIntent, ObsActionLogEntry — durable storage shapes mirroring the slice-1 domain records; plain strings; JSON for array fields); a `ObsStorageSchemaVersionSchema = z.literal("obs.v1")`; per-operation `*PersistenceInputSchema`; readOperation/writeOperation wrappers; `ObsQueryPersistenceRepository` + `ObsCommandPersistenceRepository` interfaces (list/get per object, the connection-profile upsert, scene/source catalog snapshot upserts, stream/recording state upsert, the action-intent lifecycle writes [save/setStatus respecting the confirm-before-dispatch invariant], the append-only action-log insert)
+- Export from the db barrel
+- Contract tests mirroring the other modules' contract tests (round-trip parse, .strict() rejection, actor-id requirement, key invariants, and a NO-SECRETS assertion that ObsConnectionProfile rejects host/password/token/streamKey keys)
 
 ## Out of scope
-Persistence/contracts (slice 2+) · the ObsControlPort (slice 5) · GraphQL/service · the action gate service flow (slice 7) · real obs-websocket (slice 11) · desktop runtime/UI (slices 12-13, deferred)
+Migration (slice 3) · adapter (slice 4) · ObsControlPort · GraphQL/service · the action-gate flow · real obs-websocket · runtime/UI
 
 ## Done when
-The OBS domain records + enums + pure logic (eligibility checker + transition map) exist with invariants and tests (incl. the no-secrets assertion + confirm-before-dispatch), gates green, committed and pushed.
+The OBS persistence contracts exist (records + per-op inputs + option guards + query/command interfaces, no secret columns) with contract tests (incl. no-secrets), gates green, committed and pushed.
 
 ## Next task after this
-OBS slice 2: persistence contracts (`packages/db/src/obs-repository-contracts.ts`). Then slices 3–10 per `05-plans/obs-module-plan.md` (migration → adapter → ObsControlPort+fake → GraphQL+service → action gate → persistence service → events → AI assist). Slices 11–13 (real obs-websocket port, desktop agent runtime, operator UI) await user decisions (OBS connection/vault + UI surface). After OBS backend: the autonomously-buildable backend is complete; remaining is UIs + live integrations (need the user).
+OBS slice 3: the migration artifact (`packages/db/src/obs-migrations.ts`). Then slices 4–10 per `05-plans/obs-module-plan.md` (adapter → ObsControlPort+fake → GraphQL+service → action gate → persistence service → events → AI assist). Slices 11–13 await user decisions. After OBS backend: the autonomously-buildable backend is complete; remaining is UIs + live integrations (need the user).

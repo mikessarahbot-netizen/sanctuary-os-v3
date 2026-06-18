@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 1: domain + pure logic
+
+Tasks completed:
+- OBS slice 1 (delegated; parent verified gates + no-secrets grep): `apps/api/src/domain/obs/` — 8 strict Zod records (ObsConnectionProfile opaque-ref-only, no secret fields), enums, a pure action-eligibility checker (flagged reasons) and a confirm-gated action transition map (dispatched reachable only from confirmed; AI-suggested can be human-confirmed but never self-advances). Structural no-secrets enforcement tested across all 8 records (48 cases). +137 api tests. Gates green: db 403 / api 709 + 2 skipped / desktop 89 / church-context 5. Committed `72c7b0b`.
+
+Next task:
+- OBS slice 2: persistence contracts (`packages/db/src/obs-repository-contracts.ts`). Then slices 3–10 per the plan.
+
+Open questions / follow-ups: OBS open questions (vault contract; gate uniformity); standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS module plan authored (final module)
 
 Tasks completed:
