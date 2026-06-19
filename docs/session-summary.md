@@ -2,6 +2,17 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 10: AI assist (OBS BACKEND COMPLETE; ALL 4 MODULE BACKENDS COMPLETE)
+
+Tasks completed:
+- OBS slice 10 (delegated; parent verified gates): `apps/api/src/services/obs/ai-suggest.ts` + `04-prompts/obs-action-suggester.md` (v1) — suggestObsActionWithAi over an injected port (mirrors community AI), secret-free+PII-free projection (never the vault connectionRef; structural guard), Zod-validated output (malformed → typed error), creates a requested/ai-suggested intent that CANNOT self-confirm/dispatch (re-proven over both adapters). Both adapters + composition updated. +19 api tests. Gates green: db 466 / api 828 + 2 skipped / desktop 89 / church-context 5. Committed `b17b20e`.
+- MILESTONE: OBS backend complete (1–10). ALL FOUR module backends (Charts, Play, Community+, OBS) are complete — the autonomously-buildable backend across the whole product is done. Wrote `07-reviews/architecture/obs-backend-release-check.md`.
+
+Next task (NEEDS THE USER — see NOW.md):
+- The remaining Sanctuary OS work is UIs for every module + live integrations (real obs-websocket, comms carrier, desktop/mobile shells) + the network-executor JSON gap — none autonomously gate-verifiable. Awaiting the user's direction: "runnable: <surface>", a specific integration, or "stop".
+
+Open questions / follow-ups: UI surface decision; live integrations (OBS connection/vault, comms carrier); network-executor $input: JSON! gap; enum task_85338bf7 (Community+/OBS have the reference fix). The live /goal hook drove this whole session; the autonomous backend is now genuinely complete.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 9: WebSocket events (secret-free + PII-free)
 
 Tasks completed:
