@@ -25,13 +25,17 @@ import {
  * OBS domain enums — they never restate field shapes the schemas already own.
  *
  * Slice scope (this file): the read queries + connection/catalog management + the
- * action **request** surface. `requestObsAction` proposes an `ObsActionIntent` at
- * `status = requested` after the pure eligibility check and **never touches the
- * OBS port** — nothing is dispatched. The confirm→dispatch gate
- * (`confirmObsAction` / `dispatchObsAction` / `cancelObsAction` / the
- * `obsActionEligibility` preview) is slice 7, which extends these interfaces; we
- * deliberately scope the interfaces to slice-6 operations now so the in-memory
- * adapter has no unimplemented members.
+ * action **request** surface, plus the slice-7 confirm→dispatch gate.
+ * `requestObsAction` proposes an `ObsActionIntent` at `status = requested` after
+ * the pure eligibility check and **never touches the OBS port** — nothing is
+ * dispatched. The three-step gate that follows is structural: `confirmObsAction`
+ * is the human-confirmation step (it carries a `confirmationIntent { confirmed:
+ * true, reason }` + `confirmedByRef`, the only path that authorizes a dispatch),
+ * `dispatchObsAction` is the **single** operation that calls a port mutate method
+ * and refuses unless the intent's status is `confirmed`, and `cancelObsAction`
+ * terminates a `requested`/`confirmed` intent without any port call. No single
+ * mutation both decides and goes live, and an `origin = "ai-suggested"` intent can
+ * never reach confirm/dispatch on its own — AI proposes, a human confirms.
  *
  * Safety posture (this is the system's strongest "automation must fail
  * gracefully" surface — it controls live, public-facing output): no input or
@@ -54,9 +58,11 @@ const ObsServiceRequestSchema = z
 
 /**
  * The explicit human-confirmation intent that gates the destructive
- * `removeObsConnectionProfile` (mirrors the Community+ `removeGroupMembership` /
- * Charts/Play destructive-confirmation intents). `reason` is audited; `confirmed`
- * is a literal. The output-action confirmation gate is slice 7.
+ * `removeObsConnectionProfile` and the output-action `confirmObsAction` step
+ * (mirrors the Community+ `confirmCommunicationSend` / `removeGroupMembership` and
+ * the Charts/Play destructive-confirmation intents). `reason` is audited;
+ * `confirmed` is a literal `true` — the shape carries no "false" form, so the gate
+ * cannot be passed without an affirmative human intent.
  */
 const ConfirmationIntentSchema = z
   .object({
@@ -238,6 +244,62 @@ export const RequestObsActionCommandSchema = ObsServiceRequestSchema.extend({
     .strict()
 }).strict();
 
+// ---------------------------------------------------------------------------
+// Commands — the confirm → dispatch gate (output-affecting; human-confirmed; audited)
+// ---------------------------------------------------------------------------
+
+/**
+ * The human-confirmation step (`requested → confirmed`). Carries an explicit
+ * `confirmationIntent { confirmed: true, reason }` and the `confirmedByRef` of the
+ * confirming human; the service records `confirmedAt` from its injected clock and
+ * runs the pure `confirm` transition. This is the **only** path that authorizes a
+ * later dispatch, and the only place an `ai-suggested` intent can advance — and
+ * only by a human acting here, never by the AI itself. Nothing is dispatched: the
+ * OBS port is not touched by confirmation.
+ */
+export const ConfirmObsActionCommandSchema = ObsServiceRequestSchema.extend({
+  input: z
+    .object({
+      actionIntentId: NonEmptyStringSchema,
+      confirmationIntent: ConfirmationIntentSchema,
+      confirmedByRef: NonEmptyStringSchema
+    })
+    .strict()
+}).strict();
+
+/**
+ * The single moment OBS state changes (`confirmed → dispatched → succeeded` |
+ * `failed`). The service **refuses unless the intent's status is `confirmed`**
+ * (`NOT_CONFIRMED`), runs the pure `dispatch` transition, and then calls the one
+ * matching `ObsControlPort` mutate method for the action kind. On success the
+ * intent ends `succeeded`; on a normalized `ObsControlError` it ends terminal
+ * `failed` with a redacted `safeFailureMessage`. A dispatched/terminal intent can
+ * never be re-dispatched (the transition map rejects it) — a fresh confirmation is
+ * required to retry. This is the **only** command that calls a port mutate method.
+ */
+export const DispatchObsActionCommandSchema = ObsServiceRequestSchema.extend({
+  input: z
+    .object({
+      actionIntentId: NonEmptyStringSchema
+    })
+    .strict()
+}).strict();
+
+/**
+ * Cancel a `requested`/`confirmed` intent (`→ canceled`). Records an explicit
+ * `reason` for the audit row and runs the pure `cancel` transition; it **never**
+ * touches the OBS port. A terminal intent (succeeded/failed/canceled) cannot be
+ * canceled (the transition map rejects it).
+ */
+export const CancelObsActionCommandSchema = ObsServiceRequestSchema.extend({
+  input: z
+    .object({
+      actionIntentId: NonEmptyStringSchema,
+      reason: NonEmptyStringSchema
+    })
+    .strict()
+}).strict();
+
 export type ListObsConnectionProfilesQuery = z.infer<
   typeof ListObsConnectionProfilesQuerySchema
 >;
@@ -267,6 +329,15 @@ export type RefreshObsCatalogCommand = z.infer<
 >;
 export type RequestObsActionCommand = z.infer<
   typeof RequestObsActionCommandSchema
+>;
+export type ConfirmObsActionCommand = z.infer<
+  typeof ConfirmObsActionCommandSchema
+>;
+export type DispatchObsActionCommand = z.infer<
+  typeof DispatchObsActionCommandSchema
+>;
+export type CancelObsActionCommand = z.infer<
+  typeof CancelObsActionCommandSchema
 >;
 
 /**
@@ -325,5 +396,14 @@ export interface ObsCommandService {
   ) => Promise<ObsCatalogSnapshot>;
   readonly requestObsAction: (
     command: RequestObsActionCommand
+  ) => Promise<ObsActionIntent>;
+  readonly confirmObsAction: (
+    command: ConfirmObsActionCommand
+  ) => Promise<ObsActionIntent>;
+  readonly dispatchObsAction: (
+    command: DispatchObsActionCommand
+  ) => Promise<ObsActionIntent>;
+  readonly cancelObsAction: (
+    command: CancelObsActionCommand
   ) => Promise<ObsActionIntent>;
 }

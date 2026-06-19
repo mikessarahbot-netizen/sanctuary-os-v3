@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { AuthenticatedActorSchema } from "../auth/index.js";
 import {
+  CancelObsActionCommandSchema,
+  ConfirmObsActionCommandSchema,
+  DispatchObsActionCommandSchema,
   GetObsConnectionProfileQuerySchema,
   GetObsRecordingStateQuerySchema,
   GetObsStreamStateQuerySchema,
@@ -35,10 +38,15 @@ const NonEmptyStringSchema = z.string().min(1);
  * `play.ts` / `community.ts`).
  *
  * Slice scope: the read queries + connection/catalog management + the action
- * **request** mutation. `requestObsAction` proposes an `ObsActionIntent` at
- * `status = requested` and never touches the OBS port — nothing is dispatched.
- * The confirm→dispatch gate (`confirmObsAction` / `dispatchObsAction` /
- * `cancelObsAction` / the `obsActionEligibility` preview) is slice 7.
+ * **request** mutation, plus the slice-7 confirm→dispatch gate.
+ * `requestObsAction` proposes an `ObsActionIntent` at `status = requested` and
+ * never touches the OBS port. `confirmObsAction` is the human-confirmation step
+ * (it carries a `confirmationIntent`); `dispatchObsAction` executes the confirmed
+ * intent through the injected `ObsControlPort` and returns the updated intent (it
+ * is the only operation that calls a port mutate method, and only when the intent
+ * is `confirmed`); `cancelObsAction` terminates a requested/confirmed intent with
+ * no port call. Each resolver stays thin — it parses input + context and delegates
+ * the gate to the service.
  *
  * Safety posture (this is the system's strongest "automation must fail
  * gracefully" surface — it controls live, public-facing output): **no type
@@ -259,6 +267,21 @@ export const obsGraphqlTypeDefs = /* GraphQL */ `
     targetSourceRef: ID
   }
 
+  input ConfirmObsActionInput {
+    actionIntentId: ID!
+    confirmationIntent: ObsConfirmationIntentInput!
+    confirmedByRef: ID!
+  }
+
+  input DispatchObsActionInput {
+    actionIntentId: ID!
+  }
+
+  input CancelObsActionInput {
+    actionIntentId: ID!
+    reason: String!
+  }
+
   extend type Query {
     obsConnectionProfiles(
       filter: ObsConnectionProfilesFilterInput
@@ -280,6 +303,9 @@ export const obsGraphqlTypeDefs = /* GraphQL */ `
     removeObsConnectionProfile(input: RemoveObsConnectionProfileInput!): Boolean!
     refreshObsCatalog(input: RefreshObsCatalogInput!): ObsCatalogSnapshot!
     requestObsAction(input: RequestObsActionInput!): ObsActionIntent!
+    confirmObsAction(input: ConfirmObsActionInput!): ObsActionIntent!
+    dispatchObsAction(input: DispatchObsActionInput!): ObsActionIntent!
+    cancelObsAction(input: CancelObsActionInput!): ObsActionIntent!
   }
 `;
 
@@ -320,6 +346,9 @@ export interface ObsMutationResolvers {
   readonly removeObsConnectionProfile: GraphqlResolver<boolean>;
   readonly refreshObsCatalog: GraphqlResolver<ObsCatalogSnapshot>;
   readonly requestObsAction: GraphqlResolver<ObsActionIntent>;
+  readonly confirmObsAction: GraphqlResolver<ObsActionIntent>;
+  readonly dispatchObsAction: GraphqlResolver<ObsActionIntent>;
+  readonly cancelObsAction: GraphqlResolver<ObsActionIntent>;
 }
 
 export interface ObsGraphqlResolvers {
@@ -396,6 +425,54 @@ export const createObsGraphqlResolvers = (
 
       return dependencies.obsCommandService.requestObsAction(
         RequestObsActionCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    confirmObsAction: async (
+      _parent,
+      args,
+      context
+    ): Promise<ObsActionIntent> => {
+      const graphqlContext = parseContext(context);
+
+      return dependencies.obsCommandService.confirmObsAction(
+        ConfirmObsActionCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    dispatchObsAction: async (
+      _parent,
+      args,
+      context
+    ): Promise<ObsActionIntent> => {
+      const graphqlContext = parseContext(context);
+
+      return dependencies.obsCommandService.dispatchObsAction(
+        DispatchObsActionCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    cancelObsAction: async (
+      _parent,
+      args,
+      context
+    ): Promise<ObsActionIntent> => {
+      const graphqlContext = parseContext(context);
+
+      return dependencies.obsCommandService.cancelObsAction(
+        CancelObsActionCommandSchema.parse({
           actor: graphqlContext.actor,
           input: parseInput(args),
           requestId: graphqlContext.requestId

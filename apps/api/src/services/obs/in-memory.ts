@@ -1,5 +1,8 @@
 import type { AuthenticatedActor } from "../../auth/index.js";
 import {
+  CancelObsActionCommandSchema,
+  ConfirmObsActionCommandSchema,
+  DispatchObsActionCommandSchema,
   GetObsConnectionProfileQuerySchema,
   GetObsRecordingStateQuerySchema,
   GetObsStreamStateQuerySchema,
@@ -9,6 +12,7 @@ import {
   ListObsSceneItemsQuerySchema,
   ListObsScenesQuerySchema,
   ListObsSourcesQuerySchema,
+  ObsActionConfirmationSchema,
   ObsActionIntentSchema,
   ObsActionLogEntrySchema,
   ObsConnectionProfileSchema,
@@ -22,11 +26,15 @@ import {
   RemoveObsConnectionProfileCommandSchema,
   RequestObsActionCommandSchema,
   SaveObsConnectionProfileCommandSchema,
+  applyActionTransition,
   checkActionEligibility,
   type ActionBlockReason,
   type ActionEligibilitySnapshot,
+  type ObsActionConfirmation,
   type ObsActionIntent,
   type ObsActionLogEntry,
+  type ObsActionTransition,
+  type ObsActionTransitionResult,
   type ObsCatalogSnapshot,
   type ObsCommandService,
   type ObsConnectionProfile,
@@ -38,9 +46,14 @@ import {
   type ObsStreamState
 } from "../../domain/obs/index.js";
 import {
+  isObsControlError,
   type ObsControlPort,
   type ObsObservedCatalog
 } from "./control-port.js";
+import {
+  classifyObsDispatchError,
+  type ObsDispatchErrorClassifier
+} from "./error-classifier.js";
 import { createFakeObsControlPort } from "./fake-control-port.js";
 
 /**
@@ -109,6 +122,7 @@ export interface InMemoryObsServiceIds {
 export interface InMemoryObsServiceDependencies {
   readonly clock?: () => string;
   readonly controlPort?: ObsControlPort;
+  readonly errorClassifier?: ObsDispatchErrorClassifier;
   readonly ids?: Partial<InMemoryObsServiceIds>;
   readonly seed?: InMemoryObsServiceSeed;
 }
@@ -144,6 +158,7 @@ export const createInMemoryObsServicesAdapter = (
     dependencies.controlPort ??
     createFakeObsControlPort({ failures: { getSceneList: { code: "disconnected" } } })
       .port;
+  const errorClassifier = dependencies.errorClassifier ?? classifyObsDispatchError;
 
   const connectionProfiles = new Map<string, ObsConnectionProfile>();
   const scenes = new Map<string, ObsScene>();
@@ -293,7 +308,11 @@ export const createInMemoryObsServicesAdapter = (
     readonly occurredAt: string;
     readonly outcome: ObsActionLogEntry["outcome"];
     readonly reason: string;
+    readonly safeMessage?: string;
   }): void => {
+    // `safeMessage` is allowed by the schema only on a `failed` outcome (it is the
+    // redacted port-failure detail). The conditional spread keeps it absent
+    // otherwise so the append-only audit row parses under exactOptionalPropertyTypes.
     const entry = ObsActionLogEntrySchema.parse({
       actionIntentRef: input.actionIntentRef,
       actorId: input.actor.actorId,
@@ -302,9 +321,188 @@ export const createInMemoryObsServicesAdapter = (
       occurredAt: input.occurredAt,
       outcome: input.outcome,
       reason: input.reason,
-      tenantId: input.actor.tenantId
+      tenantId: input.actor.tenantId,
+      ...(input.safeMessage !== undefined ? { safeMessage: input.safeMessage } : {})
     });
     actionLog.set(scopedKey(entry.tenantId, entry.logEntryId), entry);
+  };
+
+  /**
+   * Load a tenant-scoped action intent or throw `ACTION_INTENT_NOT_FOUND`. The
+   * scope is `(tenant, actionIntentId)` — a cross-tenant id resolves to nothing,
+   * so one tenant can never confirm, dispatch, or cancel another tenant's intent.
+   */
+  const requireActionIntent = (
+    tenantId: string,
+    actionIntentId: string
+  ): ObsActionIntent => {
+    const intent = actionIntents.get(scopedKey(tenantId, actionIntentId));
+
+    if (intent === undefined) {
+      throw new ObsDomainError(
+        "ACTION_INTENT_NOT_FOUND",
+        "This OBS action intent is no longer available on the server."
+      );
+    }
+
+    return intent;
+  };
+
+  /**
+   * Run a pure lifecycle transition and persist the advanced intent, or translate
+   * the typed `ActionLifecycleError` into an `ObsDomainError`. A
+   * `CONFIRMATION_REQUIRED` lifecycle failure maps to the reserved
+   * `CONFIRMATION_REQUIRED` domain code; every other illegal move (an out-of-order
+   * transition, an already-confirmed intent, a confirmation supplied where it is
+   * not allowed) maps to `VALIDATION_FAILED`. The service supplies the clock; the
+   * pure function decides legality and merges any confirmation.
+   */
+  const advanceIntent = (
+    intent: ObsActionIntent,
+    transition: ObsActionTransition,
+    now: string,
+    confirmation?: ObsActionConfirmation
+  ): ObsActionIntent => {
+    const result: ObsActionTransitionResult = applyActionTransition(
+      intent,
+      transition,
+      confirmation
+    );
+
+    if (!result.ok) {
+      const code =
+        result.error.code === "CONFIRMATION_REQUIRED"
+          ? "CONFIRMATION_REQUIRED"
+          : "VALIDATION_FAILED";
+
+      throw new ObsDomainError(code, result.error.safeMessage);
+    }
+
+    const stored = ObsActionIntentSchema.parse({
+      ...result.intent,
+      updatedAt: now
+    });
+    actionIntents.set(scopedKey(stored.tenantId, stored.actionIntentId), stored);
+
+    return stored;
+  };
+
+  /**
+   * Apply a succeeded stream-output dispatch to the durable coarse stream snapshot.
+   * Only `start-stream` / `stop-stream` move stream state, and only **after** a
+   * confirmed action dispatched successfully (never speculatively) — exactly the
+   * "written only after a confirmed action succeeds" rule from the plan. The coarse
+   * status comes from the port's observed result; the actor + intent ref + time are
+   * stamped for the audit trail. Scene/source toggles reconcile via
+   * `refreshObsCatalog`, so they do not write here.
+   */
+  const recordStreamTransition = (
+    intent: ObsActionIntent,
+    actor: AuthenticatedActor,
+    streamStatus: ObsStreamState["streamStatus"],
+    now: string
+  ): void => {
+    const streamState = ObsStreamStateSchema.parse({
+      connectionProfileId: intent.connectionProfileId,
+      lastActionIntentRef: intent.actionIntentId,
+      lastTransitionActorId: actor.actorId,
+      lastTransitionAt: now,
+      streamStatus,
+      tenantId: intent.tenantId,
+      updatedAt: now
+    });
+    streamStates.set(
+      connectionScopedKey(streamState.tenantId, streamState.connectionProfileId),
+      streamState
+    );
+  };
+
+  /**
+   * Resolve the `obsSceneRef` a `toggle-source-visibility` dispatch needs for the
+   * port's `setSceneItemEnabled` call. The intent may carry `targetSceneRef`
+   * directly; otherwise the scene-item's owning scene is looked up from the durable
+   * scene-item snapshot by `obsSceneItemId`. Fails closed (`VALIDATION_FAILED`) if
+   * neither resolves — the port is never called with an unresolved scene ref.
+   */
+  const resolveSceneRefForSceneItem = (
+    intent: ObsActionIntent,
+    targetSceneItemId: NonNullable<ObsActionIntent["targetSceneItemId"]>
+  ): ObsSceneItem["sceneRef"] => {
+    if (intent.targetSceneRef !== undefined) {
+      return intent.targetSceneRef;
+    }
+
+    const sceneItem = [...sceneItems.values()].find(
+      (entry) =>
+        entry.tenantId === intent.tenantId &&
+        entry.connectionProfileId === intent.connectionProfileId &&
+        entry.obsSceneItemId === targetSceneItemId
+    );
+
+    return requireActionField(sceneItem?.sceneRef, "target scene-item scene");
+  };
+
+  /**
+   * Call the single `ObsControlPort` mutate method that realizes a dispatched
+   * action's `kind`, and nothing else. Reached ONLY from `dispatchObsAction`, ONLY
+   * for a confirmed-then-dispatched intent — it is the sole bridge from the OBS
+   * service to a port mutate method. Stream actions return the port's observed
+   * coarse stream status (so the service records the durable transition);
+   * scene/source toggles resolve `void` and return `undefined`. A normalized
+   * `ObsControlError` from the port propagates to the dispatch caller, which
+   * classifies and records it. The five v1 kinds are handled exhaustively (no
+   * default branch), so adding a kind is a compile error here until it is wired.
+   */
+  const callPortForAction = async (
+    connectionRef: ObsConnectionProfile["connectionRef"],
+    intent: ObsActionIntent
+  ): Promise<ObsStreamState["streamStatus"] | undefined> => {
+    switch (intent.kind) {
+      case "switch-scene": {
+        await controlPort.setCurrentProgramScene(
+          connectionRef,
+          requireActionField(intent.targetSceneRef, "target scene")
+        );
+
+        return undefined;
+      }
+
+      case "toggle-source-visibility": {
+        const targetSceneItemId = requireActionField(
+          intent.targetSceneItemId,
+          "target scene-item"
+        );
+
+        await controlPort.setSceneItemEnabled(connectionRef, {
+          enabled: requireActionField(intent.desiredVisible, "desired visibility"),
+          obsSceneItemId: targetSceneItemId,
+          obsSceneRef: resolveSceneRefForSceneItem(intent, targetSceneItemId)
+        });
+
+        return undefined;
+      }
+
+      case "toggle-source-mute": {
+        await controlPort.setInputMute(connectionRef, {
+          muted: requireActionField(intent.desiredMuted, "desired mute"),
+          obsSourceRef: requireActionField(intent.targetSourceRef, "target source")
+        });
+
+        return undefined;
+      }
+
+      case "start-stream": {
+        const observed = await controlPort.startStream(connectionRef);
+
+        return observed.streamStatus;
+      }
+
+      case "stop-stream": {
+        const observed = await controlPort.stopStream(connectionRef);
+
+        return observed.streamStatus;
+      }
+    }
   };
 
   /**
@@ -735,6 +933,179 @@ export const createInMemoryObsServicesAdapter = (
         });
 
         return intent;
+      }),
+
+    confirmObsAction: (rawCommand): Promise<ObsActionIntent> =>
+      runObsOperation((): ObsActionIntent => {
+        const command = ConfirmObsActionCommandSchema.parse(rawCommand);
+        assertObsCommandRole(command.actor);
+        // Tenant + actor scoped load: a missing/cross-tenant intent → not-found.
+        const existing = requireActionIntent(
+          command.actor.tenantId,
+          command.input.actionIntentId
+        );
+        const now = clock();
+
+        // The human-confirm gate. Build the confirmation FROM the operator's
+        // confirmation intent: confirmedByRef is the human actor, confirmedAt is the
+        // injected clock, reason is audited. There is no non-human path that
+        // constructs this — an `ai-suggested` intent advances ONLY because a human
+        // called confirmObsAction here; the AI can never self-confirm. The pure
+        // `confirm` transition requires this confirmation and rejects an
+        // already-confirmed or out-of-order intent (→ typed error).
+        const confirmation = ObsActionConfirmationSchema.parse({
+          confirmed: true,
+          confirmedAt: now,
+          confirmedByRef: command.input.confirmedByRef,
+          reason: command.input.confirmationIntent.reason
+        });
+
+        const confirmed = advanceIntent(existing, "confirm", now, confirmation);
+
+        appendActionLogEntry({
+          actionIntentRef: confirmed.actionIntentId,
+          actor: command.actor,
+          connectionProfileId: confirmed.connectionProfileId,
+          occurredAt: now,
+          outcome: "confirmed",
+          reason: `Confirmed ${confirmed.kind} by ${confirmation.confirmedByRef}: ${confirmation.reason}`
+        });
+
+        return confirmed;
+      }),
+
+    dispatchObsAction: (rawCommand): Promise<ObsActionIntent> =>
+      runObsOperation(async (): Promise<ObsActionIntent> => {
+        const command = DispatchObsActionCommandSchema.parse(rawCommand);
+        assertObsCommandRole(command.actor);
+        const existing = requireActionIntent(
+          command.actor.tenantId,
+          command.input.actionIntentId
+        );
+
+        // THE GATE. Dispatch refuses unless the intent is `confirmed`. This guard
+        // is the structural reason a request or an ai-suggested intent can never go
+        // live: there is no other branch in this method that reaches the port. A
+        // dispatched/terminal intent fails this check too (its status is no longer
+        // `confirmed`), so it can never be re-dispatched.
+        if (existing.status !== "confirmed") {
+          throw new ObsDomainError(
+            "NOT_CONFIRMED",
+            "This OBS action cannot be dispatched until a human has confirmed it."
+          );
+        }
+
+        const profile = requireConnectionProfile(
+          existing.tenantId,
+          existing.connectionProfileId
+        );
+        const now = clock();
+
+        // Move to `dispatched` (the pure transition re-asserts the recorded
+        // confirmation) and audit BEFORE the port call, so the attempt is always on
+        // record even if the port then rejects it.
+        const dispatched = advanceIntent(existing, "dispatch", now, undefined);
+        appendActionLogEntry({
+          actionIntentRef: dispatched.actionIntentId,
+          actor: command.actor,
+          connectionProfileId: dispatched.connectionProfileId,
+          occurredAt: now,
+          outcome: "dispatched",
+          reason: `Dispatching ${dispatched.kind} to OBS.`
+        });
+
+        // The ONE place a port mutate method is called — and only for a confirmed,
+        // just-dispatched intent.
+        let observedStreamStatus: ObsStreamState["streamStatus"] | undefined;
+        try {
+          observedStreamStatus = await callPortForAction(
+            profile.connectionRef,
+            dispatched
+          );
+        } catch (error) {
+          // A normalized, redacted ObsControlError → classify (retryable vs
+          // terminal) and record terminal `failed` with the REDACTED safeMessage
+          // (no secret/URL/raw payload — the port guarantees redaction; the
+          // classifier never widens it). An unexpected non-ObsControlError throw is
+          // re-thrown untouched rather than presented as a classified OBS failure.
+          if (!isObsControlError(error)) {
+            throw error;
+          }
+
+          const classification = errorClassifier(error);
+          const failedAt = clock();
+          const failed = ObsActionIntentSchema.parse({
+            ...dispatched,
+            safeFailureMessage: classification.safeMessage,
+            status: "failed",
+            updatedAt: failedAt
+          });
+          actionIntents.set(
+            scopedKey(failed.tenantId, failed.actionIntentId),
+            failed
+          );
+          appendActionLogEntry({
+            actionIntentRef: failed.actionIntentId,
+            actor: command.actor,
+            connectionProfileId: failed.connectionProfileId,
+            occurredAt: failedAt,
+            outcome: "failed",
+            reason: `Dispatch of ${failed.kind} failed (${classification.kind}).`,
+            safeMessage: classification.safeMessage
+          });
+
+          return failed;
+        }
+
+        // Success: a stream action moves the durable coarse stream snapshot (only
+        // after this confirmed dispatch succeeded). Then mark the intent
+        // `succeeded` and audit.
+        const succeededAt = clock();
+        if (observedStreamStatus !== undefined) {
+          recordStreamTransition(
+            dispatched,
+            command.actor,
+            observedStreamStatus,
+            succeededAt
+          );
+        }
+
+        const succeeded = advanceIntent(dispatched, "succeed", succeededAt, undefined);
+        appendActionLogEntry({
+          actionIntentRef: succeeded.actionIntentId,
+          actor: command.actor,
+          connectionProfileId: succeeded.connectionProfileId,
+          occurredAt: succeededAt,
+          outcome: "succeeded",
+          reason: `Dispatched ${succeeded.kind} to OBS successfully.`
+        });
+
+        return succeeded;
+      }),
+
+    cancelObsAction: (rawCommand): Promise<ObsActionIntent> =>
+      runObsOperation((): ObsActionIntent => {
+        const command = CancelObsActionCommandSchema.parse(rawCommand);
+        assertObsCommandRole(command.actor);
+        const existing = requireActionIntent(
+          command.actor.tenantId,
+          command.input.actionIntentId
+        );
+        const now = clock();
+
+        // Cancel never touches the port. The pure `cancel` transition rejects a
+        // terminal intent (succeeded/failed/canceled) → VALIDATION_FAILED.
+        const canceled = advanceIntent(existing, "cancel", now, undefined);
+        appendActionLogEntry({
+          actionIntentRef: canceled.actionIntentId,
+          actor: command.actor,
+          connectionProfileId: canceled.connectionProfileId,
+          occurredAt: now,
+          outcome: "canceled",
+          reason: `Canceled ${canceled.kind}: ${command.input.reason}`
+        });
+
+        return canceled;
       })
   };
 
@@ -777,6 +1148,27 @@ const createObsIds = (
     sceneItemId: overrides?.sceneItemId ?? counter("scene_item"),
     sourceId: overrides?.sourceId ?? counter("source")
   };
+};
+
+/**
+ * Missing-ref guard for the dispatch switch. The `ObsActionIntentSchema`
+ * superRefine already guarantees the per-kind target refs are present on any
+ * stored intent, but the *types* are optional, so this narrows them and fails
+ * closed with `VALIDATION_FAILED` rather than letting an `undefined` ref reach the
+ * port — a stored intent should never hit this.
+ */
+const requireActionField = <TValue>(
+  value: TValue | undefined,
+  field: string
+): TValue => {
+  if (value === undefined) {
+    throw new ObsDomainError(
+      "VALIDATION_FAILED",
+      `This OBS action is missing its required ${field}.`
+    );
+  }
+
+  return value;
 };
 
 /**

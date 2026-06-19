@@ -52,6 +52,30 @@ const requestedIntent: ObsActionIntent = ObsActionIntentSchema.parse({
   updatedAt: timestamp
 });
 
+const confirmation = {
+  confirmed: true,
+  confirmedAt: timestamp,
+  confirmedByRef: "operator_1",
+  reason: "Go to the lower-third for announcements."
+} as const;
+
+const confirmedIntent: ObsActionIntent = ObsActionIntentSchema.parse({
+  ...requestedIntent,
+  confirmation,
+  status: "confirmed"
+});
+
+const succeededIntent: ObsActionIntent = ObsActionIntentSchema.parse({
+  ...requestedIntent,
+  confirmation,
+  status: "succeeded"
+});
+
+const canceledIntent: ObsActionIntent = ObsActionIntentSchema.parse({
+  ...requestedIntent,
+  status: "canceled"
+});
+
 const createObsQueryService = (
   overrides: Partial<ObsQueryService> = {}
 ): ObsQueryService => ({
@@ -84,6 +108,15 @@ const createObsQueryService = (
 const createObsCommandService = (
   overrides: Partial<ObsCommandService> = {}
 ): ObsCommandService => ({
+  cancelObsAction: vi.fn<ObsCommandService["cancelObsAction"]>(() =>
+    Promise.resolve(canceledIntent)
+  ),
+  confirmObsAction: vi.fn<ObsCommandService["confirmObsAction"]>(() =>
+    Promise.resolve(confirmedIntent)
+  ),
+  dispatchObsAction: vi.fn<ObsCommandService["dispatchObsAction"]>(() =>
+    Promise.resolve(succeededIntent)
+  ),
   refreshObsCatalog: vi.fn<ObsCommandService["refreshObsCatalog"]>(() =>
     Promise.reject(new Error("not used"))
   ),
@@ -122,9 +155,19 @@ describe("obsGraphqlTypeDefs", () => {
     );
   });
 
-  it("does not declare the slice-7 confirm/dispatch gate mutations", () => {
-    expect(obsGraphqlTypeDefs).not.toContain("confirmObsAction");
-    expect(obsGraphqlTypeDefs).not.toContain("dispatchObsAction");
+  it("declares the slice-7 confirm/dispatch/cancel gate mutations returning the intent", () => {
+    expect(obsGraphqlTypeDefs).toContain(
+      "confirmObsAction(input: ConfirmObsActionInput!): ObsActionIntent!"
+    );
+    expect(obsGraphqlTypeDefs).toContain(
+      "dispatchObsAction(input: DispatchObsActionInput!): ObsActionIntent!"
+    );
+    expect(obsGraphqlTypeDefs).toContain(
+      "cancelObsAction(input: CancelObsActionInput!): ObsActionIntent!"
+    );
+    // The confirm step carries the explicit human confirmation intent.
+    expect(obsGraphqlTypeDefs).toContain("input ConfirmObsActionInput {");
+    expect(obsGraphqlTypeDefs).toContain("confirmationIntent: ObsConfirmationIntentInput!");
   });
 
   it("never exposes a host/port/password/token/stream-key field on any OBS type", () => {
@@ -191,6 +234,116 @@ describe("createObsGraphqlResolvers", () => {
         requestedByRef: "operator_1",
         targetSceneRef: "scene-lower"
       },
+      requestId: "request_1"
+    });
+  });
+
+  it("delegates confirmObsAction with the confirmation intent and confirmedByRef", async () => {
+    const confirmObsAction = vi.fn<ObsCommandService["confirmObsAction"]>(() =>
+      Promise.resolve(confirmedIntent)
+    );
+    const resolvers = createObsGraphqlResolvers({
+      obsCommandService: createObsCommandService({ confirmObsAction }),
+      obsQueryService: createObsQueryService()
+    });
+
+    await expect(
+      resolvers.Mutation.confirmObsAction(
+        undefined,
+        {
+          input: {
+            actionIntentId: "action_1",
+            confirmationIntent: { confirmed: true, reason: "Go live now." },
+            confirmedByRef: "operator_1"
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toEqual(confirmedIntent);
+
+    expect(confirmObsAction).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        actionIntentId: "action_1",
+        confirmationIntent: { confirmed: true, reason: "Go live now." },
+        confirmedByRef: "operator_1"
+      },
+      requestId: "request_1"
+    });
+  });
+
+  it("delegates dispatchObsAction and returns the updated intent", async () => {
+    const dispatchObsAction = vi.fn<ObsCommandService["dispatchObsAction"]>(() =>
+      Promise.resolve(succeededIntent)
+    );
+    const resolvers = createObsGraphqlResolvers({
+      obsCommandService: createObsCommandService({ dispatchObsAction }),
+      obsQueryService: createObsQueryService()
+    });
+
+    await expect(
+      resolvers.Mutation.dispatchObsAction(
+        undefined,
+        { input: { actionIntentId: "action_1" } },
+        graphqlContext
+      )
+    ).resolves.toEqual(succeededIntent);
+
+    expect(dispatchObsAction).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: { actionIntentId: "action_1" },
+      requestId: "request_1"
+    });
+  });
+
+  it("rejects a confirmObsAction whose confirmation intent is not confirmed=true", async () => {
+    const confirmObsAction = vi.fn<ObsCommandService["confirmObsAction"]>(() =>
+      Promise.resolve(confirmedIntent)
+    );
+    const resolvers = createObsGraphqlResolvers({
+      obsCommandService: createObsCommandService({ confirmObsAction }),
+      obsQueryService: createObsQueryService()
+    });
+
+    // `confirmed: false` cannot satisfy the literal(true) gate, so the command is
+    // rejected before the service is ever called — the human gate is structural.
+    await expect(
+      resolvers.Mutation.confirmObsAction(
+        undefined,
+        {
+          input: {
+            actionIntentId: "action_1",
+            confirmationIntent: { confirmed: false, reason: "Nope." },
+            confirmedByRef: "operator_1"
+          }
+        },
+        graphqlContext
+      )
+    ).rejects.toThrow();
+
+    expect(confirmObsAction).not.toHaveBeenCalled();
+  });
+
+  it("delegates cancelObsAction with the cancellation reason", async () => {
+    const cancelObsAction = vi.fn<ObsCommandService["cancelObsAction"]>(() =>
+      Promise.resolve(canceledIntent)
+    );
+    const resolvers = createObsGraphqlResolvers({
+      obsCommandService: createObsCommandService({ cancelObsAction }),
+      obsQueryService: createObsQueryService()
+    });
+
+    await expect(
+      resolvers.Mutation.cancelObsAction(
+        undefined,
+        { input: { actionIntentId: "action_1", reason: "Changed my mind." } },
+        graphqlContext
+      )
+    ).resolves.toEqual(canceledIntent);
+
+    expect(cancelObsAction).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: { actionIntentId: "action_1", reason: "Changed my mind." },
       requestId: "request_1"
     });
   });
@@ -356,6 +509,77 @@ describe("OBS GraphQL transport", () => {
           targetSceneRef: "scene-lower"
         }
       }
+    });
+  });
+
+  it("executes the dispatchObsAction mutation through the full transport, returning the updated intent", async () => {
+    const dispatchObsAction = vi.fn<ObsCommandService["dispatchObsAction"]>(() =>
+      Promise.resolve(succeededIntent)
+    );
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      schema: createPresenterGraphqlSchema({
+        ...presenterStub,
+        obs: {
+          obsCommandService: createObsCommandService({ dispatchObsAction }),
+          obsQueryService: createObsQueryService()
+        }
+      })
+    });
+
+    const response = await handler({
+      body: {
+        query:
+          "mutation dispatch($input: DispatchObsActionInput!) { dispatchObsAction(input: $input) { actionIntentId status } }",
+        variables: { input: { actionIntentId: "action_1" } }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(response.status).toBe(200);
+    expect(dispatchObsAction).toHaveBeenCalledWith({
+      actor,
+      input: { actionIntentId: "action_1" },
+      requestId: "request_1"
+    });
+    expect(response.body).toEqual({
+      data: { dispatchObsAction: { actionIntentId: "action_1", status: "succeeded" } }
+    });
+  });
+
+  it("maps a NOT_CONFIRMED dispatch refusal to extensions.code with a safe message", async () => {
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      schema: createPresenterGraphqlSchema({
+        ...presenterStub,
+        obs: {
+          obsCommandService: createObsCommandService({
+            dispatchObsAction: () =>
+              Promise.reject(
+                new ObsDomainError(
+                  "NOT_CONFIRMED",
+                  "This OBS action cannot be dispatched until a human has confirmed it."
+                )
+              )
+          }),
+          obsQueryService: createObsQueryService()
+        }
+      })
+    });
+
+    const response = await handler({
+      body: {
+        query:
+          "mutation dispatch($input: DispatchObsActionInput!) { dispatchObsAction(input: $input) { actionIntentId } }",
+        variables: { input: { actionIntentId: "action_1" } }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.errors?.[0]).toEqual({
+      extensions: { code: "NOT_CONFIRMED" },
+      message: "This OBS action cannot be dispatched until a human has confirmed it."
     });
   });
 

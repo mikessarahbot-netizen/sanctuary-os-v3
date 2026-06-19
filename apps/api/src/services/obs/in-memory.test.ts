@@ -3,6 +3,7 @@ import type { AuthenticatedActor } from "../../auth/index.js";
 import {
   ObsConnectionProfileSchema,
   isObsDomainError,
+  type ObsActionIntent,
   type ObsConnectionProfile,
   type ObsDomainErrorCode
 } from "../../domain/obs/index.js";
@@ -601,5 +602,437 @@ describe("createInMemoryObsServicesAdapter", () => {
     expect(serialized).not.toContain("host");
     // Only the opaque vault ref is stored for the connection.
     expect(serialized).toContain("vault://obs/connection_1");
+  });
+});
+
+/**
+ * Slice 7 — THE SAFETY CORE: the confirm → dispatch action gate. These tests prove
+ * the non-negotiable: no stream/scene-affecting action reaches OBS without an
+ * explicit human confirmation, dispatch is the sole port-mutate caller, a failed
+ * dispatch is recorded with a redacted message, and terminal intents are not
+ * re-dispatchable.
+ */
+describe("createInMemoryObsServicesAdapter action gate (slice 7)", () => {
+  // A monotonic id generator per kind so audit rows + intents have stable refs.
+  const sequentialIds = (): {
+    readonly actionIntentId: () => string;
+    readonly logEntryId: () => string;
+  } => {
+    const counter = (prefix: string): (() => string) => {
+      let next = 0;
+      return () => {
+        next += 1;
+        return `${prefix}_${String(next)}`;
+      };
+    };
+
+    return { actionIntentId: counter("action"), logEntryId: counter("log") };
+  };
+
+  /**
+   * A connected adapter with a populated catalog snapshot (via refresh) and
+   * deterministic ids — the standing setup for every gate test. The fake port's
+   * recorded calls are reset-aware: we capture the call count after the read-only
+   * refresh so a later assertion can isolate the dispatch's port mutate call.
+   */
+  const setupConnected = async (
+    overrides: Partial<Parameters<typeof createInMemoryObsServicesAdapter>[0]> = {}
+  ): Promise<{
+    readonly adapter: ReturnType<typeof createInMemoryObsServicesAdapter>;
+    readonly fakePort: FakeObsControlPort;
+  }> => {
+    const fakePort = connectedFakePort();
+    const adapter = createInMemoryObsServicesAdapter({
+      clock: () => timestamp,
+      controlPort: fakePort.port,
+      ids: sequentialIds(),
+      seed: { connectionProfiles: [connectedProfile] },
+      ...overrides
+    });
+    await adapter.commandService.refreshObsCatalog({
+      actor: leader,
+      input: { connectionProfileId: "connection_1" },
+      requestId: "request_refresh"
+    });
+
+    return { adapter, fakePort };
+  };
+
+  const requestSwitchScene = (
+    adapter: ReturnType<typeof createInMemoryObsServicesAdapter>,
+    origin: "human" | "ai-suggested" = "human"
+  ): Promise<{ readonly actionIntentId: string }> =>
+    adapter.commandService.requestObsAction({
+      actor: leader,
+      input: {
+        connectionProfileId: "connection_1",
+        kind: "switch-scene",
+        origin,
+        requestedByRef: origin === "human" ? "operator_1" : "ai_assistant",
+        targetSceneRef: "scene-lower"
+      },
+      requestId: `request_${origin}`
+    });
+
+  const confirm = (
+    adapter: ReturnType<typeof createInMemoryObsServicesAdapter>,
+    actionIntentId: string
+  ): Promise<ObsActionIntent> =>
+    adapter.commandService.confirmObsAction({
+      actor: leader,
+      input: {
+        actionIntentId,
+        confirmationIntent: { confirmed: true, reason: "Go to the lower third." },
+        confirmedByRef: "operator_1"
+      },
+      requestId: "request_confirm"
+    });
+
+  const dispatch = (
+    adapter: ReturnType<typeof createInMemoryObsServicesAdapter>,
+    actionIntentId: string
+  ): Promise<ObsActionIntent> =>
+    adapter.commandService.dispatchObsAction({
+      actor: leader,
+      input: { actionIntentId },
+      requestId: "request_dispatch"
+    });
+
+  const portMutateCalls = (fakePort: FakeObsControlPort): readonly FakeObsOperation[] =>
+    fakePort
+      .calls()
+      .map((call) => call.operation)
+      .filter((operation) => PORT_MUTATE_OPERATIONS.includes(operation));
+
+  it("request → confirm → dispatch (happy path): calls the matching port method exactly once, ends succeeded, audits every step", async () => {
+    const { adapter, fakePort } = await setupConnected();
+
+    const requested = await requestSwitchScene(adapter);
+    const confirmed = await confirm(adapter, requested.actionIntentId);
+    expect(confirmed.status).toBe("confirmed");
+    expect(confirmed.confirmation).toMatchObject({
+      confirmed: true,
+      confirmedByRef: "operator_1",
+      reason: "Go to the lower third."
+    });
+
+    const dispatched = await dispatch(adapter, requested.actionIntentId);
+
+    // The intent ends succeeded and still carries its confirmation.
+    expect(dispatched.status).toBe("succeeded");
+    expect(dispatched.confirmation?.confirmedByRef).toBe("operator_1");
+
+    // The matching mutate method (setCurrentProgramScene for switch-scene) was
+    // called EXACTLY once, and no other mutate method ran.
+    expect(portMutateCalls(fakePort)).toEqual(["setCurrentProgramScene"]);
+    const sceneCall = fakePort
+      .calls()
+      .find((call) => call.operation === "setCurrentProgramScene");
+    expect(sceneCall?.args).toEqual({ obsSceneRef: "scene-lower" });
+    // The fake actually applied the switch.
+    expect(fakePort.currentProgramSceneRef()).toBe("scene-lower");
+
+    // The append-only audit log carries the full lifecycle: requested, confirmed,
+    // dispatched, succeeded — in order, with no redacted safeMessage on success.
+    expect(adapter.readActionLog().map((entry) => entry.outcome)).toEqual([
+      "requested",
+      "confirmed",
+      "dispatched",
+      "succeeded"
+    ]);
+    expect(
+      adapter.readActionLog().every((entry) => entry.safeMessage === undefined)
+    ).toBe(true);
+  });
+
+  it("CRITICAL: dispatch WITHOUT a prior confirm is refused (NOT_CONFIRMED) and the port is NEVER called", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    const requested = await requestSwitchScene(adapter);
+
+    await expectDomainErrorCode(
+      dispatch(adapter, requested.actionIntentId),
+      "NOT_CONFIRMED"
+    );
+
+    // The single most important assertion in the module: no mutate method ran.
+    expectNoPortMutation(fakePort);
+    expect(portMutateCalls(fakePort)).toEqual([]);
+
+    // The intent is untouched at `requested`; only the request audit row exists.
+    const stored = adapter
+      .readActionIntents()
+      .find((intent) => intent.actionIntentId === requested.actionIntentId);
+    expect(stored?.status).toBe("requested");
+    expect(adapter.readActionLog().map((entry) => entry.outcome)).toEqual([
+      "requested"
+    ]);
+  });
+
+  it("an ai-suggested intent cannot reach dispatch without a human confirm; only the human confirm path advances it", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    const requested = await requestSwitchScene(adapter, "ai-suggested");
+
+    // Straight to dispatch on the AI's behalf → refused, port untouched. AI can
+    // never self-dispatch.
+    await expectDomainErrorCode(
+      dispatch(adapter, requested.actionIntentId),
+      "NOT_CONFIRMED"
+    );
+    expectNoPortMutation(fakePort);
+
+    // A HUMAN confirms the AI suggestion — the only path that advances it — then
+    // dispatch succeeds. There is no auto-confirm: the AI intent moved only because
+    // a human acted.
+    const confirmed = await confirm(adapter, requested.actionIntentId);
+    expect(confirmed.status).toBe("confirmed");
+    expect(confirmed.origin).toBe("ai-suggested");
+    expect(confirmed.confirmation?.confirmedByRef).toBe("operator_1");
+
+    const dispatched = await dispatch(adapter, requested.actionIntentId);
+    expect(dispatched.status).toBe("succeeded");
+    expect(portMutateCalls(fakePort)).toEqual(["setCurrentProgramScene"]);
+  });
+
+  it("a confirmed dispatch that the port rejects ends failed with a REDACTED safeMessage (no secrets/URL) and is classified", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    // Inject a port failure on the matching mutate method.
+    fakePort.setFailure("setCurrentProgramScene", { code: "action-rejected" });
+
+    const requested = await requestSwitchScene(adapter);
+    await confirm(adapter, requested.actionIntentId);
+    const failed = await dispatch(adapter, requested.actionIntentId);
+
+    // The port WAS called (the attempt reached OBS) but the intent ends terminal
+    // `failed` with a redacted failure message.
+    expect(portMutateCalls(fakePort)).toEqual(["setCurrentProgramScene"]);
+    expect(failed.status).toBe("failed");
+    expect(failed.safeFailureMessage).toBe("OBS rejected the requested action.");
+
+    // The redacted message carries no secret/URL/connection detail.
+    const failMessage = failed.safeFailureMessage ?? "";
+    expect(failMessage).not.toContain("vault://");
+    expect(failMessage).not.toContain("password");
+    expect(failMessage).not.toContain("://");
+
+    // The audit log records dispatched then failed, and the failed row carries the
+    // SAME redacted safeMessage (a classified, terminal failure).
+    expect(adapter.readActionLog().map((entry) => entry.outcome)).toEqual([
+      "requested",
+      "confirmed",
+      "dispatched",
+      "failed"
+    ]);
+    const failedRow = adapter
+      .readActionLog()
+      .find((entry) => entry.outcome === "failed");
+    expect(failedRow?.safeMessage).toBe("OBS rejected the requested action.");
+    expect(failedRow?.reason).toContain("terminal");
+  });
+
+  it("a retryable (disconnected) port failure is classified but still recorded terminal failed (no auto-retry, no second port call)", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    fakePort.setFailure("setCurrentProgramScene", { code: "disconnected" });
+
+    const requested = await requestSwitchScene(adapter);
+    await confirm(adapter, requested.actionIntentId);
+    const failed = await dispatch(adapter, requested.actionIntentId);
+
+    expect(failed.status).toBe("failed");
+    expect(failed.safeFailureMessage).toBe("The OBS instance is not reachable.");
+    // Classified retryable in the audit reason, but the intent is terminal — a
+    // fresh confirmation (new intent) is required to retry; nothing auto-retries.
+    const failedRow = adapter
+      .readActionLog()
+      .find((entry) => entry.outcome === "failed");
+    expect(failedRow?.reason).toContain("retryable");
+
+    // Re-dispatching the now-failed intent is rejected (its status is no longer
+    // `confirmed`, so the NOT_CONFIRMED gate fires first) and never calls the port
+    // again.
+    await expectDomainErrorCode(
+      dispatch(adapter, requested.actionIntentId),
+      "NOT_CONFIRMED"
+    );
+    expect(portMutateCalls(fakePort)).toEqual(["setCurrentProgramScene"]);
+  });
+
+  it("a succeeded intent cannot be re-dispatched (no second port call)", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    const requested = await requestSwitchScene(adapter);
+    await confirm(adapter, requested.actionIntentId);
+    await dispatch(adapter, requested.actionIntentId);
+    expect(portMutateCalls(fakePort)).toEqual(["setCurrentProgramScene"]);
+
+    // Second dispatch of the terminal `succeeded` intent → rejected by the
+    // NOT_CONFIRMED gate (it is no longer `confirmed`); the port is not called a
+    // second time. The pure transition map would also reject it, but the gate runs
+    // first — re-dispatch of any non-confirmed intent is uniformly refused.
+    await expectDomainErrorCode(
+      dispatch(adapter, requested.actionIntentId),
+      "NOT_CONFIRMED"
+    );
+    expect(portMutateCalls(fakePort)).toEqual(["setCurrentProgramScene"]);
+  });
+
+  it("a canceled intent cannot be confirmed or dispatched (terminal), and cancel never calls the port", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    const requested = await requestSwitchScene(adapter);
+
+    const canceled = await adapter.commandService.cancelObsAction({
+      actor: leader,
+      input: { actionIntentId: requested.actionIntentId, reason: "Not needed." },
+      requestId: "request_cancel"
+    });
+    expect(canceled.status).toBe("canceled");
+    // Cancel writes an audit row but never touches the port.
+    expectNoPortMutation(fakePort);
+    expect(adapter.readActionLog().map((entry) => entry.outcome)).toEqual([
+      "requested",
+      "canceled"
+    ]);
+
+    // The terminal canceled intent can neither be confirmed nor dispatched.
+    await expectDomainErrorCode(
+      confirm(adapter, requested.actionIntentId),
+      "VALIDATION_FAILED"
+    );
+    await expectDomainErrorCode(
+      dispatch(adapter, requested.actionIntentId),
+      "NOT_CONFIRMED"
+    );
+    expectNoPortMutation(fakePort);
+  });
+
+  it("can cancel a confirmed intent before dispatch (no port call)", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    const requested = await requestSwitchScene(adapter);
+    await confirm(adapter, requested.actionIntentId);
+
+    const canceled = await adapter.commandService.cancelObsAction({
+      actor: leader,
+      input: { actionIntentId: requested.actionIntentId, reason: "Stand down." },
+      requestId: "request_cancel_confirmed"
+    });
+
+    expect(canceled.status).toBe("canceled");
+    expectNoPortMutation(fakePort);
+  });
+
+  it("a confirmed start-stream dispatch calls startStream once and writes the coarse active stream state", async () => {
+    const { adapter, fakePort } = await setupConnected();
+
+    const requested = await adapter.commandService.requestObsAction({
+      actor: leader,
+      input: {
+        connectionProfileId: "connection_1",
+        kind: "start-stream",
+        origin: "human",
+        requestedByRef: "operator_1"
+      },
+      requestId: "request_start_stream"
+    });
+    await adapter.commandService.confirmObsAction({
+      actor: leader,
+      input: {
+        actionIntentId: requested.actionIntentId,
+        confirmationIntent: { confirmed: true, reason: "Service is starting." },
+        confirmedByRef: "operator_1"
+      },
+      requestId: "request_confirm_stream"
+    });
+
+    const dispatched = await dispatch(adapter, requested.actionIntentId);
+    expect(dispatched.status).toBe("succeeded");
+    expect(portMutateCalls(fakePort)).toEqual(["startStream"]);
+
+    // The durable coarse stream snapshot was written only after the confirmed
+    // dispatch succeeded, stamped with the action ref + actor.
+    const streamState = adapter
+      .readStreamStates()
+      .find((state) => state.connectionProfileId === "connection_1");
+    expect(streamState?.streamStatus).toBe("active");
+    expect(streamState?.lastActionIntentRef).toBe(requested.actionIntentId);
+    expect(streamState?.lastTransitionActorId).toBe("leader_1");
+  });
+
+  it("confirm/dispatch/cancel are tenant-isolated: another tenant cannot touch this tenant's intent", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    const requested = await requestSwitchScene(adapter);
+
+    // A different tenant's leader sees the intent as not-found for every gate op.
+    await expectDomainErrorCode(
+      adapter.commandService.confirmObsAction({
+        actor: otherTenantLeader,
+        input: {
+          actionIntentId: requested.actionIntentId,
+          confirmationIntent: { confirmed: true, reason: "Cross-tenant." },
+          confirmedByRef: "intruder"
+        },
+        requestId: "request_cross_confirm"
+      }),
+      "ACTION_INTENT_NOT_FOUND"
+    );
+
+    // Confirm legitimately as the owning tenant, then prove cross-tenant dispatch
+    // is still refused as not-found.
+    await confirm(adapter, requested.actionIntentId);
+    await expectDomainErrorCode(
+      adapter.commandService.dispatchObsAction({
+        actor: otherTenantLeader,
+        input: { actionIntentId: requested.actionIntentId },
+        requestId: "request_cross_dispatch"
+      }),
+      "ACTION_INTENT_NOT_FOUND"
+    );
+    await expectDomainErrorCode(
+      adapter.commandService.cancelObsAction({
+        actor: otherTenantLeader,
+        input: { actionIntentId: requested.actionIntentId, reason: "Cross-tenant." },
+        requestId: "request_cross_cancel"
+      }),
+      "ACTION_INTENT_NOT_FOUND"
+    );
+
+    // No cross-tenant op ever reached the port.
+    expectNoPortMutation(fakePort);
+  });
+
+  it("a viewer cannot confirm or dispatch an action (AUTHORIZATION_FAILED), and the port stays untouched", async () => {
+    const { adapter, fakePort } = await setupConnected();
+    const requested = await requestSwitchScene(adapter);
+
+    await expectDomainErrorCode(
+      adapter.commandService.confirmObsAction({
+        actor: viewer,
+        input: {
+          actionIntentId: requested.actionIntentId,
+          confirmationIntent: { confirmed: true, reason: "Nope." },
+          confirmedByRef: "viewer_1"
+        },
+        requestId: "request_viewer_confirm"
+      }),
+      "AUTHORIZATION_FAILED"
+    );
+    await confirm(adapter, requested.actionIntentId);
+    await expectDomainErrorCode(
+      adapter.commandService.dispatchObsAction({
+        actor: viewer,
+        input: { actionIntentId: requested.actionIntentId },
+        requestId: "request_viewer_dispatch"
+      }),
+      "AUTHORIZATION_FAILED"
+    );
+
+    expectNoPortMutation(fakePort);
+  });
+
+  it("dispatching an unknown intent id is ACTION_INTENT_NOT_FOUND and never calls the port", async () => {
+    const { adapter, fakePort } = await setupConnected();
+
+    await expectDomainErrorCode(
+      dispatch(adapter, "action_missing"),
+      "ACTION_INTENT_NOT_FOUND"
+    );
+    expectNoPortMutation(fakePort);
   });
 });
