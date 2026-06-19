@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 6: GraphQL + in-memory service
+
+Tasks completed:
+- OBS slice 6 (delegated; parent verified gates): `apps/api/src/domain/obs/{contracts,errors}.ts`, `apps/api/src/services/obs/in-memory.ts` (over the injected ObsControlPort), `apps/api/src/graphql/obs.ts` merged into the executable schema with enum value maps + ObsDomainError->extensions.code. requestObsAction runs the pure eligibility checker + creates a 'requested' intent but NEVER touches the port (verified structurally + via spy); reads + connection/catalog management + refreshObsCatalog via the port. No secrets. +27 api tests. Gates green: db 466 / api 759 + 2 skipped / desktop 89 / church-context 5. Committed `2cdb53f`.
+
+Next task:
+- OBS slice 7 (safety core): the action gate — confirmObsAction + dispatchObsAction (only port-calling op, refuses unless confirmed) + audit + error classifier. Then slices 8–10 per the plan.
+
+Open questions / follow-ups: standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 5: ObsControlPort + fake
 
 Tasks completed:
