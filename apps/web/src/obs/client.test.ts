@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createObsClient,
   DEFAULT_API_URL,
+  START_STREAM_ACTION_KIND,
+  STOP_STREAM_ACTION_KIND,
   SWITCH_SCENE_ACTION_KIND
 } from "./client.js";
 import type {
@@ -168,6 +170,67 @@ describe("createObsClient", () => {
       requestedByRef: "demo-web-operator",
       targetSceneRef: "scene-sermon"
     });
+  });
+
+  it("POSTs requestObsAction with the stop_stream kind + human origin + NO targetSceneRef", async () => {
+    const streamIntent: ObsActionIntent = {
+      actionIntentId: "stream_1",
+      kind: "stop_stream",
+      origin: "human",
+      safeFailureMessage: null,
+      status: "requested",
+      targetSceneRef: null
+    };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { requestObsAction: streamIntent } }))
+    );
+
+    const intent = await createObsClient({ fetchImpl }).requestStreamAction({
+      connectionProfileId: "obs-connection-sanctuary",
+      kind: STOP_STREAM_ACTION_KIND,
+      requestedByRef: "demo-web-operator"
+    });
+
+    expect(intent).toEqual(streamIntent);
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    expect(body.query).toContain("mutation RequestObsAction");
+    // A stream action carries no targetSceneRef — it targets the whole output.
+    expect(body.variables.input).toEqual({
+      connectionProfileId: "obs-connection-sanctuary",
+      kind: STOP_STREAM_ACTION_KIND,
+      origin: "human",
+      requestedByRef: "demo-web-operator"
+    });
+    expect(STOP_STREAM_ACTION_KIND).toBe("stop_stream");
+  });
+
+  it("POSTs requestObsAction with the start_stream kind for going live", async () => {
+    const streamIntent: ObsActionIntent = {
+      actionIntentId: "stream_2",
+      kind: "start_stream",
+      origin: "human",
+      safeFailureMessage: null,
+      status: "requested",
+      targetSceneRef: null
+    };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { requestObsAction: streamIntent } }))
+    );
+
+    await createObsClient({ fetchImpl }).requestStreamAction({
+      connectionProfileId: "obs-connection-sanctuary",
+      kind: START_STREAM_ACTION_KIND,
+      requestedByRef: "demo-web-operator"
+    });
+
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    expect(body.variables.input).toEqual({
+      connectionProfileId: "obs-connection-sanctuary",
+      kind: START_STREAM_ACTION_KIND,
+      origin: "human",
+      requestedByRef: "demo-web-operator"
+    });
+    expect(START_STREAM_ACTION_KIND).toBe("start_stream");
   });
 
   it("POSTs confirmObsAction with the confirmationIntent reason + confirmedByRef", async () => {

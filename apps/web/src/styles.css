@@ -812,12 +812,78 @@ body {
   cursor: not-allowed;
 }
 
+.obs-status__stream-control {
+  margin-top: 0.9rem;
+  display: flex;
+}
+
+.obs-stream-button {
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.5rem 1.1rem;
+  border-radius: 0.55rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.obs-stream-button--start {
+  background: #134e2c;
+  color: #aef5c8;
+  border-color: #1f7a45;
+}
+
+.obs-stream-button--start:hover:not(:disabled) {
+  background: #1a6638;
+}
+
+.obs-stream-button--stop {
+  background: #4e1313;
+  color: #ffb4b4;
+  border-color: #7a1f1f;
+}
+
+.obs-stream-button--stop:hover:not(:disabled) {
+  background: #661a1a;
+}
+
+.obs-stream-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .obs-gate {
   border: 2px solid #f0a23a;
   border-radius: 0.7rem;
   background: #2a1d0c;
   padding: 1.25rem 1.4rem;
   box-shadow: 0 0 0 4px rgba(240, 162, 58, 0.12);
+}
+
+/* The stream gate is the loudest stop on the surface (going live / off-air): a
+   red frame distinguishes it from the amber scene-switch gate. */
+.obs-gate--stream {
+  border-color: #e2452f;
+  background: #2a0f0c;
+  box-shadow: 0 0 0 4px rgba(226, 69, 47, 0.16);
+}
+
+.obs-gate--stream .obs-gate__warning {
+  color: #ff9b8a;
+}
+
+.obs-gate--stream .obs-gate__reason:focus {
+  border-color: #e2452f;
+}
+
+.obs-gate--stream .obs-gate__confirm {
+  background: #e2452f;
+  color: #1a0404;
+}
+
+.obs-gate--stream .obs-gate__confirm:hover:not(:disabled) {
+  background: #f0563c;
 }
 
 .obs-gate__warning {

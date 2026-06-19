@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState, type ReactElement } from "react";
-import type { ObsDataSource } from "./client.js";
+import {
+  START_STREAM_ACTION_KIND,
+  STOP_STREAM_ACTION_KIND,
+  type ObsDataSource
+} from "./client.js";
 import { DEMO_OBS_ACTOR_REF } from "./sample-data.js";
 import { ObsSceneList } from "./ObsSceneList.js";
 import { ObsStatusPanel } from "./ObsStatusPanel.js";
+import { ObsStreamGate, type StreamGateDirection } from "./ObsStreamGate.js";
 import { ObsSwitchGate } from "./ObsSwitchGate.js";
 import type { ObsConsole, ObsConsoleState, ObsScene } from "./types.js";
 
@@ -11,20 +16,23 @@ import type { ObsConsole, ObsConsoleState, ObsScene } from "./types.js";
  *
  * Loads the OBS console (connection + scenes + stream/recording state + action
  * log) from the injected `ObsDataSource`, renders a read panel (scenes with the
- * current program scene highlighted; stream/recording status), and drives the
- * human-confirm gate for a scene switch. The data source is injected so the same
- * component renders against demo sample data, a live GraphQL endpoint, or a test
- * double. The `mode` label is surfaced in the header so a screenshot makes clear
- * whether the data is demo or live.
+ * current program scene highlighted; stream/recording status + the gated stream
+ * control), and drives the human-confirm gate for a scene switch AND for a stream
+ * start/stop. The data source is injected so the same component renders against
+ * demo sample data, a live GraphQL endpoint, or a test double. The `mode` label is
+ * surfaced in the header so a screenshot makes clear whether the data is demo or
+ * live.
  *
  * THE GATE (the whole point of this surface): clicking a non-program scene's
- * "Switch to this scene" calls `requestObsAction` and moves into an
- * `awaiting-confirm` flow that shows the confirm step — it does NOT switch. Only
- * the operator's explicit Confirm runs `confirmObsAction` then `dispatchObsAction`
- * (the single dispatch call site in this component), after which the console is
- * reloaded so the program scene + audit line reflect the live result. Cancel
- * aborts with no dispatch. Because `dispatchAction` is invoked only inside the
- * Confirm handler, a dispatch can never fire without a confirmation.
+ * "Switch to this scene", or the "Go live" / "Stop stream" control, calls
+ * `requestObsAction` and moves into an `awaiting-confirm` flow that shows the
+ * confirm step — it does NOT switch or go live. Only the operator's explicit
+ * Confirm runs `confirmObsAction` then `dispatchObsAction` (the single dispatch
+ * call site in this component), after which the console is reloaded so the program
+ * scene + stream status + audit line reflect the live result. Cancel aborts with no
+ * dispatch. Because `dispatchAction` is invoked only inside the one Confirm
+ * handler — shared by both the scene gate and the stream gate — a dispatch can
+ * never fire without a confirmation, for either action kind.
  */
 export interface ObsScreenProps {
   readonly dataSource: ObsDataSource;
@@ -32,23 +40,33 @@ export interface ObsScreenProps {
 }
 
 /**
- * The gated-switch flow. `idle`: nothing pending. `requesting`: the request is
- * in flight (scene buttons disabled, no confirm step yet). `awaiting-confirm`: a
- * `requested` intent exists and the confirm step is shown. `working`: confirm +
- * dispatch are in flight after the operator pressed Confirm.
+ * What a gated action targets: a scene switch (carries the target scene) or a
+ * stream start/stop (carries the direction). The flow is shared so both actions go
+ * through the exact same confirm → dispatch path.
  */
-type SwitchFlow =
+type ActionTarget =
+  | { readonly kind: "switch-scene"; readonly scene: ObsScene }
+  | { readonly kind: "stream"; readonly direction: StreamGateDirection };
+
+/**
+ * The gated-action flow. `idle`: nothing pending. `requesting`: the request is in
+ * flight (controls disabled, no confirm step yet). `awaiting-confirm`: a
+ * `requested` intent exists and the confirm step is shown. `working`: confirm +
+ * dispatch are in flight after the operator pressed Confirm. The `target`
+ * discriminates which gate (scene or stream) is open.
+ */
+type ActionFlow =
   | { readonly phase: "idle" }
-  | { readonly phase: "requesting"; readonly targetScene: ObsScene }
+  | { readonly phase: "requesting"; readonly target: ActionTarget }
   | {
       readonly phase: "awaiting-confirm";
-      readonly targetScene: ObsScene;
+      readonly target: ActionTarget;
       readonly actionIntentId: string;
       readonly errorMessage: string | null;
     }
   | {
       readonly phase: "working";
-      readonly targetScene: ObsScene;
+      readonly target: ActionTarget;
       readonly actionIntentId: string;
     };
 
@@ -70,7 +88,7 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
   const [consoleState, setConsoleState] = useState<ObsConsoleState>({
     status: "loading"
   });
-  const [flow, setFlow] = useState<SwitchFlow>({ phase: "idle" });
+  const [flow, setFlow] = useState<ActionFlow>({ phase: "idle" });
 
   const reloadConsole = useCallback(
     (connectionProfileId: string): void => {
@@ -114,7 +132,8 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
       }
 
       const connectionProfileId = consoleState.console.connection.connectionProfileId;
-      setFlow({ phase: "requesting", targetScene: scene });
+      const target: ActionTarget = { kind: "switch-scene", scene };
+      setFlow({ phase: "requesting", target });
 
       // The request proposes a `requested` intent and never touches OBS. Success
       // moves into the confirm step; nothing has gone live yet.
@@ -129,7 +148,7 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
             actionIntentId: intent.actionIntentId,
             errorMessage: null,
             phase: "awaiting-confirm",
-            targetScene: scene
+            target
           });
         })
         .catch((error: unknown) => {
@@ -137,7 +156,48 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
             actionIntentId: "",
             errorMessage: errorMessage(error),
             phase: "awaiting-confirm",
-            targetScene: scene
+            target
+          });
+        });
+    },
+    [consoleState, dataSource]
+  );
+
+  const handleRequestStream = useCallback(
+    (direction: StreamGateDirection): void => {
+      if (consoleState.status !== "loaded" || consoleState.console.connection === null) {
+        return;
+      }
+
+      const connectionProfileId = consoleState.console.connection.connectionProfileId;
+      const target: ActionTarget = { direction, kind: "stream" };
+      setFlow({ phase: "requesting", target });
+
+      // SAME gate as a scene switch: the request proposes a `requested` intent and
+      // never touches OBS. Going live/off-air waits for the explicit Confirm.
+      dataSource
+        .requestStreamAction({
+          connectionProfileId,
+          kind:
+            direction === "start"
+              ? START_STREAM_ACTION_KIND
+              : STOP_STREAM_ACTION_KIND,
+          requestedByRef: DEMO_OBS_ACTOR_REF
+        })
+        .then((intent) => {
+          setFlow({
+            actionIntentId: intent.actionIntentId,
+            errorMessage: null,
+            phase: "awaiting-confirm",
+            target
+          });
+        })
+        .catch((error: unknown) => {
+          setFlow({
+            actionIntentId: "",
+            errorMessage: errorMessage(error),
+            phase: "awaiting-confirm",
+            target
           });
         });
     },
@@ -160,11 +220,12 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
       }
 
       const connectionProfileId = consoleState.console.connection.connectionProfileId;
-      const { actionIntentId, targetScene } = flow;
-      setFlow({ actionIntentId, phase: "working", targetScene });
+      const { actionIntentId, target } = flow;
+      setFlow({ actionIntentId, phase: "working", target });
 
-      // The ONLY dispatch path: confirm the human gate, THEN dispatch. Dispatch
-      // is never called anywhere else, so it can never fire without this confirm.
+      // The ONLY dispatch path (shared by the scene gate AND the stream gate):
+      // confirm the human gate, THEN dispatch. Dispatch is never called anywhere
+      // else, so it can never fire without this confirm — for either action kind.
       dataSource
         .confirmAction({
           actionIntentId,
@@ -173,11 +234,11 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
         })
         .then(() => dataSource.dispatchAction({ actionIntentId }))
         // A successful dispatch updates the OBS instance; refresh the durable
-        // catalog snapshot so the reloaded program-scene highlight reflects it.
+        // catalog snapshot so the reloaded program-scene + stream status reflect it.
         .then(() => dataSource.refreshCatalog(connectionProfileId))
         .then(() => {
-          // Reload from the source of truth so the program scene + audit line
-          // reflect the dispatched result.
+          // Reload from the source of truth so the program scene, stream status,
+          // and audit line reflect the dispatched result.
           setFlow({ phase: "idle" });
           reloadConsole(connectionProfileId);
         })
@@ -186,7 +247,7 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
             actionIntentId,
             errorMessage: errorMessage(error),
             phase: "awaiting-confirm",
-            targetScene
+            target
           });
         });
     },
@@ -239,6 +300,8 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
           streamState={console.streamState}
           recordingState={console.recordingState}
           latestLogEntry={latestLogEntry(console)}
+          onRequestStreamAction={handleRequestStream}
+          busy={busy}
         />
 
         <section className="obs-screen__panel" aria-label="Program scene control">
@@ -250,17 +313,40 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
           />
         </section>
 
-        {flow.phase === "awaiting-confirm" || flow.phase === "working" ? (
-          <ObsSwitchGate
-            targetSceneName={flow.targetScene.displayName}
-            programSceneName={programSceneName(console)}
-            status={flow.phase === "working" ? "working" : "awaiting-confirm"}
-            errorMessage={flow.phase === "awaiting-confirm" ? flow.errorMessage : null}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-          />
-        ) : null}
+        {renderGate(console)}
       </>
+    );
+  }
+
+  function renderGate(console: ObsConsole): ReactElement | null {
+    if (flow.phase !== "awaiting-confirm" && flow.phase !== "working") {
+      return null;
+    }
+
+    const status = flow.phase === "working" ? "working" : "awaiting-confirm";
+    const gateError = flow.phase === "awaiting-confirm" ? flow.errorMessage : null;
+
+    if (flow.target.kind === "stream") {
+      return (
+        <ObsStreamGate
+          direction={flow.target.direction}
+          status={status}
+          errorMessage={gateError}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
+      );
+    }
+
+    return (
+      <ObsSwitchGate
+        targetSceneName={flow.target.scene.displayName}
+        programSceneName={programSceneName(console)}
+        status={status}
+        errorMessage={gateError}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     );
   }
 };

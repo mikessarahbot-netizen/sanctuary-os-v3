@@ -1,8 +1,11 @@
-import type {
-  ConfirmActionInput,
-  DispatchActionInput,
-  ObsDataSource,
-  RequestSwitchSceneInput
+import {
+  START_STREAM_ACTION_KIND,
+  STOP_STREAM_ACTION_KIND,
+  type ConfirmActionInput,
+  type DispatchActionInput,
+  type ObsDataSource,
+  type RequestStreamActionInput,
+  type RequestSwitchSceneInput
 } from "./client.js";
 import type {
   ObsActionIntent,
@@ -75,9 +78,20 @@ const buildScenes = (programSceneRef: string): readonly ObsScene[] =>
     tenantId: DEMO_OBS_TENANT_ID
   }));
 
-const buildStreamState = (timestamp: string): ObsStreamState => ({
+/**
+ * The stream status the demo boots with. The stream is LIVE on first load, so the
+ * surface offers a (gated) "Stop stream" first; stopping flips it to `inactive`,
+ * after which a (gated) "Go live" is offered — so both stream actions are
+ * demonstrable from a single demo session.
+ */
+const DEMO_STREAM_STATUS = "active";
+
+const buildStreamState = (
+  streamStatus: string,
+  timestamp: string
+): ObsStreamState => ({
   connectionProfileId: DEMO_OBS_CONNECTION_PROFILE_ID,
-  streamStatus: "active",
+  streamStatus,
   tenantId: DEMO_OBS_TENANT_ID,
   updatedAt: timestamp
 });
@@ -111,24 +125,33 @@ export const SAMPLE_OBS_CONSOLE: ObsConsole = {
   connection: DEMO_CONNECTION,
   recordingState: buildRecordingState(DEMO_SEED_TIMESTAMP),
   scenes: buildScenes(DEMO_PROGRAM_SCENE_REF),
-  streamState: buildStreamState(DEMO_SEED_TIMESTAMP)
+  streamState: buildStreamState(DEMO_STREAM_STATUS, DEMO_SEED_TIMESTAMP)
 };
 
 const sceneDisplayName = (obsSceneRef: string): string =>
   DEMO_SCENE_SEEDS.find((seed) => seed.obsSceneRef === obsSceneRef)?.displayName ??
   obsSceneRef;
 
+const streamActionLabel = (kind: string): string =>
+  kind === START_STREAM_ACTION_KIND ? "start_stream" : "stop_stream";
+
+const streamStatusForKind = (kind: string): string =>
+  kind === START_STREAM_ACTION_KIND ? "active" : "inactive";
+
 /**
  * A stateful in-memory OBS data source for demo mode that REPLAYS the real gate:
- * `requestSwitchScene` records a `requested` intent and does NOT move the program
- * scene; `confirmAction` advances it to `confirmed`; `dispatchAction` refuses
- * unless the intent is `confirmed`, and only then flips the program scene and
- * appends a `succeeded` audit line. This makes the demo gate behave exactly like
- * the live server (request alone never goes live), so screenshots and the
- * component tests exercise a faithful flow without an API.
+ * `requestSwitchScene` / `requestStreamAction` record a `requested` intent and do
+ * NOT change OBS; `confirmAction` advances it to `confirmed`; `dispatchAction`
+ * refuses unless the intent is `confirmed`, and only then applies the effect (a
+ * scene switch flips the program scene; a `start_stream` / `stop_stream` flips the
+ * coarse stream status active↔inactive) and appends a `succeeded` audit line. This
+ * makes the demo gate behave exactly like the live server (request alone never
+ * goes live), so screenshots and the component tests exercise a faithful flow
+ * without an API.
  */
 export const createSampleObsDataSource = (): ObsDataSource => {
   let programSceneRef = DEMO_PROGRAM_SCENE_REF;
+  let streamStatus = DEMO_STREAM_STATUS;
   const intents = new Map<string, ObsActionIntent>();
   const actionLog: ObsActionLogEntry[] = [...SAMPLE_OBS_CONSOLE.actionLog];
   let nextId = 1;
@@ -162,7 +185,7 @@ export const createSampleObsDataSource = (): ObsDataSource => {
     connection: { ...DEMO_CONNECTION },
     recordingState: buildRecordingState(now()),
     scenes: buildScenes(programSceneRef),
-    streamState: buildStreamState(now())
+    streamState: buildStreamState(streamStatus, now())
   });
 
   return {
@@ -187,6 +210,29 @@ export const createSampleObsDataSource = (): ObsDataSource => {
 
       return Promise.resolve({ ...intent });
     },
+    requestStreamAction: (
+      input: RequestStreamActionInput
+    ): Promise<ObsActionIntent> => {
+      // Mirrors `requestSwitchScene`: records a `requested` intent (no
+      // `targetSceneRef`) and does NOT touch the stream. Only a confirmed dispatch
+      // flips it.
+      const intent: ObsActionIntent = {
+        actionIntentId: `demo-intent-${String(nextId++)}`,
+        kind: input.kind,
+        origin: "human",
+        safeFailureMessage: null,
+        status: "requested",
+        targetSceneRef: null
+      };
+      intents.set(intent.actionIntentId, intent);
+      appendLog({
+        actionIntentRef: intent.actionIntentId,
+        outcome: "requested",
+        reason: `Requested ${streamActionLabel(input.kind)}.`
+      });
+
+      return Promise.resolve({ ...intent });
+    },
     confirmAction: (input: ConfirmActionInput): Promise<ObsActionIntent> => {
       const existing = intents.get(input.actionIntentId);
 
@@ -201,7 +247,7 @@ export const createSampleObsDataSource = (): ObsDataSource => {
       appendLog({
         actionIntentRef: confirmed.actionIntentId,
         outcome: "confirmed",
-        reason: `Confirmed switch_scene: ${input.reason}`
+        reason: `Confirmed ${existing.kind}: ${input.reason}`
       });
 
       return Promise.resolve({ ...confirmed });
@@ -222,8 +268,22 @@ export const createSampleObsDataSource = (): ObsDataSource => {
         );
       }
 
-      if (existing.targetSceneRef !== null) {
-        programSceneRef = existing.targetSceneRef;
+      // Apply the confirmed effect. A stream action flips the coarse stream status
+      // (mirrors the fake control port's startStream/stopStream); a scene switch
+      // moves the program scene. Both are only reached AFTER the confirm guard.
+      const isStreamAction =
+        existing.kind === START_STREAM_ACTION_KIND ||
+        existing.kind === STOP_STREAM_ACTION_KIND;
+      let dispatchReason: string;
+
+      if (isStreamAction) {
+        streamStatus = streamStatusForKind(existing.kind);
+        dispatchReason = `Dispatched ${existing.kind} successfully (stream ${streamStatus}).`;
+      } else {
+        if (existing.targetSceneRef !== null) {
+          programSceneRef = existing.targetSceneRef;
+        }
+        dispatchReason = `Dispatched switch_scene to ${sceneDisplayName(programSceneRef)} successfully.`;
       }
 
       const succeeded: ObsActionIntent = { ...existing, status: "succeeded" };
@@ -231,14 +291,14 @@ export const createSampleObsDataSource = (): ObsDataSource => {
       appendLog({
         actionIntentRef: succeeded.actionIntentId,
         outcome: "succeeded",
-        reason: `Dispatched switch_scene to ${sceneDisplayName(programSceneRef)} successfully.`
+        reason: dispatchReason
       });
 
       return Promise.resolve({ ...succeeded });
     },
-    // The demo source already flips the program scene in `dispatchAction`, so a
-    // catalog refresh is a no-op here; it exists to satisfy the live-parity gate
-    // flow (the live client re-reads the durable snapshot after a refresh).
+    // The demo source already applies the effect in `dispatchAction`, so a catalog
+    // refresh is a no-op here; it exists to satisfy the live-parity gate flow (the
+    // live client re-reads the durable snapshot after a refresh).
     refreshCatalog: (): Promise<void> => Promise.resolve()
   };
 };

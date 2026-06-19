@@ -126,4 +126,76 @@ describe("createDemoObsDataSource", () => {
       afterReject.scenes.find((scene) => scene.isCurrentProgramScene)?.displayName
     ).toBe("Worship");
   });
+
+  it("boots with the stream live (active)", async () => {
+    const source = createDemoObsDataSource();
+    const console = await source.loadConsole();
+
+    expect(console.streamState?.streamStatus).toBe("active");
+  });
+
+  it("replays the stream gate: a stop request does not change the stream status", async () => {
+    const source = createDemoObsDataSource();
+    const intent = await source.requestStreamAction({
+      connectionProfileId: "obs-connection-sanctuary",
+      kind: "stop_stream",
+      requestedByRef: "demo-web-operator"
+    });
+
+    expect(intent.status).toBe("requested");
+    expect(intent.kind).toBe("stop_stream");
+    expect(intent.targetSceneRef).toBeNull();
+
+    const afterRequest = await source.loadConsole();
+    expect(afterRequest.streamState?.streamStatus).toBe("active");
+  });
+
+  it("replays the stream gate: confirm then dispatch flips active -> inactive -> active", async () => {
+    const source = createDemoObsDataSource();
+
+    // Stop: confirmed dispatch flips the stream off.
+    const stop = await source.requestStreamAction({
+      connectionProfileId: "obs-connection-sanctuary",
+      kind: "stop_stream",
+      requestedByRef: "demo-web-operator"
+    });
+    await source.confirmAction({
+      actionIntentId: stop.actionIntentId,
+      confirmedByRef: "demo-web-operator",
+      reason: "Service has ended."
+    });
+    const stopped = await source.dispatchAction({ actionIntentId: stop.actionIntentId });
+    expect(stopped.status).toBe("succeeded");
+    expect((await source.loadConsole()).streamState?.streamStatus).toBe("inactive");
+
+    // Start: confirmed dispatch flips the stream back on.
+    const start = await source.requestStreamAction({
+      connectionProfileId: "obs-connection-sanctuary",
+      kind: "start_stream",
+      requestedByRef: "demo-web-operator"
+    });
+    await source.confirmAction({
+      actionIntentId: start.actionIntentId,
+      confirmedByRef: "demo-web-operator",
+      reason: "Service is starting."
+    });
+    const started = await source.dispatchAction({ actionIntentId: start.actionIntentId });
+    expect(started.status).toBe("succeeded");
+    expect((await source.loadConsole()).streamState?.streamStatus).toBe("active");
+  });
+
+  it("replays the stream gate: dispatch without confirm rejects and does not change the stream", async () => {
+    const source = createDemoObsDataSource();
+    const requested = await source.requestStreamAction({
+      connectionProfileId: "obs-connection-sanctuary",
+      kind: "stop_stream",
+      requestedByRef: "demo-web-operator"
+    });
+
+    await expect(
+      source.dispatchAction({ actionIntentId: requested.actionIntentId })
+    ).rejects.toThrow(/confirmed/);
+
+    expect((await source.loadConsole()).streamState?.streamStatus).toBe("active");
+  });
 });

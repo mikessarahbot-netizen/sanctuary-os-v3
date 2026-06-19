@@ -33,6 +33,11 @@ const spyOnDataSource = (
 
         return inner.requestSwitchScene(input);
       },
+      requestStreamAction: (input): Promise<ObsActionIntent> => {
+        calls.push("requestStreamAction");
+
+        return inner.requestStreamAction(input);
+      },
       confirmAction: (input): Promise<ObsActionIntent> => {
         calls.push("confirmAction");
 
@@ -79,6 +84,27 @@ const getProgramSceneName = (): string => {
   return programRow.querySelector(".obs-scene-row__name")?.textContent ?? "";
 };
 
+/**
+ * The gated stream control button in the status panel. Its label is "Stop stream"
+ * when the stream is live and "Go live" when it is off, so the test reads whichever
+ * is present.
+ */
+const getStreamControlButton = (): HTMLElement => {
+  const control = screen.getByLabelText("Live stream control");
+
+  return within(control).getByRole("button");
+};
+
+/**
+ * The coarse stream status label rendered in the status panel ("Streaming" /
+ * "Stream off" / "Stream unknown").
+ */
+const getStreamStatusLabel = (): string => {
+  const state = screen.getByLabelText("Live output state");
+
+  return state.querySelector(".obs-state-badge")?.textContent ?? "";
+};
+
 describe("ObsScreen read view", () => {
   it("renders the scenes with the program scene highlighted and the demo badge", async () => {
     render(<ObsScreen dataSource={createSampleObsDataSource()} mode="demo" />);
@@ -120,6 +146,7 @@ describe("ObsScreen read view", () => {
     const failing: ObsDataSource = {
       loadConsole: (): Promise<never> => Promise.reject(new Error("OBS unreachable")),
       requestSwitchScene: (): Promise<never> => Promise.reject(new Error("unused")),
+      requestStreamAction: (): Promise<never> => Promise.reject(new Error("unused")),
       confirmAction: (): Promise<never> => Promise.reject(new Error("unused")),
       dispatchAction: (): Promise<never> => Promise.reject(new Error("unused")),
       refreshCatalog: (): Promise<never> => Promise.reject(new Error("unused"))
@@ -238,6 +265,7 @@ describe("ObsScreen human-confirm gate", () => {
     const source: ObsDataSource = {
       loadConsole: (): Promise<ObsConsole> => Promise.resolve(SAMPLE_OBS_CONSOLE),
       requestSwitchScene: (): Promise<ObsActionIntent> => Promise.resolve(requested),
+      requestStreamAction: (): Promise<ObsActionIntent> => Promise.resolve(requested),
       confirmAction: (): Promise<ObsActionIntent> =>
         Promise.resolve({ ...requested, status: "confirmed" }),
       dispatchAction,
@@ -285,6 +313,220 @@ describe("ObsScreen human-confirm gate", () => {
 
     // INVARIANT: every dispatchAction is preceded by a confirmAction earlier in
     // the call log — there is no dispatch that was not gated by a confirm.
+    calls.forEach((call, index) => {
+      if (call === "dispatchAction") {
+        expect(calls.slice(0, index)).toContain("confirmAction");
+      }
+    });
+  });
+});
+
+describe("ObsScreen stream-control gate", () => {
+  it("the demo boots live: the control offers a (gated) Stop stream", async () => {
+    render(<ObsScreen dataSource={createSampleObsDataSource()} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Streaming")).toBeInTheDocument();
+    });
+
+    expect(getStreamControlButton()).toHaveTextContent("Stop stream");
+  });
+
+  it("requesting a stream stop shows the confirm step and does NOT dispatch", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Streaming")).toBeInTheDocument();
+    });
+
+    await user.click(getStreamControlButton());
+
+    // The loud stream confirm step appears...
+    await waitFor(() => {
+      expect(
+        screen.getByRole("alertdialog", { name: "Confirm stream change" })
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/GOES OFF-AIR/i)).toBeInTheDocument();
+
+    // ...the stream request ran, but NOTHING was confirmed or dispatched.
+    expect(calls).toContain("requestStreamAction");
+    expect(calls).not.toContain("confirmAction");
+    expect(calls).not.toContain("dispatchAction");
+
+    // The stream is still live — nothing has gone off-air.
+    expect(getStreamStatusLabel()).toBe("Streaming");
+  });
+
+  it("Confirm calls confirm THEN dispatch and the stream status flips to off", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Streaming")).toBeInTheDocument();
+    });
+
+    await user.click(getStreamControlButton());
+
+    const reason = await screen.findByLabelText(/Reason/);
+    await user.type(reason, "Service has ended");
+    await user.click(screen.getByRole("button", { name: "Confirm and STOP STREAM" }));
+
+    // The stream goes off-air (the dispatched result, after reload).
+    await waitFor(() => {
+      expect(getStreamStatusLabel()).toBe("Stream off");
+    });
+
+    // confirm ran before dispatch, and dispatch ran exactly once.
+    const confirmIndex = calls.indexOf("confirmAction");
+    const dispatchIndex = calls.indexOf("dispatchAction");
+    expect(confirmIndex).toBeGreaterThanOrEqual(0);
+    expect(dispatchIndex).toBeGreaterThan(confirmIndex);
+    expect(calls.filter((call) => call === "dispatchAction")).toHaveLength(1);
+
+    // The gate closed, and the control now offers Go live (the inverse direction).
+    expect(
+      screen.queryByRole("alertdialog", { name: "Confirm stream change" })
+    ).toBeNull();
+    expect(getStreamControlButton()).toHaveTextContent("Go live");
+  });
+
+  it("gates a stream START too: after stopping, a confirmed Go live flips the status back to live", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Streaming")).toBeInTheDocument();
+    });
+
+    // Stop first so the control flips to "Go live".
+    await user.click(getStreamControlButton());
+    await user.type(await screen.findByLabelText(/Reason/), "Service has ended");
+    await user.click(screen.getByRole("button", { name: "Confirm and STOP STREAM" }));
+    await waitFor(() => {
+      expect(getStreamStatusLabel()).toBe("Stream off");
+    });
+
+    // Now request a START — the same gate, with the GO LIVE copy.
+    await user.click(getStreamControlButton());
+    await waitFor(() => {
+      expect(
+        screen.getByRole("alertdialog", { name: "Confirm stream change" })
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText(/GOES LIVE/i)).toBeInTheDocument();
+
+    await user.type(await screen.findByLabelText(/Reason/), "Service is starting");
+    await user.click(screen.getByRole("button", { name: "Confirm and GO LIVE" }));
+
+    // The stream goes live again.
+    await waitFor(() => {
+      expect(getStreamStatusLabel()).toBe("Streaming");
+    });
+
+    // Two stream dispatches happened, each preceded by a confirm.
+    expect(calls.filter((call) => call === "dispatchAction")).toHaveLength(2);
+    calls.forEach((call, index) => {
+      if (call === "dispatchAction") {
+        expect(calls.slice(0, index)).toContain("confirmAction");
+      }
+    });
+  });
+
+  it("Cancel aborts the stream change with no confirm and no dispatch", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Streaming")).toBeInTheDocument();
+    });
+
+    await user.click(getStreamControlButton());
+    await screen.findByRole("alertdialog", { name: "Confirm stream change" });
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // The gate closed, nothing confirmed/dispatched, stream still live.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("alertdialog", { name: "Confirm stream change" })
+      ).toBeNull();
+    });
+    expect(calls).not.toContain("confirmAction");
+    expect(calls).not.toContain("dispatchAction");
+    expect(getStreamStatusLabel()).toBe("Streaming");
+  });
+
+  it("surfaces an error from the stream dispatch and keeps the stream status unchanged", async () => {
+    const user = userEvent.setup();
+    // request/confirm succeed but dispatch rejects (the server gate or OBS refused).
+    const requested: ObsActionIntent = {
+      actionIntentId: "stream_1",
+      kind: "stop_stream",
+      origin: "human",
+      safeFailureMessage: null,
+      status: "requested",
+      targetSceneRef: null
+    };
+    const dispatchAction = vi.fn<ObsDataSource["dispatchAction"]>(() =>
+      Promise.reject(new Error("OBS rejected the stream action."))
+    );
+    const source: ObsDataSource = {
+      loadConsole: (): Promise<ObsConsole> => Promise.resolve(SAMPLE_OBS_CONSOLE),
+      requestSwitchScene: (): Promise<ObsActionIntent> => Promise.resolve(requested),
+      requestStreamAction: (): Promise<ObsActionIntent> => Promise.resolve(requested),
+      confirmAction: (): Promise<ObsActionIntent> =>
+        Promise.resolve({ ...requested, status: "confirmed" }),
+      dispatchAction,
+      refreshCatalog: (): Promise<void> => Promise.resolve()
+    };
+
+    render(<ObsScreen dataSource={source} mode="live" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Streaming")).toBeInTheDocument();
+    });
+
+    await user.click(getStreamControlButton());
+    await user.type(await screen.findByLabelText(/Reason/), "Stop now");
+    await user.click(screen.getByRole("button", { name: "Confirm and STOP STREAM" }));
+
+    // The error surfaces in the stream gate, which stays open for a retry/cancel.
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "OBS rejected the stream action."
+      );
+    });
+    expect(dispatchAction).toHaveBeenCalledTimes(1);
+    // The stream is still live (the dispatch never flipped it).
+    expect(getStreamStatusLabel()).toBe("Streaming");
+  });
+
+  it("never dispatches a stream action without a confirm (call-order invariant)", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Streaming")).toBeInTheDocument();
+    });
+
+    await user.click(getStreamControlButton());
+    await user.type(await screen.findByLabelText(/Reason/), "Service has ended");
+    await user.click(screen.getByRole("button", { name: "Confirm and STOP STREAM" }));
+
+    await waitFor(() => {
+      expect(getStreamStatusLabel()).toBe("Stream off");
+    });
+
+    // INVARIANT: every dispatchAction is preceded by a confirmAction (no ungated
+    // stream dispatch), and the request that opened the gate was a stream request.
+    expect(calls).toContain("requestStreamAction");
     calls.forEach((call, index) => {
       if (call === "dispatchAction") {
         expect(calls.slice(0, index)).toContain("confirmAction");

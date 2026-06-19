@@ -52,6 +52,24 @@ export const DEFAULT_AUTH_TOKEN = "demo-web-operator";
 export const SWITCH_SCENE_ACTION_KIND = "switch_scene";
 
 /**
+ * The SDL enum values for the two stream actions — going LIVE and going OFF-AIR.
+ * Same hyphenated-domain (`start-stream` / `stop-stream`) → underscored-SDL
+ * mapping as the scene switch; the client sends the SDL literal and these carry no
+ * `targetSceneRef` (a stream action targets the whole output, not a scene).
+ */
+export const START_STREAM_ACTION_KIND = "start_stream";
+export const STOP_STREAM_ACTION_KIND = "stop_stream";
+
+/**
+ * The SDL action `kind` for the two stream actions. Used to type the stream-gate
+ * flow so a `start_stream` and a `stop_stream` are distinguished without strings
+ * leaking into the surface.
+ */
+export type StreamActionKind =
+  | typeof START_STREAM_ACTION_KIND
+  | typeof STOP_STREAM_ACTION_KIND;
+
+/**
  * The action `origin` for an operator-initiated switch (as opposed to an
  * `ai_suggested` nudge). Every action this surface starts is human-originated.
  */
@@ -184,6 +202,18 @@ export interface RequestSwitchSceneInput {
   readonly targetSceneRef: string;
 }
 
+/**
+ * Local mirror of `RequestObsActionInput` for a stream action (`start_stream` /
+ * `stop_stream`). Unlike a scene switch there is no `targetSceneRef` — the action
+ * targets the whole live output — so the input carries only the connection, the
+ * actor, and which of the two stream kinds is requested.
+ */
+export interface RequestStreamActionInput {
+  readonly connectionProfileId: string;
+  readonly requestedByRef: string;
+  readonly kind: StreamActionKind;
+}
+
 export interface ConfirmActionInput {
   readonly actionIntentId: string;
   readonly confirmedByRef: string;
@@ -260,6 +290,16 @@ export interface ObsDataSource {
   readonly requestSwitchScene: (
     input: RequestSwitchSceneInput
   ) => Promise<ObsActionIntent>;
+  /**
+   * Request a `start_stream` / `stop_stream` action — the highest-stakes operator
+   * action (going live / off-air to the congregation). Proposes a `requested`
+   * intent and NEVER touches OBS, exactly like `requestSwitchScene`; the confirm /
+   * dispatch / refreshCatalog steps that follow are identical (the only difference
+   * is the action `kind` and the absent `targetSceneRef`).
+   */
+  readonly requestStreamAction: (
+    input: RequestStreamActionInput
+  ) => Promise<ObsActionIntent>;
   readonly confirmAction: (input: ConfirmActionInput) => Promise<ObsActionIntent>;
   readonly dispatchAction: (input: DispatchActionInput) => Promise<ObsActionIntent>;
   readonly refreshCatalog: (connectionProfileId: string) => Promise<void>;
@@ -327,6 +367,27 @@ export const createObsClient = (options: ObsClientOptions = {}): ObsDataSource =
             origin: HUMAN_ACTION_ORIGIN,
             requestedByRef: input.requestedByRef,
             targetSceneRef: input.targetSceneRef
+          }
+        }
+      );
+
+      return data.requestObsAction;
+    },
+    requestStreamAction: async (
+      input: RequestStreamActionInput
+    ): Promise<ObsActionIntent> => {
+      // Same request mutation as a scene switch — only `kind` differs and there is
+      // no `targetSceneRef` (a stream action targets the whole live output). This
+      // proposes a `requested` intent and never reaches OBS.
+      const data = await executeQuery<RequestActionData>(
+        options,
+        REQUEST_ACTION_MUTATION,
+        {
+          input: {
+            connectionProfileId: input.connectionProfileId,
+            kind: input.kind,
+            origin: HUMAN_ACTION_ORIGIN,
+            requestedByRef: input.requestedByRef
           }
         }
       );
