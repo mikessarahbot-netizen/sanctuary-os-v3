@@ -27,7 +27,9 @@ import {
 } from "../services/play/composition.js";
 import { createInMemoryPresenterServicesAdapter } from "../services/presenter/in-memory.js";
 import type { CommunityAiDraftPort } from "../services/community/ai-draft.js";
+import type { ObsAiSuggestionPort } from "../services/obs/ai-suggest.js";
 import { resolveCommunityAiDraftPort } from "./community-ai.js";
+import { resolveObsAiSuggestionPort } from "./obs-ai.js";
 import {
   buildDemoSchema,
   createDemoClock,
@@ -167,6 +169,13 @@ export interface CreatePersistentDemoCompositionDependencies {
    * test calls this with no dependency, so it always runs the keyless fake path.
    */
   readonly communityAiDraftPort?: CommunityAiDraftPort;
+  /**
+   * The OBS AI-suggestion port to inject. Defaults to NONE (the keyless fake path),
+   * exactly like the in-memory demo. `main()` resolves the real Anthropic port from
+   * `ANTHROPIC_API_KEY` (after dotenv) and passes it here; the durability test calls
+   * this with no dependency, so it always runs the keyless fake/none path.
+   */
+  readonly obsAiSuggestionPort?: ObsAiSuggestionPort;
   /** Injectable DB opener so a test can pass a real `DatabaseSync` it owns. */
   readonly openDatabase?: (path: string) => Promise<NodeSqliteDatabaseLike>;
 }
@@ -245,9 +254,22 @@ export const createPersistentDemoComposition = async (
       scenes: DEMO_OBS_SCENES.map((scene) => ({ ...scene })),
       streamStatus: "active"
     });
+    // The OBS AI-suggestion port is injected ONLY when supplied (real Anthropic when
+    // `main()` found a key); absent otherwise — the keyless fake/none path, the same
+    // default the durability test runs. The secret-free projection is built the same
+    // either way.
     const obsSelection = createObsPersistenceSelection(
       { mode: "sql" },
-      { sql: { clock, controlPort: obsControlPort.port, executor } }
+      {
+        sql: {
+          clock,
+          controlPort: obsControlPort.port,
+          executor,
+          ...(dependencies.obsAiSuggestionPort !== undefined
+            ? { aiSuggestionPort: dependencies.obsAiSuggestionPort }
+            : {})
+        }
+      }
     );
 
     // Presenter stays in-memory in this variant (see the file header: the
@@ -348,12 +370,13 @@ const main = async (): Promise<void> => {
   const here = dirname(fileURLToPath(import.meta.url));
   config({ path: resolvePath(here, "..", "..", ".env") });
   const communityAiDraftPort = resolveCommunityAiDraftPort();
+  const obsAiSuggestionPort = resolveObsAiSuggestionPort();
 
   const databasePath = resolveDemoDatabasePath();
-  const { composition, server } = await createPersistentDemoServer(
-    databasePath,
-    communityAiDraftPort !== undefined ? { communityAiDraftPort } : {}
-  );
+  const { composition, server } = await createPersistentDemoServer(databasePath, {
+    ...(communityAiDraftPort !== undefined ? { communityAiDraftPort } : {}),
+    ...(obsAiSuggestionPort !== undefined ? { obsAiSuggestionPort } : {})
+  });
 
   const port = resolvePort(process.env["PORT"]);
   const host = "127.0.0.1";
@@ -368,6 +391,13 @@ const main = async (): Promise<void> => {
         communityAiDraftPort !== undefined
           ? "live Anthropic (ANTHROPIC_API_KEY detected)"
           : "disabled (no ANTHROPIC_API_KEY) — demo uses the fake draft"
+      }`
+    );
+    console.log(
+      `OBS AI suggest: ${
+        obsAiSuggestionPort !== undefined
+          ? "live Anthropic (ANTHROPIC_API_KEY detected)"
+          : "disabled (no ANTHROPIC_API_KEY) — demo uses the fake suggestion"
       }`
     );
     console.log(

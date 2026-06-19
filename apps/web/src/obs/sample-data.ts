@@ -5,7 +5,8 @@ import {
   type DispatchActionInput,
   type ObsDataSource,
   type RequestStreamActionInput,
-  type RequestSwitchSceneInput
+  type RequestSwitchSceneInput,
+  type SuggestWithAiInput
 } from "./client.js";
 import type {
   ObsActionIntent,
@@ -66,6 +67,15 @@ const DEMO_SCENE_SEEDS: readonly DemoSceneSeed[] = [
 ];
 
 const DEMO_PROGRAM_SCENE_REF = "scene-worship";
+
+/**
+ * The scene the demo AI "suggestion" proposes switching to: Sermon (a non-program
+ * scene, so the suggested switch is meaningful). The canned demo suggestion mirrors
+ * what the real `claude-opus-4-8` adapter would return for an operator intent like
+ * "the pastor is about to preach" — a `switch-scene` to this ref. It is returned as
+ * a `requested`, `ai_suggested` intent that still must pass the human-confirm gate.
+ */
+const DEMO_AI_SUGGESTED_SCENE_REF = "scene-sermon";
 
 const buildScenes = (programSceneRef: string): readonly ObsScene[] =>
   DEMO_SCENE_SEEDS.map((seed, index) => ({
@@ -295,6 +305,33 @@ export const createSampleObsDataSource = (): ObsDataSource => {
       });
 
       return Promise.resolve({ ...succeeded });
+    },
+    suggestWithAi: (input: SuggestWithAiInput): Promise<ObsActionIntent> => {
+      // Demo mode does NOT hit the network: it returns a CANNED `ai_suggested`
+      // switch-scene intent and registers it in the SAME `intents` map a manual
+      // switch uses, so the returned suggestion flows through the EXACT same
+      // human-confirm gate (confirmAction → dispatchAction). It is born `requested`
+      // and unconfirmed — `dispatchAction` still refuses it until a human confirms.
+      // The live source calls the real claude-opus-4-8 adapter instead (when a key is
+      // set). `input.operatorIntent` is accepted but, like the live projection, is a
+      // non-PII hint only; the canned suggestion does not echo it.
+      void input.operatorIntent;
+      const intent: ObsActionIntent = {
+        actionIntentId: `demo-intent-${String(nextId++)}`,
+        kind: "switch_scene",
+        origin: "ai_suggested",
+        safeFailureMessage: null,
+        status: "requested",
+        targetSceneRef: DEMO_AI_SUGGESTED_SCENE_REF
+      };
+      intents.set(intent.actionIntentId, intent);
+      appendLog({
+        actionIntentRef: intent.actionIntentId,
+        outcome: "requested",
+        reason: `AI suggested switch_scene to ${sceneDisplayName(DEMO_AI_SUGGESTED_SCENE_REF)} (needs human confirm).`
+      });
+
+      return Promise.resolve({ ...intent });
     },
     // The demo source already applies the effect in `dispatchAction`, so a catalog
     // refresh is a no-op here; it exists to satisfy the live-parity gate flow (the

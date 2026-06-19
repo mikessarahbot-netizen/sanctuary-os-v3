@@ -48,6 +48,11 @@ const spyOnDataSource = (
 
         return inner.dispatchAction(input);
       },
+      suggestWithAi: (input): Promise<ObsActionIntent> => {
+        calls.push("suggestWithAi");
+
+        return inner.suggestWithAi(input);
+      },
       refreshCatalog: (connectionProfileId: string): Promise<void> => {
         calls.push("refreshCatalog");
 
@@ -149,6 +154,7 @@ describe("ObsScreen read view", () => {
       requestStreamAction: (): Promise<never> => Promise.reject(new Error("unused")),
       confirmAction: (): Promise<never> => Promise.reject(new Error("unused")),
       dispatchAction: (): Promise<never> => Promise.reject(new Error("unused")),
+      suggestWithAi: (): Promise<never> => Promise.reject(new Error("unused")),
       refreshCatalog: (): Promise<never> => Promise.reject(new Error("unused"))
     };
 
@@ -269,6 +275,7 @@ describe("ObsScreen human-confirm gate", () => {
       confirmAction: (): Promise<ObsActionIntent> =>
         Promise.resolve({ ...requested, status: "confirmed" }),
       dispatchAction,
+      suggestWithAi: (): Promise<ObsActionIntent> => Promise.resolve(requested),
       refreshCatalog: (): Promise<void> => Promise.resolve()
     };
 
@@ -483,6 +490,7 @@ describe("ObsScreen stream-control gate", () => {
       confirmAction: (): Promise<ObsActionIntent> =>
         Promise.resolve({ ...requested, status: "confirmed" }),
       dispatchAction,
+      suggestWithAi: (): Promise<ObsActionIntent> => Promise.resolve(requested),
       refreshCatalog: (): Promise<void> => Promise.resolve()
     };
 
@@ -532,5 +540,169 @@ describe("ObsScreen stream-control gate", () => {
         expect(calls.slice(0, index)).toContain("confirmAction");
       }
     });
+  });
+});
+
+/**
+ * Type the operator intent and click "AI suggest" in the status panel. Returns
+ * nothing; the gate appears asynchronously.
+ */
+const requestAiSuggestion = async (
+  user: ReturnType<typeof userEvent.setup>,
+  intent = "The pastor is walking up to preach"
+): Promise<void> => {
+  const panel = screen.getByLabelText("AI suggest");
+  await user.type(within(panel).getByLabelText(/What is happening now/), intent);
+  await user.click(within(panel).getByRole("button", { name: "AI suggest" }));
+};
+
+describe("ObsScreen AI-suggest gate (AI suggests, a human confirms)", () => {
+  it("surfaces the AI-suggested action and does NOT dispatch until the explicit Confirm", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Sermon")).toBeInTheDocument();
+    });
+
+    await requestAiSuggestion(user);
+
+    // The AI gate appears, showing the suggested action + the "a human still
+    // confirms" framing...
+    const gate = await screen.findByRole("alertdialog", {
+      name: "Confirm AI-suggested action"
+    });
+    expect(
+      within(gate).getByText("AI-suggested · a human still confirms")
+    ).toBeInTheDocument();
+    // ...and names the concrete action the demo suggestion proposed (switch to the
+    // Sermon scene).
+    expect(within(gate).getByText(/Switch program scene to Sermon/)).toBeInTheDocument();
+
+    // THE SAFETY ASSERTION: the suggestion was requested, but NOTHING was confirmed
+    // or dispatched. The AI cannot go live.
+    expect(calls).toContain("suggestWithAi");
+    expect(calls).not.toContain("confirmAction");
+    expect(calls).not.toContain("dispatchAction");
+
+    // The program scene is unchanged — still Worship.
+    expect(getProgramSceneName()).toBe("Worship");
+  });
+
+  it("Confirm runs confirm THEN dispatch for the ai-suggested intent and the program scene moves", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Sermon")).toBeInTheDocument();
+    });
+
+    await requestAiSuggestion(user);
+    await screen.findByRole("alertdialog", { name: "Confirm AI-suggested action" });
+
+    await user.type(await screen.findByLabelText(/Reason/), "Reviewed; pastor is up");
+    await user.click(screen.getByRole("button", { name: "Confirm and go live" }));
+
+    // The program scene moves to the AI-suggested Sermon — but ONLY after the human
+    // confirmed + the same dispatch path ran.
+    await waitFor(() => {
+      expect(getProgramSceneName()).toBe("Sermon");
+    });
+
+    // confirm ran before dispatch, and dispatch ran exactly once — the same gate as
+    // a manual switch, for an AI-originated intent.
+    const confirmIndex = calls.indexOf("confirmAction");
+    const dispatchIndex = calls.indexOf("dispatchAction");
+    expect(confirmIndex).toBeGreaterThanOrEqual(0);
+    expect(dispatchIndex).toBeGreaterThan(confirmIndex);
+    expect(calls.filter((call) => call === "dispatchAction")).toHaveLength(1);
+
+    // The gate closed.
+    expect(
+      screen.queryByRole("alertdialog", { name: "Confirm AI-suggested action" })
+    ).toBeNull();
+  });
+
+  it("never dispatches an ai-suggested intent without a confirm (call-order invariant)", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Sermon")).toBeInTheDocument();
+    });
+
+    await requestAiSuggestion(user);
+    await screen.findByRole("alertdialog", { name: "Confirm AI-suggested action" });
+    await user.type(await screen.findByLabelText(/Reason/), "Confirmed");
+    await user.click(screen.getByRole("button", { name: "Confirm and go live" }));
+
+    await waitFor(() => {
+      expect(getProgramSceneName()).toBe("Sermon");
+    });
+
+    // INVARIANT: the suggestion was requested via suggestWithAi (NOT a manual
+    // requestSwitchScene), and every dispatchAction is preceded by a confirmAction.
+    expect(calls).toContain("suggestWithAi");
+    expect(calls).not.toContain("requestSwitchScene");
+    calls.forEach((call, index) => {
+      if (call === "dispatchAction") {
+        expect(calls.slice(0, index)).toContain("confirmAction");
+      }
+    });
+  });
+
+  it("Cancel aborts the AI-suggested action with no confirm and no dispatch", async () => {
+    const user = userEvent.setup();
+    const { source, calls } = spyOnDataSource(createSampleObsDataSource());
+    render(<ObsScreen dataSource={source} mode="demo" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Sermon")).toBeInTheDocument();
+    });
+
+    await requestAiSuggestion(user);
+    await screen.findByRole("alertdialog", { name: "Confirm AI-suggested action" });
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("alertdialog", { name: "Confirm AI-suggested action" })
+      ).toBeNull();
+    });
+    expect(calls).toContain("suggestWithAi");
+    expect(calls).not.toContain("confirmAction");
+    expect(calls).not.toContain("dispatchAction");
+    expect(getProgramSceneName()).toBe("Worship");
+  });
+
+  it("surfaces a suggestion error (no AI provider) in the gate with nothing to dispatch", async () => {
+    const user = userEvent.setup();
+    // A source whose suggestWithAi rejects (e.g. the server has no AI provider
+    // configured, or the model produced no usable suggestion).
+    const { source, calls } = spyOnDataSource({
+      ...createSampleObsDataSource(),
+      suggestWithAi: (): Promise<never> =>
+        Promise.reject(new Error("The OBS AI suggestion provider is not configured."))
+    });
+    render(<ObsScreen dataSource={source} mode="live" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Sermon")).toBeInTheDocument();
+    });
+
+    await requestAiSuggestion(user);
+
+    // The error surfaces; there is no intent, so no confirm/dispatch is possible.
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "The OBS AI suggestion provider is not configured."
+      );
+    });
+    expect(calls).not.toContain("confirmAction");
+    expect(calls).not.toContain("dispatchAction");
   });
 });

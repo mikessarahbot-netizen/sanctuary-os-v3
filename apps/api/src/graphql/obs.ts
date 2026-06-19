@@ -17,6 +17,7 @@ import {
   RemoveObsConnectionProfileCommandSchema,
   RequestObsActionCommandSchema,
   SaveObsConnectionProfileCommandSchema,
+  SuggestObsActionWithAiCommandSchema,
   type ObsActionIntent,
   type ObsActionLogEntry,
   type ObsCatalogSnapshot,
@@ -45,8 +46,13 @@ const NonEmptyStringSchema = z.string().min(1);
  * intent through the injected `ObsControlPort` and returns the updated intent (it
  * is the only operation that calls a port mutate method, and only when the intent
  * is `confirmed`); `cancelObsAction` terminates a requested/confirmed intent with
- * no port call. Each resolver stays thin — it parses input + context and delegates
- * the gate to the service.
+ * no port call. `suggestObsActionWithAi` is the AI-assist surface (mirroring
+ * Community+'s `draftCommunicationWithAi`): the service builds the secret-free +
+ * PII-free projection, calls the injected `ObsAiSuggestionPort`, and returns a
+ * `requested`, `origin = "ai-suggested"` `ObsActionIntent` bound by the SAME
+ * confirm→dispatch gate — AI may suggest, never confirm, never dispatch, never go
+ * live. Each resolver stays thin — it parses input + context and delegates the gate
+ * (and the AI seam) to the service.
  *
  * Safety posture (this is the system's strongest "automation must fail
  * gracefully" surface — it controls live, public-facing output): **no type
@@ -282,6 +288,19 @@ export const obsGraphqlTypeDefs = /* GraphQL */ `
     reason: String!
   }
 
+  input ObsAiPolicyProfileInput {
+    humanReviewRequiredFor: [String!]!
+    piiSharingAllowed: Boolean!
+  }
+
+  input SuggestObsActionWithAiInput {
+    aiPolicyProfile: ObsAiPolicyProfileInput
+    connectionProfileId: ID!
+    operatorIntent: String
+    requestedByRef: ID!
+    serviceSegmentLabels: [String!]
+  }
+
   extend type Query {
     obsConnectionProfiles(
       filter: ObsConnectionProfilesFilterInput
@@ -306,6 +325,9 @@ export const obsGraphqlTypeDefs = /* GraphQL */ `
     confirmObsAction(input: ConfirmObsActionInput!): ObsActionIntent!
     dispatchObsAction(input: DispatchObsActionInput!): ObsActionIntent!
     cancelObsAction(input: CancelObsActionInput!): ObsActionIntent!
+    suggestObsActionWithAi(
+      input: SuggestObsActionWithAiInput!
+    ): ObsActionIntent!
   }
 `;
 
@@ -349,6 +371,7 @@ export interface ObsMutationResolvers {
   readonly confirmObsAction: GraphqlResolver<ObsActionIntent>;
   readonly dispatchObsAction: GraphqlResolver<ObsActionIntent>;
   readonly cancelObsAction: GraphqlResolver<ObsActionIntent>;
+  readonly suggestObsActionWithAi: GraphqlResolver<ObsActionIntent>;
 }
 
 export interface ObsGraphqlResolvers {
@@ -475,6 +498,52 @@ export const createObsGraphqlResolvers = (
         CancelObsActionCommandSchema.parse({
           actor: graphqlContext.actor,
           input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    suggestObsActionWithAi: async (
+      _parent,
+      args,
+      context
+    ): Promise<ObsActionIntent> => {
+      const graphqlContext = parseContext(context);
+      const input = parseInputObject(args);
+
+      // AI SUGGESTS, A HUMAN CONFIRMS. The service builds the secret-free + PII-free
+      // projection, calls the injected `ObsAiSuggestionPort` (the real claude-opus-4-8
+      // adapter when a key is wired; a fake in tests), Zod-validates the suggestion,
+      // and returns a `requested`, `origin = "ai-suggested"` `ObsActionIntent` — the
+      // SAME intent type the other action mutations return, bound by the same
+      // confirm→dispatch gate. It can never self-advance: only `confirmObsAction`
+      // then `dispatchObsAction` (driven by a human) can take it live.
+      //
+      // The optional `aiPolicyProfile` and the nullable `[String!]` segment-label
+      // list are conditionally spread so an absent (or null) GraphQL value never
+      // reaches the `.strict()` command schema as `null` — it stays absent and the
+      // schema default ([]) applies. `operatorIntent` is likewise only forwarded
+      // when present and non-null. No host/port/password/token/stream key and no
+      // `connectionRef` is accepted on this surface — only the opaque profile id.
+      return dependencies.obsCommandService.suggestObsActionWithAi(
+        SuggestObsActionWithAiCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: {
+            connectionProfileId: input["connectionProfileId"],
+            requestedByRef: input["requestedByRef"],
+            ...(input["aiPolicyProfile"] !== undefined &&
+            input["aiPolicyProfile"] !== null
+              ? { aiPolicyProfile: input["aiPolicyProfile"] }
+              : {}),
+            ...(input["operatorIntent"] !== undefined &&
+            input["operatorIntent"] !== null
+              ? { operatorIntent: input["operatorIntent"] }
+              : {}),
+            ...(input["serviceSegmentLabels"] !== undefined &&
+            input["serviceSegmentLabels"] !== null
+              ? { serviceSegmentLabels: input["serviceSegmentLabels"] }
+              : {})
+          },
           requestId: graphqlContext.requestId
         })
       );
@@ -648,6 +717,9 @@ const parseContext = (context: ObsGraphqlContext): ObsGraphqlContext =>
   ObsGraphqlContextSchema.parse(context);
 
 const parseInput = (args: unknown): unknown => GraphqlInputArgsSchema.parse(args).input;
+
+const parseInputObject = (args: unknown): Record<string, unknown> =>
+  z.record(z.unknown()).parse(GraphqlInputArgsSchema.parse(args).input);
 
 const parseFilterArgs = (args: unknown): { filter?: unknown } =>
   z.object({ filter: z.unknown().optional() }).strict().parse(args);

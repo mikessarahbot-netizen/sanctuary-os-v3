@@ -52,6 +52,18 @@ const requestedIntent: ObsActionIntent = ObsActionIntentSchema.parse({
   updatedAt: timestamp
 });
 
+/**
+ * A `requested`, `origin = "ai-suggested"` intent — the exact shape
+ * `suggestObsActionWithAi` returns (the service turned a validated AI suggestion
+ * into a requested intent). It is born unconfirmed and bound by the same
+ * confirm→dispatch gate as a human request: it can never self-advance.
+ */
+const aiSuggestedIntent: ObsActionIntent = ObsActionIntentSchema.parse({
+  ...requestedIntent,
+  actionIntentId: "action_ai",
+  origin: "ai-suggested"
+});
+
 const confirmation = {
   confirmed: true,
   confirmedAt: timestamp,
@@ -173,6 +185,19 @@ describe("obsGraphqlTypeDefs", () => {
     expect(obsGraphqlTypeDefs).toContain("confirmationIntent: ObsConfirmationIntentInput!");
   });
 
+  it("declares the AI-suggest mutation returning the same gated intent (AI suggests, a human confirms)", () => {
+    expect(obsGraphqlTypeDefs).toContain(
+      "suggestObsActionWithAi(\n      input: SuggestObsActionWithAiInput!\n    ): ObsActionIntent!"
+    );
+    // The input carries only the connection + actor + optional non-PII hints (no
+    // host/port/password/token/stream key, no connectionRef): the secret-free shape.
+    expect(obsGraphqlTypeDefs).toContain("input SuggestObsActionWithAiInput {");
+    expect(obsGraphqlTypeDefs).toContain("operatorIntent: String");
+    expect(obsGraphqlTypeDefs).toContain("serviceSegmentLabels: [String!]");
+    // The returned intent's `ai_suggested` origin is part of the existing enum.
+    expect(obsGraphqlTypeDefs).toContain("ai_suggested");
+  });
+
   it("never exposes a host/port/password/token/stream-key field on any OBS type", () => {
     expect(obsGraphqlTypeDefs).not.toContain("host");
     expect(obsGraphqlTypeDefs).not.toContain("port:");
@@ -236,6 +261,76 @@ describe("createObsGraphqlResolvers", () => {
         origin: "human",
         requestedByRef: "operator_1",
         targetSceneRef: "scene-lower"
+      },
+      requestId: "request_1"
+    });
+  });
+
+  it("delegates suggestObsActionWithAi, returning a requested ai-suggested intent (a FAKE port, no network)", async () => {
+    // The command service stands in for the service that calls the injected AI port;
+    // here it returns a canned `ai-suggested` intent so NO real model is reached.
+    const suggestObsActionWithAi = vi.fn<
+      ObsCommandService["suggestObsActionWithAi"]
+    >(() => Promise.resolve(aiSuggestedIntent));
+    const resolvers = createObsGraphqlResolvers({
+      obsCommandService: createObsCommandService({ suggestObsActionWithAi }),
+      obsQueryService: createObsQueryService()
+    });
+
+    await expect(
+      resolvers.Mutation.suggestObsActionWithAi(
+        undefined,
+        {
+          input: {
+            connectionProfileId: "connection_1",
+            operatorIntent: "Moving into announcements.",
+            requestedByRef: "operator_1",
+            serviceSegmentLabels: ["Welcome", "Announcements"]
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toEqual(aiSuggestedIntent);
+
+    // The resolver forwards the secret-free input verbatim and lets the command
+    // schema apply its `serviceSegmentLabels` default. `origin`/`status`/`kind` are
+    // NOT inputs — the service derives them from the validated AI suggestion.
+    expect(suggestObsActionWithAi).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        connectionProfileId: "connection_1",
+        operatorIntent: "Moving into announcements.",
+        requestedByRef: "operator_1",
+        serviceSegmentLabels: ["Welcome", "Announcements"]
+      },
+      requestId: "request_1"
+    });
+  });
+
+  it("suggestObsActionWithAi omits absent optional hints so the command schema default applies", async () => {
+    const suggestObsActionWithAi = vi.fn<
+      ObsCommandService["suggestObsActionWithAi"]
+    >(() => Promise.resolve(aiSuggestedIntent));
+    const resolvers = createObsGraphqlResolvers({
+      obsCommandService: createObsCommandService({ suggestObsActionWithAi }),
+      obsQueryService: createObsQueryService()
+    });
+
+    // No operatorIntent, no serviceSegmentLabels, no aiPolicyProfile: the resolver
+    // must NOT forward them as `null`/`undefined` (the `.strict()` schema would
+    // reject that); the segment-label default ([]) applies instead.
+    await resolvers.Mutation.suggestObsActionWithAi(
+      undefined,
+      { input: { connectionProfileId: "connection_1", requestedByRef: "operator_1" } },
+      graphqlContext
+    );
+
+    expect(suggestObsActionWithAi).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        connectionProfileId: "connection_1",
+        requestedByRef: "operator_1",
+        serviceSegmentLabels: []
       },
       requestId: "request_1"
     });
@@ -508,6 +603,66 @@ describe("OBS GraphQL transport", () => {
           actionIntentId: "action_1",
           kind: "switch_scene",
           origin: "human",
+          status: "requested",
+          targetSceneRef: "scene-lower"
+        }
+      }
+    });
+  });
+
+  it("executes suggestObsActionWithAi through the full transport, returning a requested ai_suggested intent", async () => {
+    // A FAKE suggestion path: the command service returns a canned `ai-suggested`
+    // intent, so NO real model is reached through the transport either.
+    const suggestObsActionWithAi = vi.fn<
+      ObsCommandService["suggestObsActionWithAi"]
+    >(() => Promise.resolve(aiSuggestedIntent));
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      schema: createPresenterGraphqlSchema({
+        ...presenterStub,
+        obs: {
+          obsCommandService: createObsCommandService({ suggestObsActionWithAi }),
+          obsQueryService: createObsQueryService()
+        }
+      })
+    });
+
+    const response = await handler({
+      body: {
+        query:
+          "mutation suggest($input: SuggestObsActionWithAiInput!) { suggestObsActionWithAi(input: $input) { actionIntentId kind origin status targetSceneRef } }",
+        variables: {
+          input: {
+            connectionProfileId: "connection_1",
+            operatorIntent: "Moving into announcements.",
+            requestedByRef: "operator_1",
+            serviceSegmentLabels: ["Welcome", "Announcements"]
+          }
+        }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(response.status).toBe(200);
+    expect(suggestObsActionWithAi).toHaveBeenCalledWith({
+      actor,
+      input: {
+        connectionProfileId: "connection_1",
+        operatorIntent: "Moving into announcements.",
+        requestedByRef: "operator_1",
+        serviceSegmentLabels: ["Welcome", "Announcements"]
+      },
+      requestId: "request_1"
+    });
+    // The hyphenated domain origin `ai-suggested` serializes back as the underscore
+    // SDL enum name `ai_suggested`. The intent is `requested` — AI suggested it, but
+    // a human must still confirm + dispatch through the gate.
+    expect(response.body).toEqual({
+      data: {
+        suggestObsActionWithAi: {
+          actionIntentId: "action_ai",
+          kind: "switch_scene",
+          origin: "ai_suggested",
           status: "requested",
           targetSceneRef: "scene-lower"
         }

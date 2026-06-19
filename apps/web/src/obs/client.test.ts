@@ -271,6 +271,62 @@ describe("createObsClient", () => {
     expect(body.variables.input).toEqual({ actionIntentId: "action_1" });
   });
 
+  it("POSTs suggestObsActionWithAi with the connection + actor + operator intent, returning the ai_suggested intent", async () => {
+    const aiSuggested: ObsActionIntent = {
+      ...REQUESTED_INTENT,
+      actionIntentId: "action_ai",
+      origin: "ai_suggested"
+    };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { suggestObsActionWithAi: aiSuggested } }))
+    );
+
+    const intent = await createObsClient({ fetchImpl }).suggestWithAi({
+      connectionProfileId: "obs-connection-sanctuary",
+      operatorIntent: "The pastor is walking up to preach",
+      requestedByRef: "demo-web-operator"
+    });
+
+    // The client returns the standard `requested`, `ai_suggested` intent — the same
+    // type the gated mutations return — so the screen routes it through the gate.
+    expect(intent).toEqual(aiSuggested);
+    expect(intent.origin).toBe("ai_suggested");
+    expect(intent.status).toBe("requested");
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    expect(body.query).toContain("mutation SuggestObsActionWithAi");
+    expect(body.query).toContain("$input: SuggestObsActionWithAiInput!");
+    // The input carries ONLY the opaque connection id, the actor ref, and the non-PII
+    // operator hint — no host/port/password/stream key, no connectionRef.
+    expect(body.variables.input).toEqual({
+      connectionProfileId: "obs-connection-sanctuary",
+      operatorIntent: "The pastor is walking up to preach",
+      requestedByRef: "demo-web-operator"
+    });
+  });
+
+  it("omits operatorIntent from suggestObsActionWithAi when it is not provided", async () => {
+    const aiSuggested: ObsActionIntent = {
+      ...REQUESTED_INTENT,
+      actionIntentId: "action_ai",
+      origin: "ai_suggested"
+    };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { suggestObsActionWithAi: aiSuggested } }))
+    );
+
+    await createObsClient({ fetchImpl }).suggestWithAi({
+      connectionProfileId: "obs-connection-sanctuary",
+      requestedByRef: "demo-web-operator"
+    });
+
+    // An absent operatorIntent stays ABSENT (not null) for the server's strict schema.
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    expect(body.variables.input).toEqual({
+      connectionProfileId: "obs-connection-sanctuary",
+      requestedByRef: "demo-web-operator"
+    });
+  });
+
   it("throws the first GraphQL error message", async () => {
     const fetchImpl = vi.fn<typeof fetch>(() =>
       Promise.resolve(

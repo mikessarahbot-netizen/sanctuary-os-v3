@@ -5,11 +5,12 @@ import {
   type ObsDataSource
 } from "./client.js";
 import { DEMO_OBS_ACTOR_REF } from "./sample-data.js";
+import { ObsAiSuggestGate } from "./ObsAiSuggestGate.js";
 import { ObsSceneList } from "./ObsSceneList.js";
 import { ObsStatusPanel } from "./ObsStatusPanel.js";
 import { ObsStreamGate, type StreamGateDirection } from "./ObsStreamGate.js";
 import { ObsSwitchGate } from "./ObsSwitchGate.js";
-import type { ObsConsole, ObsConsoleState, ObsScene } from "./types.js";
+import type { ObsActionIntent, ObsConsole, ObsConsoleState, ObsScene } from "./types.js";
 
 /**
  * OBS control surface container.
@@ -24,15 +25,18 @@ import type { ObsConsole, ObsConsoleState, ObsScene } from "./types.js";
  * live.
  *
  * THE GATE (the whole point of this surface): clicking a non-program scene's
- * "Switch to this scene", or the "Go live" / "Stop stream" control, calls
- * `requestObsAction` and moves into an `awaiting-confirm` flow that shows the
+ * "Switch to this scene", the "Go live" / "Stop stream" control, or the "AI suggest"
+ * button calls the corresponding request mutation (`requestObsAction` /
+ * `suggestObsActionWithAi`) and moves into an `awaiting-confirm` flow that shows the
  * confirm step — it does NOT switch or go live. Only the operator's explicit
  * Confirm runs `confirmObsAction` then `dispatchObsAction` (the single dispatch
  * call site in this component), after which the console is reloaded so the program
  * scene + stream status + audit line reflect the live result. Cancel aborts with no
  * dispatch. Because `dispatchAction` is invoked only inside the one Confirm
- * handler — shared by both the scene gate and the stream gate — a dispatch can
- * never fire without a confirmation, for either action kind.
+ * handler — shared by the scene gate, the stream gate, AND the AI-suggest gate — a
+ * dispatch can never fire without a confirmation, for any action kind. AI SUGGESTS,
+ * A HUMAN CONFIRMS: an AI-suggested intent is the SAME `requested` intent type and
+ * is bound by this same gate; the AI never dispatches, never goes live.
  */
 export interface ObsScreenProps {
   readonly dataSource: ObsDataSource;
@@ -40,13 +44,21 @@ export interface ObsScreenProps {
 }
 
 /**
- * What a gated action targets: a scene switch (carries the target scene) or a
- * stream start/stop (carries the direction). The flow is shared so both actions go
- * through the exact same confirm → dispatch path.
+ * What a gated action targets: a scene switch (carries the target scene), a stream
+ * start/stop (carries the direction), or an AI-SUGGESTED action (carries the
+ * `requested`, `ai_suggested` intent the backend returned + a human-readable
+ * summary of it). The flow is shared so ALL of them go through the exact same
+ * confirm → dispatch path — an AI-suggested intent can never dispatch without the
+ * human confirm.
  */
 type ActionTarget =
   | { readonly kind: "switch-scene"; readonly scene: ObsScene }
-  | { readonly kind: "stream"; readonly direction: StreamGateDirection };
+  | { readonly kind: "stream"; readonly direction: StreamGateDirection }
+  | {
+      readonly kind: "ai-suggested";
+      readonly intent: ObsActionIntent;
+      readonly summary: string;
+    };
 
 /**
  * The gated-action flow. `idle`: nothing pending. `requesting`: the request is in
@@ -76,6 +88,37 @@ const errorMessage = (error: unknown): string =>
 const programSceneName = (console: ObsConsole): string =>
   console.scenes.find((scene) => scene.isCurrentProgramScene)?.displayName ??
   "(none)";
+
+/**
+ * A short, human-readable summary of an AI-suggested action, derived from the
+ * returned intent's kind + target (the target scene ref resolved to its display
+ * name from the console). Used as the AI gate's "AI suggests: …" line. The model's
+ * free-text rationale is not carried on the intent, so this describes the concrete
+ * action the operator is being asked to confirm.
+ */
+const summarizeAiSuggestion = (
+  intent: ObsActionIntent,
+  console: ObsConsole
+): string => {
+  if (intent.kind === "switch_scene" && intent.targetSceneRef !== null) {
+    const target = intent.targetSceneRef;
+    const sceneName =
+      console.scenes.find((scene) => scene.obsSceneRef === target)?.displayName ??
+      target;
+
+    return `Switch program scene to ${sceneName}`;
+  }
+
+  if (intent.kind === START_STREAM_ACTION_KIND) {
+    return "Start the live stream";
+  }
+
+  if (intent.kind === STOP_STREAM_ACTION_KIND) {
+    return "Stop the live stream";
+  }
+
+  return `Run ${intent.kind}`;
+};
 
 const latestLogEntry = (console: ObsConsole): ObsConsole["actionLog"][number] | null => {
   const log = console.actionLog;
@@ -204,6 +247,65 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
     [consoleState, dataSource]
   );
 
+  const handleRequestAiSuggest = useCallback(
+    (operatorIntent: string): void => {
+      if (consoleState.status !== "loaded" || consoleState.console.connection === null) {
+        return;
+      }
+
+      const console = consoleState.console;
+      const connectionProfileId = consoleState.console.connection.connectionProfileId;
+
+      // SAME gate as a manual switch: ask the backend to AI-suggest the next action.
+      // The returned intent is `requested` + `ai_suggested` and has NOT been
+      // dispatched. We move into the confirm step for THAT intent; nothing has gone
+      // live, and only the operator's explicit Confirm will confirm + dispatch it.
+      dataSource
+        .suggestWithAi({
+          connectionProfileId,
+          operatorIntent,
+          requestedByRef: DEMO_OBS_ACTOR_REF
+        })
+        .then((intent) => {
+          const target: ActionTarget = {
+            intent,
+            kind: "ai-suggested",
+            summary: summarizeAiSuggestion(intent, console)
+          };
+          setFlow({
+            actionIntentId: intent.actionIntentId,
+            errorMessage: null,
+            phase: "awaiting-confirm",
+            target
+          });
+        })
+        .catch((error: unknown) => {
+          // The suggestion request itself failed (e.g. no AI provider configured, or
+          // the model produced no usable suggestion). Surface it in an AI gate with
+          // no pending intent, so the operator can read the error and cancel — there
+          // is nothing to confirm or dispatch.
+          setFlow({
+            actionIntentId: "",
+            errorMessage: errorMessage(error),
+            phase: "awaiting-confirm",
+            target: {
+              intent: {
+                actionIntentId: "",
+                kind: "switch_scene",
+                origin: "ai_suggested",
+                safeFailureMessage: null,
+                status: "requested",
+                targetSceneRef: null
+              },
+              kind: "ai-suggested",
+              summary: "an action"
+            }
+          });
+        });
+    },
+    [consoleState, dataSource]
+  );
+
   const handleCancel = useCallback((): void => {
     // Abort the gate with NO dispatch.
     setFlow({ phase: "idle" });
@@ -301,6 +403,7 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
           recordingState={console.recordingState}
           latestLogEntry={latestLogEntry(console)}
           onRequestStreamAction={handleRequestStream}
+          onRequestAiSuggest={handleRequestAiSuggest}
           busy={busy}
         />
 
@@ -330,6 +433,22 @@ export const ObsScreen = (props: ObsScreenProps): ReactElement => {
       return (
         <ObsStreamGate
           direction={flow.target.direction}
+          status={status}
+          errorMessage={gateError}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+        />
+      );
+    }
+
+    if (flow.target.kind === "ai-suggested") {
+      // The AI suggested this action; it enters the SAME confirm → dispatch path.
+      // `handleConfirm` is unchanged — the single dispatch call site — so an
+      // ai-suggested intent can never dispatch without the operator's Confirm.
+      return (
+        <ObsAiSuggestGate
+          suggestionSummary={flow.target.summary}
+          programSceneName={programSceneName(console)}
           status={status}
           errorMessage={gateError}
           onConfirm={handleConfirm}

@@ -12,8 +12,10 @@ import type {
  * Minimal typed GraphQL client for the OBS control surface.
  *
  * POSTs the `obsConnectionProfiles` / `obsScenes` / `obsStreamState` /
- * `obsRecordingState` / `obsActionLog` read queries and the
- * `requestObsAction` / `confirmObsAction` / `dispatchObsAction` gated mutations to
+ * `obsRecordingState` / `obsActionLog` read queries, the
+ * `requestObsAction` / `confirmObsAction` / `dispatchObsAction` gated mutations, and
+ * the `suggestObsActionWithAi` AI-assist mutation (the server returns a `requested`,
+ * `ai_suggested` intent that enters the SAME confirm → dispatch gate) to
  * a configurable endpoint (the api's Node http listener serves POST `/graphql`;
  * see `apps/api/src/graphql/http-server.ts`). It does not import server internals
  * — the request/response shapes are declared locally. The endpoint defaults to the
@@ -144,6 +146,13 @@ const CONFIRM_ACTION_MUTATION = `mutation ConfirmObsAction($input: ConfirmObsAct
 
 const DISPATCH_ACTION_MUTATION = `mutation DispatchObsAction($input: DispatchObsActionInput!) { dispatchObsAction(input: $input) { ${ACTION_INTENT_FIELDS} } }`;
 
+// AI SUGGESTS, A HUMAN CONFIRMS. The server calls the real claude-opus-4-8 adapter
+// (when a key is set) and returns a `requested`, `origin: ai_suggested` intent — the
+// SAME `ObsActionIntent` projection the gated mutations return. The screen then routes
+// it through the EXACT same confirm → dispatch gate as a manual switch, so an
+// AI-suggested intent can NEVER dispatch without the human confirm.
+const SUGGEST_WITH_AI_MUTATION = `mutation SuggestObsActionWithAi($input: SuggestObsActionWithAiInput!) { suggestObsActionWithAi(input: $input) { ${ACTION_INTENT_FIELDS} } }`;
+
 // A successful switch-scene dispatch updates the OBS instance (via the port), but
 // the durable scene catalog snapshot the read queries serve is only reconciled by
 // `refreshObsCatalog`. The screen calls this after a dispatch settles so the
@@ -191,6 +200,10 @@ interface DispatchActionData {
   readonly dispatchObsAction: ObsActionIntent;
 }
 
+interface SuggestWithAiData {
+  readonly suggestObsActionWithAi: ObsActionIntent;
+}
+
 /**
  * Local mirror of the server `RequestObsActionInput` for a scene switch (see
  * `apps/api/src/graphql/obs.ts`). The surface only ever requests a
@@ -222,6 +235,19 @@ export interface ConfirmActionInput {
 
 export interface DispatchActionInput {
   readonly actionIntentId: string;
+}
+
+/**
+ * Local mirror of the server `SuggestObsActionWithAiInput`. The operator types a
+ * short, non-PII intent ("Moving into announcements"); the server builds the
+ * secret-free + PII-free projection from the catalog snapshot and never receives a
+ * host / port / password / stream key or the `connectionRef` vault handle — only the
+ * opaque `connectionProfileId`. `operatorIntent` is omitted when blank.
+ */
+export interface SuggestWithAiInput {
+  readonly connectionProfileId: string;
+  readonly requestedByRef: string;
+  readonly operatorIntent?: string;
 }
 
 export interface ObsClientOptions {
@@ -302,6 +328,17 @@ export interface ObsDataSource {
   ) => Promise<ObsActionIntent>;
   readonly confirmAction: (input: ConfirmActionInput) => Promise<ObsActionIntent>;
   readonly dispatchAction: (input: DispatchActionInput) => Promise<ObsActionIntent>;
+  /**
+   * Ask the backend to AI-SUGGEST the next OBS action for a connection + a short
+   * operator intent. The server calls the real `claude-opus-4-8` adapter (when a key
+   * is configured) and returns a `requested`, `origin: ai_suggested`
+   * `ObsActionIntent` (e.g. a switch-scene with its target ref). The intent already
+   * exists on the server; the screen then drives it through the SAME human-confirm
+   * gate (`confirmAction` → `dispatchAction`) as a manual switch. AI may suggest,
+   * never dispatch, never go live. In demo mode this returns a canned suggestion with
+   * no network call.
+   */
+  readonly suggestWithAi: (input: SuggestWithAiInput) => Promise<ObsActionIntent>;
   readonly refreshCatalog: (connectionProfileId: string) => Promise<void>;
 }
 
@@ -417,6 +454,28 @@ export const createObsClient = (options: ObsClientOptions = {}): ObsDataSource =
       );
 
       return data.dispatchObsAction;
+    },
+    suggestWithAi: async (input: SuggestWithAiInput): Promise<ObsActionIntent> => {
+      // The server builds the secret-free + PII-free projection from the connection's
+      // catalog snapshot; the client sends ONLY the opaque connection id, the actor
+      // ref, and the optional non-PII operator hint (omitted when blank, so an absent
+      // value stays absent for the server's `.strict()` schema). The returned
+      // `ai_suggested` intent is `requested` — it enters the same confirm gate.
+      const data = await executeQuery<SuggestWithAiData>(
+        options,
+        SUGGEST_WITH_AI_MUTATION,
+        {
+          input: {
+            connectionProfileId: input.connectionProfileId,
+            requestedByRef: input.requestedByRef,
+            ...(input.operatorIntent !== undefined
+              ? { operatorIntent: input.operatorIntent }
+              : {})
+          }
+        }
+      );
+
+      return data.suggestObsActionWithAi;
     },
     refreshCatalog: async (connectionProfileId: string): Promise<void> => {
       await executeQuery<{ readonly refreshObsCatalog: { readonly __typename: string } }>(

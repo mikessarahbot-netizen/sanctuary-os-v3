@@ -198,4 +198,63 @@ describe("createDemoObsDataSource", () => {
 
     expect((await source.loadConsole()).streamState?.streamStatus).toBe("active");
   });
+
+  it("AI suggest returns a requested, ai_suggested switch-scene intent (no network)", async () => {
+    const source = createDemoObsDataSource();
+    const suggested = await source.suggestWithAi({
+      connectionProfileId: "obs-connection-sanctuary",
+      operatorIntent: "The pastor is walking up to preach",
+      requestedByRef: "demo-web-operator"
+    });
+
+    expect(suggested.origin).toBe("ai_suggested");
+    expect(suggested.status).toBe("requested");
+    expect(suggested.kind).toBe("switch_scene");
+    expect(suggested.targetSceneRef).toBe("scene-sermon");
+    // The suggestion alone does NOT move the program scene — it is unconfirmed.
+    expect(
+      (await source.loadConsole()).scenes.find((scene) => scene.isCurrentProgramScene)
+        ?.displayName
+    ).toBe("Worship");
+  });
+
+  it("replays the gate for an ai-suggested intent: dispatch without confirm rejects", async () => {
+    const source = createDemoObsDataSource();
+    const suggested = await source.suggestWithAi({
+      connectionProfileId: "obs-connection-sanctuary",
+      requestedByRef: "demo-web-operator"
+    });
+
+    // SAME gate as a manual switch: an ai-suggested intent cannot dispatch unconfirmed.
+    await expect(
+      source.dispatchAction({ actionIntentId: suggested.actionIntentId })
+    ).rejects.toThrow(/confirmed/);
+    expect(
+      (await source.loadConsole()).scenes.find((scene) => scene.isCurrentProgramScene)
+        ?.displayName
+    ).toBe("Worship");
+  });
+
+  it("replays the gate for an ai-suggested intent: confirm then dispatch moves the program scene", async () => {
+    const source = createDemoObsDataSource();
+    const suggested = await source.suggestWithAi({
+      connectionProfileId: "obs-connection-sanctuary",
+      requestedByRef: "demo-web-operator"
+    });
+    await source.confirmAction({
+      actionIntentId: suggested.actionIntentId,
+      confirmedByRef: "demo-web-operator",
+      reason: "Reviewed; pastor is up."
+    });
+    const dispatched = await source.dispatchAction({
+      actionIntentId: suggested.actionIntentId
+    });
+
+    expect(dispatched.status).toBe("succeeded");
+    // Only AFTER the human confirm does the AI-suggested switch take effect.
+    expect(
+      (await source.loadConsole()).scenes.find((scene) => scene.isCurrentProgramScene)
+        ?.displayName
+    ).toBe("Sermon");
+  });
 });

@@ -10,7 +10,9 @@ import { createFakeObsControlPort } from "../services/obs/fake-control-port.js";
 import { createInMemoryPlayServicesAdapter } from "../services/play/in-memory.js";
 import { createInMemoryPresenterServicesAdapter } from "../services/presenter/in-memory.js";
 import type { CommunityAiDraftPort } from "../services/community/ai-draft.js";
+import type { ObsAiSuggestionPort } from "../services/obs/ai-suggest.js";
 import { resolveCommunityAiDraftPort } from "./community-ai.js";
+import { resolveObsAiSuggestionPort } from "./obs-ai.js";
 import {
   buildDemoSchema,
   createDemoClock,
@@ -85,6 +87,14 @@ export interface CreateDemoServerOptions {
    * from `ANTHROPIC_API_KEY` (after dotenv) and passes it here.
    */
   readonly communityAiDraftPort?: CommunityAiDraftPort;
+  /**
+   * The OBS AI-suggestion port to inject. Defaults to NONE (the keyless fake path:
+   * the in-memory adapter is built without an `aiSuggestionPort`, so a
+   * `suggestObsActionWithAi` request surfaces a typed error rather than hitting the
+   * network — the same behavior the server tests rely on). `main()` resolves the
+   * real Anthropic port from `ANTHROPIC_API_KEY` (after dotenv) and passes it here.
+   */
+  readonly obsAiSuggestionPort?: ObsAiSuggestionPort;
   readonly path?: string;
 }
 
@@ -112,9 +122,16 @@ export const createDemoServer = (
     scenes: DEMO_OBS_SCENES.map((scene) => ({ ...scene })),
     streamStatus: "active"
   });
+  // OBS: inject the resolved AI-suggestion port ONLY when one was supplied (real
+  // Anthropic when `main()` found a key; absent otherwise). With no port the keyless
+  // fake path is unchanged — the manual scene/stream gates are untouched, and a
+  // `suggestObsActionWithAi` surfaces a typed error instead of hitting the network.
   const obs = createInMemoryObsServicesAdapter({
     clock,
-    controlPort: obsControlPort.port
+    controlPort: obsControlPort.port,
+    ...(options.obsAiSuggestionPort !== undefined
+      ? { aiSuggestionPort: options.obsAiSuggestionPort }
+      : {})
   });
   // Community: inject the resolved AI-draft port ONLY when one was supplied (real
   // Anthropic when `main()` found a key; absent otherwise). With no port the
@@ -172,9 +189,11 @@ const main = async (): Promise<void> => {
   config({ path: resolvePath(here, "..", "..", ".env") });
 
   const communityAiDraftPort = resolveCommunityAiDraftPort();
-  const { seed, server } = createDemoServer(
-    communityAiDraftPort !== undefined ? { communityAiDraftPort } : {}
-  );
+  const obsAiSuggestionPort = resolveObsAiSuggestionPort();
+  const { seed, server } = createDemoServer({
+    ...(communityAiDraftPort !== undefined ? { communityAiDraftPort } : {}),
+    ...(obsAiSuggestionPort !== undefined ? { obsAiSuggestionPort } : {})
+  });
   await seed();
 
   const port = resolvePort(process.env["PORT"]);
@@ -182,13 +201,20 @@ const main = async (): Promise<void> => {
 
   server.listen(port, host, () => {
     // Demo server: surface the URL so the operator knows where to point the web app,
-    // plus whether the real AI-draft port is wired (key present) — never the key.
+    // plus whether the real AI ports are wired (key present) — never the key.
     console.log(`Demo GraphQL API listening at http://${host}:${String(port)}/graphql`);
     console.log(
       `Community AI draft: ${
         communityAiDraftPort !== undefined
           ? "live Anthropic (ANTHROPIC_API_KEY detected)"
           : "disabled (no ANTHROPIC_API_KEY) — demo uses the fake draft"
+      }`
+    );
+    console.log(
+      `OBS AI suggest: ${
+        obsAiSuggestionPort !== undefined
+          ? "live Anthropic (ANTHROPIC_API_KEY detected)"
+          : "disabled (no ANTHROPIC_API_KEY) — demo uses the fake suggestion"
       }`
     );
   });
