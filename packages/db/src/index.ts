@@ -13,6 +13,7 @@ export * from "./config.js";
 export * from "./migrations.js";
 export * from "./obs-migrations.js";
 export * from "./obs-repository-contracts.js";
+export * from "./obs-sql-repository.js";
 export * from "./planning-ccli-usage-sql-repository.js";
 export * from "./planning-command-sql-repository.js";
 export * from "./planning-migrations.js";
