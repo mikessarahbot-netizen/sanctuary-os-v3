@@ -2,6 +2,18 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Web Charts WRITE path (full CRUD verified live)
+
+Tasks completed:
+- Added a Charts edit/save write path to apps/web (delegated): the detail view gains an Edit button → textarea (pre-filled ChordPro) → Save via a new `updateChartSource` client mutation; demo data source mutates its in-memory store too. +12 web tests (web 42).
+- VERIFIED LIVE end-to-end via preview (parent-orchestrated): started the demo API + web (live mode), opened Amazing Grace, clicked Edit, appended a chord line in the textarea, clicked Save, and confirmed the new chord-over-lyric line re-rendered in the detail AND persisted server-side (re-queried the demo API: chordProSource now ends with the appended `[C]Praise the [G]Lord — [D]edited [G]live!`). Screenshotted.
+- Gates green: db 466 / api 852 + 2 skipped / desktop 89 / church-context 5 / web 42. Committed `d3deafa`.
+- The web app now proves full CRUD (read + write) through the live stack.
+
+Next task (verifiable web path): deepen Charts further (transpose, arrangements/annotations) and/or add Play / Community+ / OBS web surfaces (demo server serves them). Native desktop (Tauri) + mobile (Expo) shells + live external integrations (obs-websocket, comms carrier) need the user.
+
+Open questions: priorities (which module surfaces / depth vs breadth); native shells + external integrations need the user.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - CAPSTONE: full stack runs end-to-end (web -> live API), verified
 
 Tasks completed:

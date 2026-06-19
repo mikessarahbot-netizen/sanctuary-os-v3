@@ -8,7 +8,9 @@ The whole stack is runnable and was verified live:
 
 So: an earlier wrong assumption is corrected — **web UIs ARE autonomously verifiable** (component tests + dev-server screenshots), and the **full vertical works**. The web UI layer is a verifiable, autonomously-buildable path.
 
-Remaining web work (all verifiable the same way): deepen Charts (transpose/arrangements/annotations, mutations), then Play / Community+ / OBS web surfaces (the demo server already serves all of them); broaden the seed. Still genuinely needing the user: the DESKTOP (Tauri) + MOBILE (Expo) native operator surfaces, and the live EXTERNAL integrations (real obs-websocket, comms carrier) — credentials/connections.
+Full CRUD is now proven: a Charts edit/save write path (`d3deafa`) was verified live (edited ChordPro in the UI → live `updateChartSource` mutation → re-rendered AND persisted server-side, confirmed by re-querying the API).
+
+Remaining web work (all verifiable the same way): deepen Charts (transpose, arrangements/annotations), then Play / Community+ / OBS web surfaces (the demo server already serves all of them); broaden the seed. Still genuinely needing the user: the DESKTOP (Tauri) + MOBILE (Expo) native operator surfaces, and the live EXTERNAL integrations (real obs-websocket, comms carrier) — credentials/connections.
 
 Run it yourself: terminal 1 `pnpm --filter @sanctuary-os/api dev`; terminal 2 `pnpm --filter @sanctuary-os/web dev`; open http://127.0.0.1:5173/?source=live.
 
