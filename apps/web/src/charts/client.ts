@@ -4,12 +4,21 @@ import type { Chart } from "./types.js";
  * Minimal typed GraphQL client for the Charts read surface.
  *
  * POSTs the `charts` / `chart` queries to a configurable endpoint (the api's
- * Node http listener defaults to POST `/graphql`; see
+ * Node http listener serves POST `/graphql`; see
  * `apps/api/src/graphql/http-server.ts`). It does not import server internals —
  * the request/response shapes are declared locally. The endpoint is read from
- * `VITE_API_URL` and falls back to `http://localhost:4000/graphql`.
+ * `VITE_API_URL` and falls back to the same-origin `/graphql`, which the Vite
+ * dev server proxies to the demo API (see `apps/web/vite.config.mts`) so live
+ * mode is same-origin and needs no CORS.
  */
-export const DEFAULT_API_URL = "http://localhost:4000/graphql";
+export const DEFAULT_API_URL = "/graphql";
+
+/**
+ * Demo bearer token for live mode. The local demo API (`apps/api/src/demo`)
+ * resolves every request to a fixed demo actor and only requires the
+ * `Authorization` header to be present and non-empty — no real secret.
+ */
+export const DEFAULT_AUTH_TOKEN = "demo-web-operator";
 
 const CHARTS_FIELDS = `
   arrangementRef
@@ -45,6 +54,7 @@ interface GetChartData {
 }
 
 export interface ChartsClientOptions {
+  readonly authToken?: string;
   readonly endpoint?: string;
   readonly fetchImpl?: typeof fetch;
 }
@@ -72,7 +82,10 @@ const executeQuery = async <TData>(
   const doFetch = resolveFetch(options.fetchImpl);
   const response = await doFetch(resolveEndpoint(options.endpoint), {
     body: JSON.stringify({ query, variables }),
-    headers: { "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${options.authToken ?? DEFAULT_AUTH_TOKEN}`,
+      "content-type": "application/json"
+    },
     method: "POST"
   });
 

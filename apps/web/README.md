@@ -23,7 +23,21 @@ to low):
 3. Default: `demo`.
 
 Live mode POSTs the `charts` / `chart` GraphQL queries to `VITE_API_URL`
-(default `http://localhost:4000/graphql`, the api package's http listener path).
+(default same-origin `/graphql`). The Vite dev server proxies `/graphql` to the
+local demo API (default `http://127.0.0.1:4000`; override with
+`VITE_API_PROXY_TARGET`), so live mode is same-origin and needs no CORS.
+
+### Live demo against the API
+
+```sh
+# terminal 1 — the demo GraphQL API (seeds sample charts, listens on :4000)
+pnpm --filter @sanctuary-os/api dev
+
+# terminal 2 — the web app
+pnpm --filter @sanctuary-os/web dev
+```
+
+Then open **http://127.0.0.1:5173/?source=live** to render real API data.
 
 ## Scripts
 
