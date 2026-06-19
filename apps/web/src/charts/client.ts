@@ -1,0 +1,117 @@
+import type { Chart } from "./types.js";
+
+/**
+ * Minimal typed GraphQL client for the Charts read surface.
+ *
+ * POSTs the `charts` / `chart` queries to a configurable endpoint (the api's
+ * Node http listener defaults to POST `/graphql`; see
+ * `apps/api/src/graphql/http-server.ts`). It does not import server internals —
+ * the request/response shapes are declared locally. The endpoint is read from
+ * `VITE_API_URL` and falls back to `http://localhost:4000/graphql`.
+ */
+export const DEFAULT_API_URL = "http://localhost:4000/graphql";
+
+const CHARTS_FIELDS = `
+  arrangementRef
+  chartId
+  chordProSource
+  createdAt
+  defaultKey
+  songRef
+  tenantId
+  title
+  updatedAt
+`;
+
+const LIST_CHARTS_QUERY = `query ListCharts { charts { ${CHARTS_FIELDS} } }`;
+
+const GET_CHART_QUERY = `query GetChart($id: ID!) { chart(id: $id) { ${CHARTS_FIELDS} } }`;
+
+interface GraphqlError {
+  readonly message: string;
+}
+
+interface GraphqlResponse<TData> {
+  readonly data?: TData | null;
+  readonly errors?: readonly GraphqlError[];
+}
+
+interface ListChartsData {
+  readonly charts: readonly Chart[];
+}
+
+interface GetChartData {
+  readonly chart: Chart | null;
+}
+
+export interface ChartsClientOptions {
+  readonly endpoint?: string;
+  readonly fetchImpl?: typeof fetch;
+}
+
+const resolveEndpoint = (endpoint: string | undefined): string =>
+  endpoint ?? DEFAULT_API_URL;
+
+const resolveFetch = (fetchImpl: typeof fetch | undefined): typeof fetch => {
+  if (fetchImpl !== undefined) {
+    return fetchImpl;
+  }
+
+  if (typeof globalThis.fetch !== "function") {
+    throw new Error("No fetch implementation is available in this environment.");
+  }
+
+  return globalThis.fetch.bind(globalThis);
+};
+
+const executeQuery = async <TData>(
+  options: ChartsClientOptions,
+  query: string,
+  variables: Readonly<Record<string, unknown>>
+): Promise<TData> => {
+  const doFetch = resolveFetch(options.fetchImpl);
+  const response = await doFetch(resolveEndpoint(options.endpoint), {
+    body: JSON.stringify({ query, variables }),
+    headers: { "content-type": "application/json" },
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Charts request failed with HTTP ${String(response.status)}.`);
+  }
+
+  const payload = (await response.json()) as GraphqlResponse<TData>;
+  const firstError = payload.errors?.[0];
+
+  if (firstError !== undefined) {
+    throw new Error(firstError.message);
+  }
+
+  if (payload.data === undefined || payload.data === null) {
+    throw new Error("Charts response did not include data.");
+  }
+
+  return payload.data;
+};
+
+export interface ChartsDataSource {
+  readonly listCharts: () => Promise<readonly Chart[]>;
+  readonly getChart: (chartId: string) => Promise<Chart | null>;
+}
+
+export const createChartsClient = (
+  options: ChartsClientOptions = {}
+): ChartsDataSource => ({
+  listCharts: async (): Promise<readonly Chart[]> => {
+    const data = await executeQuery<ListChartsData>(options, LIST_CHARTS_QUERY, {});
+
+    return data.charts;
+  },
+  getChart: async (chartId: string): Promise<Chart | null> => {
+    const data = await executeQuery<GetChartData>(options, GET_CHART_QUERY, {
+      id: chartId
+    });
+
+    return data.chart;
+  }
+});
