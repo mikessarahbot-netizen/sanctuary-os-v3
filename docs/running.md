@@ -102,3 +102,29 @@ GraphQL contract.
 - **Live integrations** — real OBS (`packages/obs-agent` + obs-websocket
   credentials), a communications carrier (email/SMS provider key), and real AI
   (`packages/ai-engine` + an API key).
+
+### Live AI (real Anthropic adapters)
+
+The two AI-assist ports (Community+ comms drafting, OBS action suggestions) ship
+real, Anthropic-backed adapters built on the official `@anthropic-ai/sdk`. They are
+**unit-tested with an injected fake client but not live-verified** — going live
+needs `ANTHROPIC_API_KEY` in the deploy environment (the SDK reads it; it is never
+handled in code). The demo servers keep using the fake/no-op ports and need no key.
+
+To wire them live, inject the real adapters in place of the fakes when
+`ANTHROPIC_API_KEY` is set (the SDK resolves the key from env at the composition
+root; the adapters never read it). Both default to model `claude-opus-4-8`:
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+import {
+  createAnthropicCommunityAiDraftPort,
+  createAnthropicObsAiSuggestionPort
+} from "@sanctuary-os/api";
+
+const client = new Anthropic(); // key from ANTHROPIC_API_KEY env
+const aiDraftPort = createAnthropicCommunityAiDraftPort({ client });
+const aiSuggestionPort = createAnthropicObsAiSuggestionPort({ client });
+// …pass aiDraftPort / aiSuggestionPort into the Community+ / OBS persistence
+// selection in place of the fake ports.
+```

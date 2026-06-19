@@ -32,6 +32,7 @@
     "dev:persistent": "tsx src/demo/persistent-server.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
     "@graphql-tools/schema": "^10.0.33",
     "@sanctuary-os/church-context": "workspace:*",
     "@sanctuary-os/db": "workspace:*",
