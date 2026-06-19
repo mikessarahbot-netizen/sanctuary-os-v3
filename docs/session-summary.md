@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 7: action gate (SAFETY CORE)
+
+Tasks completed:
+- OBS slice 7 (delegated; parent verified gates + independently spot-checked the safety property): confirmObsAction (human gate) + dispatchObsAction (the SOLE port-mutate caller — all 5 port mutate calls inside callPortForAction, reached only from dispatch, behind a NOT_CONFIRMED guard that precedes any port call) + cancelObsAction + append-only audit with redacted safeMessage + an ObsControlError classifier. AI-suggested can never self-confirm/dispatch (proven two ways); terminal intents not re-dispatchable. +24 api tests. Gates green: db 466 / api 783 + 2 skipped / desktop 89 / church-context 5. Committed `3fc118d`.
+
+Next task:
+- OBS slice 8: persistence-backed service (gate holds on the persistence path too). Then 9 (events), 10 (AI assist) → OBS backend complete → all-module backend complete.
+
+Open questions / follow-ups: standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 6: GraphQL + in-memory service
 
 Tasks completed:
