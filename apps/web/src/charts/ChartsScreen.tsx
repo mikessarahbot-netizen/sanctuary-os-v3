@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactElement } from "react";
 import type { ChartsDataSource } from "./client.js";
 import { ChartDetail } from "./ChartDetail.js";
 import { ChartsList } from "./ChartsList.js";
-import type { ChartDetailState, ChartsLoadState } from "./types.js";
+import type { Chart, ChartDetailState, ChartsLoadState } from "./types.js";
 
 /**
  * Charts read surface container.
@@ -87,6 +87,35 @@ export const ChartsScreen = (props: ChartsScreenProps): ReactElement => {
     setSelectedChartId(chartId);
   }, []);
 
+  const handleSave = useCallback(
+    async (chartId: string, chordProSource: string): Promise<Chart> => {
+      // Run the real mutation (live: `updateChartSource`; demo: in-memory write),
+      // then make the returned chart the new source of truth for both the detail
+      // and the matching list row (so a changed title / key shows in the
+      // sidebar). Errors propagate to the editor, which renders its error state.
+      const updated = await dataSource.updateChartSource(chartId, chordProSource);
+
+      setDetailState((current) =>
+        current.status === "loaded" && current.chart.chartId === updated.chartId
+          ? { status: "loaded", chart: updated }
+          : current
+      );
+      setListState((current) =>
+        current.status === "loaded"
+          ? {
+              status: "loaded",
+              charts: current.charts.map((chart) =>
+                chart.chartId === updated.chartId ? updated : chart
+              )
+            }
+          : current
+      );
+
+      return updated;
+    },
+    [dataSource]
+  );
+
   return (
     <main className="charts-screen">
       <header className="charts-screen__header">
@@ -101,7 +130,15 @@ export const ChartsScreen = (props: ChartsScreenProps): ReactElement => {
             onSelect={handleSelect}
           />
         </nav>
-        <ChartDetail state={detailState} />
+        <ChartDetail
+          state={detailState}
+          {...(detailState.status === "loaded"
+            ? {
+                onSave: (chordProSource: string): Promise<Chart> =>
+                  handleSave(detailState.chart.chartId, chordProSource)
+              }
+            : {})}
+        />
       </div>
     </main>
   );

@@ -1,7 +1,9 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChartDetail } from "./ChartDetail.js";
 import { SAMPLE_CHARTS } from "./sample-data.js";
+import type { Chart } from "./types.js";
 
 const [firstChart] = SAMPLE_CHARTS;
 
@@ -49,5 +51,112 @@ describe("ChartDetail", () => {
     render(<ChartDetail state={{ status: "error", message: "nope" }} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("nope");
+  });
+
+  it("does not show an Edit affordance without an onSave handler", () => {
+    render(<ChartDetail state={{ status: "loaded", chart: firstChart }} />);
+
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
+  it("toggles a textarea pre-filled with the chart source when editing", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChartDetail
+        state={{ status: "loaded", chart: firstChart }}
+        onSave={(): Promise<Chart> => Promise.resolve(firstChart)}
+      />
+    );
+
+    expect(screen.queryByRole("textbox")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+
+    const textarea = screen.getByRole("textbox");
+    expect(textarea).toHaveValue(firstChart.chordProSource);
+  });
+
+  it("saves the edited source and re-renders the returned ChordPro", async () => {
+    const user = userEvent.setup();
+    const edited: Chart = {
+      ...firstChart,
+      chordProSource: "{title: Amazing Grace}\n[A]Edited [E]words"
+    };
+    const onSave = vi.fn<(source: string) => Promise<Chart>>(() =>
+      Promise.resolve(edited)
+    );
+
+    const { rerender } = render(
+      <ChartDetail state={{ status: "loaded", chart: firstChart }} onSave={onSave} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const textarea = screen.getByRole("textbox");
+    await user.clear(textarea);
+    // `paste` inserts the text literally (ChordPro `[..]` / `{..}` would be
+    // interpreted as key descriptors by `type`).
+    await user.click(textarea);
+    await user.paste("{title: Amazing Grace}\n[A]Edited [E]words");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      "{title: Amazing Grace}\n[A]Edited [E]words"
+    );
+
+    // Simulate the screen feeding the updated chart back through `state`.
+    rerender(<ChartDetail state={{ status: "loaded", chart: edited }} onSave={onSave} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Edited")).toBeInTheDocument();
+    });
+    // Back in read mode (textarea gone), Edit available again.
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+  });
+
+  it("restores the original source when editing is cancelled", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChartDetail
+        state={{ status: "loaded", chart: firstChart }}
+        onSave={(): Promise<Chart> => Promise.resolve(firstChart)}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    const textarea = screen.getByRole("textbox");
+    await user.clear(textarea);
+    await user.type(textarea, "scratch edit");
+    expect(textarea).toHaveValue("scratch edit");
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    // Edit mode closes and the read view still shows the original source.
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.getByText(/sweet the/)).toBeInTheDocument();
+
+    // Re-opening shows the original source, not the discarded scratch text.
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("textbox")).toHaveValue(firstChart.chordProSource);
+  });
+
+  it("shows an error when saving fails and keeps the editor open", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn<(source: string) => Promise<Chart>>(() =>
+      Promise.reject(new Error("save failed"))
+    );
+
+    render(
+      <ChartDetail state={{ status: "loaded", chart: firstChart }} onSave={onSave} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("save failed");
+    });
+    // The editor stays open so the user can retry.
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 });

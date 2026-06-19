@@ -45,4 +45,61 @@ describe("createDemoChartsDataSource", () => {
 
     expect(chart).toBeNull();
   });
+
+  it("persists an updated ChordPro source across later reads and preserves other fields", async () => {
+    const source = createDemoChartsDataSource();
+    const before = await source.getChart("chart-cornerstone");
+
+    if (before === null) {
+      throw new Error("Expected the seeded chart.");
+    }
+
+    const updated = await source.updateChartSource(
+      "chart-cornerstone",
+      "{title: Cornerstone}\n[C]Edited line"
+    );
+
+    expect(updated.chordProSource).toBe("{title: Cornerstone}\n[C]Edited line");
+    // Identity / unrelated fields are preserved; only updatedAt changes.
+    expect(updated.title).toBe("Cornerstone");
+    expect(updated.defaultKey).toBe(before.defaultKey);
+    expect(updated.songRef).toBe(before.songRef);
+    expect(updated.createdAt).toBe(before.createdAt);
+
+    // The write persists for subsequent reads from the same source instance.
+    const after = await source.getChart("chart-cornerstone");
+    expect(after?.chordProSource).toBe("{title: Cornerstone}\n[C]Edited line");
+    const listed = await source.listCharts();
+    expect(
+      listed.find((chart) => chart.chartId === "chart-cornerstone")?.chordProSource
+    ).toBe("{title: Cornerstone}\n[C]Edited line");
+  });
+
+  it("applies defaultKey when provided", async () => {
+    const source = createDemoChartsDataSource();
+
+    const updated = await source.updateChartSource(
+      "chart-cornerstone",
+      "[D]Edited",
+      "D"
+    );
+
+    expect(updated.defaultKey).toBe("D");
+  });
+
+  it("does not mutate the shared SAMPLE_CHARTS fixture", async () => {
+    const source = createDemoChartsDataSource();
+    await source.updateChartSource("chart-cornerstone", "[C]Edited");
+
+    expect(
+      SAMPLE_CHARTS.find((chart) => chart.chartId === "chart-cornerstone")
+        ?.chordProSource
+    ).not.toContain("Edited");
+  });
+
+  it("rejects when updating an unknown chart id", async () => {
+    await expect(
+      createDemoChartsDataSource().updateChartSource("missing", "[C]x")
+    ).rejects.toThrow("Chart not found: missing");
+  });
 });

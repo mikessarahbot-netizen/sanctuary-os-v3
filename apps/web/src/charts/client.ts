@@ -36,6 +36,8 @@ const LIST_CHARTS_QUERY = `query ListCharts { charts { ${CHARTS_FIELDS} } }`;
 
 const GET_CHART_QUERY = `query GetChart($id: ID!) { chart(id: $id) { ${CHARTS_FIELDS} } }`;
 
+const UPDATE_CHART_SOURCE_MUTATION = `mutation UpdateChartSource($input: UpdateChartSourceInput!) { updateChartSource(input: $input) { ${CHARTS_FIELDS} } }`;
+
 interface GraphqlError {
   readonly message: string;
 }
@@ -51,6 +53,21 @@ interface ListChartsData {
 
 interface GetChartData {
   readonly chart: Chart | null;
+}
+
+interface UpdateChartSourceData {
+  readonly updateChartSource: Chart;
+}
+
+/**
+ * Local mirror of the server `UpdateChartSourceInput` (see
+ * `apps/api/src/graphql/charts.ts`). `defaultKey` is optional and omitted from
+ * the variables when not supplied so the server preserves the existing key.
+ */
+export interface UpdateChartSourceInput {
+  readonly chartId: string;
+  readonly chordProSource: string;
+  readonly defaultKey?: string;
 }
 
 export interface ChartsClientOptions {
@@ -110,6 +127,11 @@ const executeQuery = async <TData>(
 export interface ChartsDataSource {
   readonly listCharts: () => Promise<readonly Chart[]>;
   readonly getChart: (chartId: string) => Promise<Chart | null>;
+  readonly updateChartSource: (
+    chartId: string,
+    chordProSource: string,
+    defaultKey?: string
+  ) => Promise<Chart>;
 }
 
 export const createChartsClient = (
@@ -126,5 +148,23 @@ export const createChartsClient = (
     });
 
     return data.chart;
+  },
+  updateChartSource: async (
+    chartId: string,
+    chordProSource: string,
+    defaultKey?: string
+  ): Promise<Chart> => {
+    const input: UpdateChartSourceInput = {
+      chartId,
+      chordProSource,
+      ...(defaultKey !== undefined ? { defaultKey } : {})
+    };
+    const data = await executeQuery<UpdateChartSourceData>(
+      options,
+      UPDATE_CHART_SOURCE_MUTATION,
+      { input }
+    );
+
+    return data.updateChartSource;
   }
 });

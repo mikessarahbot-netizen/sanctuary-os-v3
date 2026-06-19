@@ -1,5 +1,6 @@
 import { createChartsClient, type ChartsDataSource } from "./client.js";
-import { SAMPLE_CHARTS, findSampleChart } from "./sample-data.js";
+import { createSampleChartStore } from "./sample-data.js";
+import type { Chart } from "./types.js";
 
 /**
  * Resolves which Charts data source the app uses.
@@ -14,12 +15,48 @@ import { SAMPLE_CHARTS, findSampleChart } from "./sample-data.js";
  */
 export type ChartsDataSourceMode = "demo" | "live";
 
-export const createDemoChartsDataSource = (): ChartsDataSource => ({
-  listCharts: (): Promise<readonly typeof SAMPLE_CHARTS[number][]> =>
-    Promise.resolve(SAMPLE_CHARTS),
-  getChart: (chartId: string): Promise<typeof SAMPLE_CHARTS[number] | null> =>
-    Promise.resolve(findSampleChart(chartId) ?? null)
-});
+export const createDemoChartsDataSource = (): ChartsDataSource => {
+  // Per-instance mutable store so demo-mode writes (`updateChartSource`) persist
+  // across later reads without touching the shared `SAMPLE_CHARTS` fixture.
+  const charts = createSampleChartStore();
+  const findChart = (chartId: string): Chart | undefined =>
+    charts.find((chart) => chart.chartId === chartId);
+
+  return {
+    listCharts: (): Promise<readonly Chart[]> =>
+      Promise.resolve(charts.map((chart) => ({ ...chart }))),
+    getChart: (chartId: string): Promise<Chart | null> => {
+      const chart = findChart(chartId);
+
+      return Promise.resolve(chart === undefined ? null : { ...chart });
+    },
+    updateChartSource: (
+      chartId: string,
+      chordProSource: string,
+      defaultKey?: string
+    ): Promise<Chart> => {
+      const existing = findChart(chartId);
+
+      if (existing === undefined) {
+        return Promise.reject(new Error(`Chart not found: ${chartId}`));
+      }
+
+      // Mirror the live command service: overwrite the source (and key when
+      // given), bump `updatedAt`, and preserve every other field. Replace the
+      // stored element so the change persists for later reads in this session.
+      const updated: Chart = {
+        ...existing,
+        chordProSource,
+        updatedAt: new Date().toISOString(),
+        ...(defaultKey !== undefined ? { defaultKey } : {})
+      };
+      const index = charts.indexOf(existing);
+      charts.splice(index, 1, updated);
+
+      return Promise.resolve({ ...updated });
+    }
+  };
+};
 
 const modeFromSearch = (search: string): ChartsDataSourceMode | undefined => {
   const params = new URLSearchParams(search);

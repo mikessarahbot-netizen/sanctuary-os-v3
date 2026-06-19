@@ -212,3 +212,71 @@ body {
 .charts-error {
   color: #ff9b9b;
 }
+
+.chart-detail__actions {
+  margin-bottom: 0.9rem;
+}
+
+.chart-edit-button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--panel-alt);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.chart-edit-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.chart-edit-button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.chart-edit-button--primary {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+
+.chart-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.chart-editor__label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.chart-editor__textarea {
+  width: 100%;
+  min-height: 12rem;
+  resize: vertical;
+  padding: 0.9rem 1rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.chart-editor__textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.chart-editor__actions {
+  display: flex;
+  gap: 0.6rem;
+}

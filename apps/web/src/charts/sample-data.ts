@@ -72,3 +72,14 @@ export const SAMPLE_CHARTS: readonly Chart[] = [AMAZING_GRACE, HOW_GREAT, CORNER
 
 export const findSampleChart = (chartId: string): Chart | undefined =>
   SAMPLE_CHARTS.find((chart) => chart.chartId === chartId);
+
+/**
+ * Mutable per-session copy of the seeded charts for demo mode's write path.
+ *
+ * The demo data source clones this so a `updateChartSource` in demo mode
+ * persists across subsequent `listCharts` / `getChart` calls (mirroring the live
+ * command service), without mutating the shared read-only `SAMPLE_CHARTS`
+ * fixture the tests and live path compare against.
+ */
+export const createSampleChartStore = (): Chart[] =>
+  SAMPLE_CHARTS.map((chart) => ({ ...chart }));

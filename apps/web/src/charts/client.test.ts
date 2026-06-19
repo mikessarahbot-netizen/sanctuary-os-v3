@@ -8,6 +8,16 @@ const jsonResponse = (body: unknown): Response =>
     status: 200
   });
 
+const requestBody = (init: RequestInit | undefined): string => {
+  const body = init?.body;
+
+  if (typeof body !== "string") {
+    throw new Error("Expected a string request body.");
+  }
+
+  return body;
+};
+
 describe("createChartsClient", () => {
   it("POSTs the charts query to the configured endpoint and returns the list", async () => {
     const fetchImpl = vi.fn<typeof fetch>(() =>
@@ -57,5 +67,64 @@ describe("createChartsClient", () => {
     await expect(createChartsClient({ fetchImpl }).listCharts()).rejects.toThrow(
       "HTTP 500"
     );
+  });
+
+  it("POSTs the updateChartSource mutation with the input and returns the chart", async () => {
+    const [firstChart] = SAMPLE_CHARTS;
+
+    if (firstChart === undefined) {
+      throw new Error("Expected at least one sample chart.");
+    }
+
+    const updated = { ...firstChart, chordProSource: "[C]New source" };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { updateChartSource: updated } }))
+    );
+
+    const chart = await createChartsClient({ fetchImpl }).updateChartSource(
+      firstChart.chartId,
+      "[C]New source"
+    );
+
+    expect(chart).toEqual(updated);
+    const init = fetchImpl.mock.calls[0]?.[1];
+    expect(init?.method).toBe("POST");
+    const body = JSON.parse(requestBody(init)) as {
+      query: string;
+      variables: { input: Record<string, unknown> };
+    };
+    expect(body.query).toContain("mutation UpdateChartSource");
+    expect(body.query).toContain("$input: UpdateChartSourceInput!");
+    expect(body.variables.input).toEqual({
+      chartId: firstChart.chartId,
+      chordProSource: "[C]New source"
+    });
+  });
+
+  it("includes defaultKey in the mutation input only when provided", async () => {
+    const [firstChart] = SAMPLE_CHARTS;
+
+    if (firstChart === undefined) {
+      throw new Error("Expected at least one sample chart.");
+    }
+
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { updateChartSource: firstChart } }))
+    );
+
+    await createChartsClient({ fetchImpl }).updateChartSource(
+      firstChart.chartId,
+      "[C]New source",
+      "E"
+    );
+
+    const body = JSON.parse(requestBody(fetchImpl.mock.calls[0]?.[1])) as {
+      variables: { input: Record<string, unknown> };
+    };
+    expect(body.variables.input).toEqual({
+      chartId: firstChart.chartId,
+      chordProSource: "[C]New source",
+      defaultKey: "E"
+    });
   });
 });
