@@ -11,6 +11,12 @@ Per-module backend release checks in `07-reviews/architecture/`:
 
 What's built per module: domain + pure logic → persistence contracts → migration → SQLite adapter → GraphQL + in-memory service → persistence-backed service → offline-sync queue + replay (Charts/Play) → events → AI assist; plus the desktop replay runtimes (Presenter, Play) and the OBS control-port gate. Privacy/safety holds throughout (no PII to AI / PII-free projections; no secrets in records; human-confirm gates for comms send + OBS stream/scene; tenant scope everywhere).
 
+## The two autonomously-verifiable cleanups are now DONE
+- ✅ Cross-module GraphQL enum hyphen/underscore fix — Charts/Play enum value maps added; values round-trip; `3b56010` (resolved task_85338bf7).
+- ✅ Network-executor `$input: JSON!` gap — desktop presenter+play replay now use typed-input documents (canonical maps in `@sanctuary-os/api`, imported by desktop), validated against the executable schema by a new api test with a negative control; `0f9f575`.
+
+With these, **the autonomously-buildable, gate-verifiable work is complete.** There is nothing left I can build AND verify without you.
+
 ## The remaining Sanctuary OS work — ALL of it needs the user
 This is the honest frontier. None of it is autonomously gate-verifiable; each needs a decision and/or visual verification only the user can give:
 
@@ -19,8 +25,6 @@ This is the honest frontier. None of it is autonomously gate-verifiable; each ne
    - Real obs-websocket v5 client in `packages/obs-agent` (OBS slice 11) — needs an OBS connection + a vault/secret-store decision.
    - The comms send carrier (Community+ slice 11) — needs a carrier/account decision.
    - Desktop/mobile app shells + wiring the replay runtimes / OBS agent to live transports.
-3. **The network-executor `$input: JSON!` gap** (presenter + play desktop runtimes) — offline replay won't round-trip against a live typed schema without a JSON scalar / typed documents.
-4. **Tracked cleanups:** the cross-module GraphQL enum hyphen/underscore fix (`task_85338bf7`; Community+/OBS already use enum value maps as the reference).
 
 ## Decision for the user (the build can't meaningfully continue autonomously without this)
 Pick a direction:

@@ -2,6 +2,17 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Backend cleanups: enum maps + JSON-scalar gap (AUTONOMOUS BUILD COMPLETE)
+
+Tasks completed:
+- Cleanup 1 (delegated; parent verified): Charts/Play GraphQL enum value maps so section-marker / pad-change / click-toggle round-trip through GraphQL (mirrors community/obs); round-trip tests + negative control. Resolves task_85338bf7. Committed `3b56010`. (api 831)
+- Cleanup 2 (delegated; parent verified): typed the desktop presenter+play replay mutation documents (was `$input: JSON!`, invalid against the typed server). Canonical typed documents now in @sanctuary-os/api (PRESENTER_/PLAY_REPLAY_MUTATION_DOCUMENTS), imported by the desktop services; a new apps/api replay-documents.test.ts graphql-validates every document against the executable schema with a negative control proving the old form fails. Committed `0f9f575`. (api 847)
+- Final gates green: db 466 / api 847 + 2 skipped / desktop 89 / church-context 5; lint clean; all 4 typecheck.
+- MILESTONE: the autonomously-buildable, gate-verifiable work is COMPLETE — all four module backends + both cleanups. Nothing remains that can be built AND verified without the user.
+
+Next task (NEEDS THE USER):
+- UIs (every module; bare apps/web + apps/mobile, no desktop webview) — surface/scaffold decision + visual verification; live integrations (real obs-websocket + vault, comms carrier, desktop/mobile shells). See NOW.md. Awaiting "runnable: <surface>", a named integration, or "stop".
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 10: AI assist (OBS BACKEND COMPLETE; ALL 4 MODULE BACKENDS COMPLETE)
 
 Tasks completed:
