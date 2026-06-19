@@ -2,6 +2,18 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Web Play surface (second live module in the product)
+
+Tasks completed:
+- Added a Play read surface to apps/web (delegated): track-set library list + a detail showing sections (kind/bars) + cues (action/fire-mode/beat), over the live trackSets/trackSet/playSections/playCues queries, with a demo fallback and a top-level Charts<->Play tab nav. Seeded 2 Play track sets (Build My Life, Goodness of God) with arrangements/sections/cues in the demo server (charts seed intact).
+- VERIFIED LIVE via preview: switched to the Play tab (LIVE DATA badge), opened Build My Life, and screenshotted the detail (3 sections + 2 cues) fetched from the API. curl confirmed the seeded trackSets.
+- Gates green: db 466 / api 854 + 2 skipped / desktop 89 / church-context 5 / web 73. Committed `82a25d5`.
+- The runnable web product now spans TWO modules (Charts read+write, Play read), both live.
+
+Next task: complete web breadth — Community+ (PII-free surface) and OBS (incl. the confirm-gate flow) web surfaces; deepen as useful. Native desktop (Tauri) + mobile (Expo) shells + live external integrations need the user.
+
+Open questions: priorities (finish web breadth vs depth vs native); native shells + external integrations need the user.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Web Charts WRITE path (full CRUD verified live)
 
 Tasks completed:
