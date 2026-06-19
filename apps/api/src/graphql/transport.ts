@@ -3,6 +3,7 @@ import { graphql, type GraphQLError, type GraphQLSchema } from "graphql";
 import type { AuthBoundary } from "../auth/index.js";
 import { isChartsDomainError } from "../domain/charts/index.js";
 import { isCommunityDomainError } from "../domain/community/index.js";
+import { isObsDomainError } from "../domain/obs/index.js";
 import { isPlayDomainError } from "../domain/play/index.js";
 import { isPresenterDomainError } from "../domain/presenter/index.js";
 
@@ -87,6 +88,13 @@ const formatError = (error: GraphQLError): PresenterGraphqlResponseError => {
   }
 
   if (isCommunityDomainError(error.originalError)) {
+    return {
+      extensions: { code: error.originalError.code },
+      message: error.originalError.safeMessage
+    };
+  }
+
+  if (isObsDomainError(error.originalError)) {
     return {
       extensions: { code: error.originalError.code },
       message: error.originalError.safeMessage

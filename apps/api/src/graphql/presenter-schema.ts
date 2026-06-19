@@ -11,6 +11,11 @@ import {
   type CommunityGraphqlResolverDependencies
 } from "./community.js";
 import {
+  createObsGraphqlResolvers,
+  obsGraphqlTypeDefs,
+  type ObsGraphqlResolverDependencies
+} from "./obs.js";
+import {
   createPlayGraphqlResolvers,
   playGraphqlTypeDefs,
   type PlayGraphqlResolverDependencies
@@ -36,9 +41,14 @@ import {
  * only merged in when Community dependencies are supplied; its hyphenated enum
  * values (`small-group`, `serving-team`, `co-leader`, `ai-drafted`) are exposed
  * with underscore SDL names and mapped back to the domain values via the enum
- * value maps below (GraphQL enum names cannot contain hyphens). Planning is not
- * wired here yet; this schema is the surface the desktop replay transport
- * executes.
+ * value maps below (GraphQL enum names cannot contain hyphens). The OBS SDL
+ * follows the same pattern and is only merged in when OBS dependencies are
+ * supplied; its hyphenated enum values (`ObsActionKind`'s `start-stream` /
+ * `stop-stream` / `switch-scene` / `toggle-source-visibility` /
+ * `toggle-source-mute`, and `ObsActionOrigin`'s `ai-suggested`) are exposed with
+ * underscore SDL names and mapped back via the OBS enum value maps below.
+ * Planning is not wired here yet; this schema is the surface the desktop replay
+ * transport executes.
  */
 const baseTypeDefs = `
   scalar JSON
@@ -93,9 +103,32 @@ const communityEnumValueMaps = {
   }
 } as const;
 
+/**
+ * Enum value maps for the OBS enums whose domain values contain hyphens.
+ * Registering the internal value for each underscore SDL name makes graphql-js
+ * coerce inputs to the hyphenated domain value (so the Zod enums parse) and
+ * serialize the hyphenated value back to the underscore SDL name. Hyphen-free OBS
+ * enums (`ObsConnectionStatus`, `ObsStreamStatus`, `ObsRecordingStatus`,
+ * `ObsActionStatus`, `ObsActionLogOutcome`) need no map (SDL name === value).
+ */
+const obsEnumValueMaps = {
+  ObsActionKind: {
+    start_stream: "start-stream",
+    stop_stream: "stop-stream",
+    switch_scene: "switch-scene",
+    toggle_source_mute: "toggle-source-mute",
+    toggle_source_visibility: "toggle-source-visibility"
+  },
+  ObsActionOrigin: {
+    ai_suggested: "ai-suggested",
+    human: "human"
+  }
+} as const;
+
 export interface ApiGraphqlSchemaDependencies extends PresenterGraphqlResolverDependencies {
   readonly charts?: ChartsGraphqlResolverDependencies;
   readonly community?: CommunityGraphqlResolverDependencies;
+  readonly obs?: ObsGraphqlResolverDependencies;
   readonly play?: PlayGraphqlResolverDependencies;
 }
 
@@ -115,6 +148,10 @@ export const createPresenterGraphqlSchema = (
     dependencies.community !== undefined
       ? createCommunityGraphqlResolvers(dependencies.community)
       : undefined;
+  const obsResolvers =
+    dependencies.obs !== undefined
+      ? createObsGraphqlResolvers(dependencies.obs)
+      : undefined;
 
   return makeExecutableSchema({
     resolvers: {
@@ -124,13 +161,15 @@ export const createPresenterGraphqlSchema = (
         ...presenterResolvers.Mutation,
         ...(chartsResolvers !== undefined ? chartsResolvers.Mutation : {}),
         ...(playResolvers !== undefined ? playResolvers.Mutation : {}),
-        ...(communityResolvers !== undefined ? communityResolvers.Mutation : {})
+        ...(communityResolvers !== undefined ? communityResolvers.Mutation : {}),
+        ...(obsResolvers !== undefined ? obsResolvers.Mutation : {})
       },
       Query: {
         ...presenterResolvers.Query,
         ...(chartsResolvers !== undefined ? chartsResolvers.Query : {}),
         ...(playResolvers !== undefined ? playResolvers.Query : {}),
-        ...(communityResolvers !== undefined ? communityResolvers.Query : {})
+        ...(communityResolvers !== undefined ? communityResolvers.Query : {}),
+        ...(obsResolvers !== undefined ? obsResolvers.Query : {})
       },
       ...(communityResolvers !== undefined
         ? {
@@ -138,14 +177,16 @@ export const createPresenterGraphqlSchema = (
             EngagementScope: communityResolvers.EngagementScope,
             ...communityEnumValueMaps
           }
-        : {})
+        : {}),
+      ...(obsResolvers !== undefined ? obsEnumValueMaps : {})
     },
     typeDefs: [
       baseTypeDefs,
       presenterGraphqlTypeDefs,
       ...(chartsResolvers !== undefined ? [chartsGraphqlTypeDefs] : []),
       ...(playResolvers !== undefined ? [playGraphqlTypeDefs] : []),
-      ...(communityResolvers !== undefined ? [communityGraphqlTypeDefs] : [])
+      ...(communityResolvers !== undefined ? [communityGraphqlTypeDefs] : []),
+      ...(obsResolvers !== undefined ? [obsGraphqlTypeDefs] : [])
     ]
   });
 };
