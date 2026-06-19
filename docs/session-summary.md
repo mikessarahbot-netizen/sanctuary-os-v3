@@ -2,6 +2,19 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - WEB BREADTH COMPLETE: OBS surface + confirm-gate (all 4 modules live)
+
+Tasks completed:
+- Added the OBS web surface (delegated + parent-fixed): the 4th module surface — a console (connection/stream/recording/scenes) with the distinctive HUMAN-CONFIRM GATE for a scene switch (request → loud confirm step with audited reason → confirm+dispatch). Dispatch is the single call site inside the confirm handler; tests assert it never fires without a confirm. Demo server seeds an OBS connection + scene catalog via the FAKE control port (no real obs-websocket; opaque connectionRef). Charts/Play/Community/OBS tab nav.
+- Parent fix: after a live dispatch the client now refreshObsCatalog + reloads so the program-scene highlight reflects the switch (was a live-only stale-highlight gap; added refreshCatalog to the ObsDataSource + the 3 test doubles). 
+- VERIFIED LIVE via preview: switched Worship→Sermon through the gate (typed an audited reason, confirmed) → Sermon went ON AIR; screenshotted the gate + the result.
+- Gates green: db 466 / api 862 + 2 skipped / desktop 89 / church-context 5 / web 138. Committed `d76c600`.
+- MILESTONE: the runnable web product now spans ALL FOUR modules (Charts read+write, Play read, Community read [PII-safe], OBS read + confirm-gated scene switch), all live-verified.
+
+Next task: web DEPTH (more Charts/Play/Community/OBS features) is the remaining autonomous+verifiable path. Native desktop (Tauri) + mobile (Expo) shells and live external integrations (real obs-websocket, comms carrier) need the user.
+
+Open questions: priorities (web depth vs native shells); native + external need the user.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Web Play surface (second live module in the product)
 
 Tasks completed:

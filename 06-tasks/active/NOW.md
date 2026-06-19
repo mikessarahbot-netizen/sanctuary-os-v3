@@ -8,9 +8,14 @@ The whole stack is runnable and was verified live:
 
 So: an earlier wrong assumption is corrected — **web UIs ARE autonomously verifiable** (component tests + dev-server screenshots), and the **full vertical works**. The web UI layer is a verifiable, autonomously-buildable path.
 
-Full CRUD is now proven: a Charts edit/save write path (`d3deafa`) was verified live (edited ChordPro in the UI → live `updateChartSource` mutation → re-rendered AND persisted server-side, confirmed by re-querying the API).
+WEB BREADTH COMPLETE — the web product now spans ALL FOUR modules, each live-verified:
+- Charts (`1b8b99d`) — read + ChordPro detail + edit/save write path (`d3deafa`, full CRUD, server-side-persisted).
+- Play (`82a25d5`) — track-set library + detail (sections + cues).
+- Community+ (`4cbc68f`) — groups + members + engagement, PII-safe (contact channels shown as "kind · consent", never values).
+- OBS (`d76c600`) — console + the human-confirm scene-switch gate (request → confirm w/ audited reason → dispatch), verified live (Worship→Sermon→ON AIR).
+All over the runnable demo API (seeded, all modules), via the Vite proxy.
 
-Remaining web work (all verifiable the same way): deepen Charts (transpose, arrangements/annotations), then Play / Community+ / OBS web surfaces (the demo server already serves all of them); broaden the seed. Still genuinely needing the user: the DESKTOP (Tauri) + MOBILE (Expo) native operator surfaces, and the live EXTERNAL integrations (real obs-websocket, comms carrier) — credentials/connections.
+Remaining (all verifiable the same way): web DEPTH — more features per module (Charts transpose/arrangements/annotations; Play playback state; Community comms draft; OBS more action kinds). Still genuinely needing the user: the DESKTOP (Tauri) + MOBILE (Expo) native operator surfaces, and the live EXTERNAL integrations (real obs-websocket, comms carrier) — credentials/connections.
 
 Run it yourself: terminal 1 `pnpm --filter @sanctuary-os/api dev`; terminal 2 `pnpm --filter @sanctuary-os/web dev`; open http://127.0.0.1:5173/?source=live.
 
