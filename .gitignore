@@ -5,3 +5,9 @@ coverage/
 .env
 .env.*
 !.env.example
+
+# Local persistent demo server on-disk SQLite database (apps/api dev:persistent).
+# Default path is <repo>/.sanctuary-demo.db; ignore the file and its WAL/SHM
+# sidecars so a local durability run is never committed.
+.sanctuary-demo.db
+.sanctuary-demo.db-*

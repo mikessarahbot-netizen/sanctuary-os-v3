@@ -24,7 +24,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration:postgres": "vitest run src/services/planning/postgresql-integration.test.ts src/services/presenter/postgresql-integration.test.ts",
-    "dev": "tsx src/demo/server.ts"
+    "dev": "tsx src/demo/server.ts",
+    "dev:persistent": "tsx src/demo/persistent-server.ts"
   },
   "dependencies": {
     "@graphql-tools/schema": "^10.0.33",
