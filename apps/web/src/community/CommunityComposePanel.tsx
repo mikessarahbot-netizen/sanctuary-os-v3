@@ -1,8 +1,10 @@
 import { useCallback, useId, useMemo, useState, type ReactElement } from "react";
 import { CommunityCommsGate } from "./CommunityCommsGate.js";
 import type {
+  AiDraftedMessage,
   CommunicationChannel,
   CommunicationMessageRef,
+  DraftWithAiInput,
   GroupMemberRow,
   QueuedCommunicationResult,
   ResolvedAudience,
@@ -14,7 +16,9 @@ import type {
  * gate (alongside OBS). Rendered inside the group detail for the selected group, it
  * lets an operator:
  *
- *   1. COMPOSE a short message (a channel pick + a body, plus a subject on email).
+ *   1. COMPOSE a short message (a channel pick + a body, plus a subject on email) —
+ *      either by typing it, or by asking the backend to AI-DRAFT it (the real
+ *      `claude-opus-4-8` adapter when a key is configured; a canned draft in demo).
  *   2. PREVIEW the AUDIENCE — the server resolves who is INCLUDED (granted consent
  *      for the channel) vs SUPPRESSED (consent not granted / no channel of the
  *      kind), making consent suppression visible BEFORE anything is sent.
@@ -26,6 +30,13 @@ import type {
  * queues, so a queue can never fire without a human confirmation. Cancel aborts with
  * no queue. On success the panel shows "Queued to N recipients" + the suppressed
  * count.
+ *
+ * AI DRAFTS, A HUMAN CONFIRMS: an AI-drafted message is created server-side with
+ * `origin: "ai-drafted"` and enters this SAME gate — it is previewed and then routed
+ * through the identical human-confirm-send step (it is never auto-sent, and it keeps
+ * its `ai-drafted` origin through confirm → queue). The panel labels an AI draft as
+ * such and keeps the "a human still confirms before anyone is contacted" framing
+ * visible, so AI assistance never weakens the consent + confirmation gate.
  *
  * PRIVACY: included / suppressed recipients are rendered by their PII-safe display
  * name (joined from the group's member rows by `memberRef`) — never a contact
@@ -42,6 +53,13 @@ export interface CommunityComposePanelProps {
     readonly bodyTemplate: string;
     readonly subject?: string;
   }) => Promise<CommunicationMessageRef>;
+  /**
+   * Ask the backend to AI-draft a message for this group + channel. Optional: when
+   * omitted, the AI-draft affordance is not rendered (manual compose only). The
+   * returned `ai-drafted` draft already exists on the server; the panel previews its
+   * audience and routes it through the same human-confirm gate.
+   */
+  readonly onDraftWithAi?: (input: DraftWithAiInput) => Promise<AiDraftedMessage>;
   readonly onResolveAudience: (
     messageId: string
   ) => Promise<ResolvedAudience | null>;
@@ -75,46 +93,74 @@ const errorMessageOf = (error: unknown): string =>
   error instanceof Error ? error.message : "Unknown error.";
 
 /**
+ * The drafted text shown for review when the previewed draft was produced by AI.
+ * Carried through the preview/confirm phases so the "AI-drafted — a human still
+ * confirms" framing + the draft body stay visible right up to the gate. PII-free:
+ * `bodyTemplate` is placeholder-token text, never a resolved contact value.
+ */
+interface AiDraftContext {
+  readonly bodyTemplate: string;
+  readonly subject: string | null;
+}
+
+/**
  * The compose → preview → confirm flow state. `composing`: the form is being filled
- * (no draft yet). `previewing`: a draft is being composed + its audience resolved.
- * `previewed`: the audience is shown and Send is available. `awaiting-confirm` /
- * `working`: the confirm gate is open / the confirm+queue is in flight. `queued`:
- * the success result. Each non-initial phase carries the composed `messageId` so
- * the confirm path acts on the same draft the preview described.
+ * (no draft yet). `ai-drafting`: an AI draft is being requested. `previewing`: a
+ * draft is being composed + its audience resolved. `previewed`: the audience is
+ * shown and Send is available. `awaiting-confirm` / `working`: the confirm gate is
+ * open / the confirm+queue is in flight. `queued`: the success result. Each
+ * non-initial phase carries the composed `messageId` so the confirm path acts on the
+ * SAME draft the preview described — including an AI draft, whose server-side
+ * `ai-drafted` message is the one routed through the gate (its `aiDraft` context is
+ * carried so the framing + body render). AI never gets its own send path.
  */
 type ComposeFlow =
   | { readonly phase: "composing"; readonly error: string | null }
+  | { readonly phase: "ai-drafting" }
   | { readonly phase: "previewing" }
   | {
       readonly phase: "previewed";
       readonly messageId: string;
       readonly audience: ResolvedAudience;
+      readonly aiDraft?: AiDraftContext;
     }
   | {
       readonly phase: "awaiting-confirm";
       readonly messageId: string;
       readonly audience: ResolvedAudience;
       readonly error: string | null;
+      readonly aiDraft?: AiDraftContext;
     }
   | {
       readonly phase: "working";
       readonly messageId: string;
       readonly audience: ResolvedAudience;
+      readonly aiDraft?: AiDraftContext;
     }
   | { readonly phase: "queued"; readonly result: QueuedCommunicationResult };
 
 export const CommunityComposePanel = (
   props: CommunityComposePanelProps
 ): ReactElement => {
-  const { groupId, memberRows, onComposeDraft, onResolveAudience, onConfirmAndQueue } =
-    props;
+  const {
+    groupId,
+    memberRows,
+    onComposeDraft,
+    onDraftWithAi,
+    onResolveAudience,
+    onConfirmAndQueue
+  } = props;
   const channelFieldId = useId();
   const bodyFieldId = useId();
   const subjectFieldId = useId();
+  const campaignIntentFieldId = useId();
+  const toneFieldId = useId();
 
   const [channel, setChannel] = useState<CommunicationChannel>("sms");
   const [body, setBody] = useState("");
   const [subject, setSubject] = useState("");
+  const [campaignIntent, setCampaignIntent] = useState("");
+  const [tone, setTone] = useState("Warm, brief, and hopeful.");
   const [flow, setFlow] = useState<ComposeFlow>({
     error: null,
     phase: "composing"
@@ -191,7 +237,10 @@ export const CommunityComposePanel = (
             audience: current.audience,
             error: null,
             messageId: current.messageId,
-            phase: "awaiting-confirm"
+            phase: "awaiting-confirm",
+            // Carry the AI-draft context into the gate so the "AI-drafted, a human
+            // confirms" framing persists right up to the explicit Confirm.
+            ...(current.aiDraft !== undefined ? { aiDraft: current.aiDraft } : {})
           }
         : current
     );
@@ -205,7 +254,8 @@ export const CommunityComposePanel = (
         ? {
             audience: current.audience,
             messageId: current.messageId,
-            phase: "previewed"
+            phase: "previewed",
+            ...(current.aiDraft !== undefined ? { aiDraft: current.aiDraft } : {})
           }
         : current
     );
@@ -218,11 +268,18 @@ export const CommunityComposePanel = (
       }
 
       const { messageId, audience } = flow;
-      setFlow({ audience, messageId, phase: "working" });
+      const aiDraft = flow.aiDraft;
+      setFlow({
+        audience,
+        messageId,
+        phase: "working",
+        ...(aiDraft !== undefined ? { aiDraft } : {})
+      });
 
       // The ONLY queue path: the data source confirms the human gate THEN queues.
       // It is never called anywhere else, so a queue can never fire without this
-      // explicit Confirm.
+      // explicit Confirm — and an ai-drafted message is queued through this very
+      // same path (it has no send path of its own).
       onConfirmAndQueue({ messageId, reason })
         .then((result) => {
           setFlow({ phase: "queued", result });
@@ -232,16 +289,71 @@ export const CommunityComposePanel = (
             audience,
             error: errorMessageOf(error),
             messageId,
-            phase: "awaiting-confirm"
+            phase: "awaiting-confirm",
+            ...(aiDraft !== undefined ? { aiDraft } : {})
           });
         });
     },
     [flow, onConfirmAndQueue]
   );
 
+  const trimmedCampaignIntent = campaignIntent.trim();
+  const trimmedTone = tone.trim();
+  const canDraftWithAi =
+    onDraftWithAi !== undefined &&
+    flow.phase === "composing" &&
+    trimmedCampaignIntent.length > 0 &&
+    trimmedTone.length > 0;
+
+  const handleDraftWithAi = useCallback((): void => {
+    if (
+      onDraftWithAi === undefined ||
+      trimmedCampaignIntent.length === 0 ||
+      trimmedTone.length === 0
+    ) {
+      return;
+    }
+
+    setFlow({ phase: "ai-drafting" });
+
+    // Ask the backend to AI-draft (the real claude-opus-4-8 adapter when a key is
+    // set; a canned draft in demo). The returned `ai-drafted` draft ALREADY exists
+    // on the server; we resolve ITS audience and enter `previewed` for THAT
+    // messageId, so the operator reviews the AI text and then drives the same
+    // human-confirm-send gate. The AI message is never auto-advanced.
+    onDraftWithAi({
+      campaignIntent: trimmedCampaignIntent,
+      channel,
+      churchToneSummary: trimmedTone,
+      groupId
+    })
+      .then((draft) =>
+        onResolveAudience(draft.messageId).then((audience) => ({ audience, draft }))
+      )
+      .then(({ audience, draft }) => {
+        setFlow({
+          aiDraft: { bodyTemplate: draft.bodyTemplate, subject: draft.subject },
+          audience: audience ?? { channel, included: [], suppressed: [] },
+          messageId: draft.messageId,
+          phase: "previewed"
+        });
+      })
+      .catch((error: unknown) => {
+        setFlow({ error: errorMessageOf(error), phase: "composing" });
+      });
+  }, [
+    channel,
+    groupId,
+    onDraftWithAi,
+    onResolveAudience,
+    trimmedCampaignIntent,
+    trimmedTone
+  ]);
+
   const startNewMessage = useCallback((): void => {
     setBody("");
     setSubject("");
+    setCampaignIntent("");
     setFlow({ error: null, phase: "composing" });
   }, []);
 
@@ -282,6 +394,7 @@ export const CommunityComposePanel = (
 
   const composing = flow.phase === "composing";
   const previewing = flow.phase === "previewing";
+  const aiDrafting = flow.phase === "ai-drafting";
   const audience =
     flow.phase === "previewed" ||
     flow.phase === "awaiting-confirm" ||
@@ -289,6 +402,15 @@ export const CommunityComposePanel = (
       ? flow.audience
       : null;
   const gateOpen = flow.phase === "awaiting-confirm" || flow.phase === "working";
+  // The AI-draft context (set only when the previewed/gated draft came from AI), so
+  // the "AI-drafted — a human still confirms" framing + the drafted body render
+  // through the preview and the gate.
+  const aiDraft =
+    flow.phase === "previewed" ||
+    flow.phase === "awaiting-confirm" ||
+    flow.phase === "working"
+      ? flow.aiDraft ?? null
+      : null;
 
   return (
     <div className="comms-panel" aria-label="Compose message">
@@ -390,6 +512,86 @@ export const CommunityComposePanel = (
           </p>
         ) : null}
       </form>
+
+      {onDraftWithAi !== undefined && (composing || aiDrafting) ? (
+        <section className="comms-ai" aria-label="AI draft">
+          <h4 className="comms-ai__heading">Draft with AI</h4>
+          <p className="comms-ai__note">
+            AI writes a first draft for the channel above — then{" "}
+            <strong>you still review the audience and confirm</strong> before anyone
+            is contacted. The AI never sends; a human always confirms.
+          </p>
+
+          <div className="comms-compose__field">
+            <label className="comms-compose__label" htmlFor={campaignIntentFieldId}>
+              What is this message for?
+            </label>
+            <input
+              id={campaignIntentFieldId}
+              className="comms-compose__input"
+              type="text"
+              value={campaignIntent}
+              disabled={!composing}
+              placeholder="e.g. Invite the team to Sunday's 8am setup huddle"
+              onChange={(event): void => {
+                setCampaignIntent(event.target.value);
+              }}
+            />
+          </div>
+
+          <div className="comms-compose__field">
+            <label className="comms-compose__label" htmlFor={toneFieldId}>
+              Tone
+            </label>
+            <input
+              id={toneFieldId}
+              className="comms-compose__input"
+              type="text"
+              value={tone}
+              disabled={!composing}
+              placeholder="e.g. Warm, brief, and hopeful"
+              onChange={(event): void => {
+                setTone(event.target.value);
+              }}
+            />
+          </div>
+
+          {composing ? (
+            <button
+              type="button"
+              className="comms-panel__secondary comms-ai__button"
+              disabled={!canDraftWithAi}
+              onClick={handleDraftWithAi}
+            >
+              AI draft
+            </button>
+          ) : null}
+          {aiDrafting ? (
+            <p className="comms-panel__intro" role="status" aria-busy="true">
+              Asking the AI to draft a message…
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {aiDraft !== null ? (
+        <section className="comms-ai-draft" aria-label="AI-drafted message">
+          <p className="comms-ai-draft__badge">
+            AI-drafted · a human still confirms before sending
+          </p>
+          {aiDraft.subject !== null ? (
+            <p className="comms-ai-draft__subject">
+              <span className="comms-ai-draft__field-label">Subject</span>{" "}
+              {aiDraft.subject}
+            </p>
+          ) : null}
+          <p className="comms-ai-draft__body">{aiDraft.bodyTemplate}</p>
+          <p className="comms-ai-draft__note">
+            Review the audience below, then explicitly confirm. The AI did not — and
+            cannot — send this; it is a draft awaiting your confirmation.
+          </p>
+        </section>
+      ) : null}
 
       {audience !== null ? (
         <div className="comms-audience" role="group" aria-label="Resolved audience">

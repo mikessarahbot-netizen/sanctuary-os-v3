@@ -132,7 +132,7 @@ const projection: CommunityAiDraftPrompt = CommunityAiDraftPromptSchema.parse({
 });
 
 describe("createAnthropicCommunityAiDraftPort", () => {
-  it("calls messages.create with the default model, the spec as system prompt, structured output, adaptive thinking, and the projection in the user message", async () => {
+  it("calls messages.create with the default model, the spec as system prompt, structured output (no thinking), and the projection in the user message", async () => {
     const { client, bodies } = createFakeClient({
       kind: "message",
       message: messageWithText(validSuggestionJson)
@@ -157,9 +157,11 @@ describe("createAnthropicCommunityAiDraftPort", () => {
     expect(body.system).toContain(COMMUNITY_AI_DRAFT_PROMPT_VERSION);
     expect(body.system).toContain("Community+ Communications Drafter");
 
-    // Structured output (json_schema) requested + adaptive thinking, non-streaming.
+    // Structured output (json_schema) requested; no thinking (deterministic
+    // structured generation — adaptive thinking added variance, e.g. occasional
+    // stub outputs, without benefit here); non-streaming.
     expect(body.output_config?.format?.type).toBe("json_schema");
-    expect(body.thinking).toEqual({ type: "adaptive" });
+    expect(body.thinking).toBeUndefined();
     expect(body.stream).toBeUndefined();
 
     // The user message carries exactly the projection serialized as JSON.
@@ -250,5 +252,32 @@ describe("createAnthropicCommunityAiDraftPort", () => {
     const port = createAnthropicCommunityAiDraftPort({ client });
 
     await expect(port.draftCommunication(projection)).rejects.toThrow(/non-JSON/u);
+  });
+
+  it("strips an empty-string optional field (subject on SMS) so the strict gate accepts the draft", async () => {
+    // Structured outputs cannot express "non-empty or absent" (no JSON Schema
+    // minLength), so the model emits subject:"" for a non-email channel. The
+    // adapter drops empty-string fields before the service re-validates with
+    // CommunityAiDraftSuggestionSchema (subject is optional but NON-empty) — a
+    // real bug caught by live verification.
+    const withEmptySubject = JSON.stringify({
+      bodyTemplate: "Hi {{firstName}}, thanks for serving — see you Sunday!",
+      needsReview: true,
+      rationale: "Warm SMS thank-you using only the firstName placeholder.",
+      status: "drafted",
+      subject: "",
+      usedPlaceholders: ["firstName"]
+    });
+    const { client } = createFakeClient({
+      kind: "message",
+      message: messageWithText(withEmptySubject)
+    });
+    const port = createAnthropicCommunityAiDraftPort({ client });
+
+    const result = await port.draftCommunication(projection);
+
+    // The empty subject is gone, and the result now passes the authoritative gate.
+    expect(result).not.toHaveProperty("subject");
+    expect(CommunityAiDraftSuggestionSchema.safeParse(result).success).toBe(true);
   });
 });

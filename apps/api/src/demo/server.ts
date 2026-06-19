@@ -1,3 +1,6 @@
+import { fileURLToPath } from "node:url";
+import { dirname, resolve as resolvePath } from "node:path";
+import { config } from "dotenv";
 import type { AuthBoundary, AuthenticatedActor } from "../auth/index.js";
 import { createPresenterGraphqlHttpServer } from "../graphql/http-server.js";
 import { createInMemoryChartsServicesAdapter } from "../services/charts/in-memory.js";
@@ -6,6 +9,8 @@ import { createInMemoryObsServicesAdapter } from "../services/obs/in-memory.js";
 import { createFakeObsControlPort } from "../services/obs/fake-control-port.js";
 import { createInMemoryPlayServicesAdapter } from "../services/play/in-memory.js";
 import { createInMemoryPresenterServicesAdapter } from "../services/presenter/in-memory.js";
+import type { CommunityAiDraftPort } from "../services/community/ai-draft.js";
+import { resolveCommunityAiDraftPort } from "./community-ai.js";
 import {
   buildDemoSchema,
   createDemoClock,
@@ -72,6 +77,14 @@ export interface DemoServerComposition {
 }
 
 export interface CreateDemoServerOptions {
+  /**
+   * The Community AI-draft port to inject. Defaults to NONE (the keyless fake
+   * path: the in-memory adapter is built without an `aiDraftPort`, so an AI-draft
+   * request surfaces a typed error rather than hitting the network — the same
+   * behavior the server tests rely on). `main()` resolves the real Anthropic port
+   * from `ANTHROPIC_API_KEY` (after dotenv) and passes it here.
+   */
+  readonly communityAiDraftPort?: CommunityAiDraftPort;
   readonly path?: string;
 }
 
@@ -103,7 +116,15 @@ export const createDemoServer = (
     clock,
     controlPort: obsControlPort.port
   });
-  const community = createInMemoryCommunityServicesAdapter({ clock });
+  // Community: inject the resolved AI-draft port ONLY when one was supplied (real
+  // Anthropic when `main()` found a key; absent otherwise). With no port the
+  // keyless fake path is unchanged — the manual-compose lifecycle is untouched.
+  const community = createInMemoryCommunityServicesAdapter({
+    clock,
+    ...(options.communityAiDraftPort !== undefined
+      ? { aiDraftPort: options.communityAiDraftPort }
+      : {})
+  });
 
   const schema = buildDemoSchema({ charts, community, obs, play, presenter });
 
@@ -133,19 +154,43 @@ const resolvePort = (rawPort: string | undefined): number => {
 };
 
 /**
- * Module entry: seed the demo data, then listen on `PORT` (default 4000) and log
- * the GraphQL URL. Run with `pnpm --filter @sanctuary-os/api dev`.
+ * Module entry: load the API `.env` (so `ANTHROPIC_API_KEY` is available), resolve
+ * the Community AI-draft port (real Anthropic when a key is set, else the keyless
+ * fake path), seed the demo data, then listen on `PORT` (default 4000) and log the
+ * GraphQL URL. Run with `pnpm --filter @sanctuary-os/api dev`.
+ *
+ * The dotenv load is here in the entry point (not at module scope), resolved from
+ * THIS file's location so it works regardless of cwd — the same robust pattern as
+ * `ai-smoke-test.ts`. Keeping it out of module scope means `server.test.ts` (which
+ * imports `createDemoServer` directly, never `main`) never loads the key or
+ * constructs an Anthropic client.
  */
 const main = async (): Promise<void> => {
-  const { seed, server } = createDemoServer();
+  // Load apps/api/.env relative to this file (src/demo/server.ts -> apps/api/.env)
+  // so the key loads no matter which directory the demo is launched from.
+  const here = dirname(fileURLToPath(import.meta.url));
+  config({ path: resolvePath(here, "..", "..", ".env") });
+
+  const communityAiDraftPort = resolveCommunityAiDraftPort();
+  const { seed, server } = createDemoServer(
+    communityAiDraftPort !== undefined ? { communityAiDraftPort } : {}
+  );
   await seed();
 
   const port = resolvePort(process.env["PORT"]);
   const host = "127.0.0.1";
 
   server.listen(port, host, () => {
-    // Demo server: surface the URL so the operator knows where to point the web app.
+    // Demo server: surface the URL so the operator knows where to point the web app,
+    // plus whether the real AI-draft port is wired (key present) — never the key.
     console.log(`Demo GraphQL API listening at http://${host}:${String(port)}/graphql`);
+    console.log(
+      `Community AI draft: ${
+        communityAiDraftPort !== undefined
+          ? "live Anthropic (ANTHROPIC_API_KEY detected)"
+          : "disabled (no ANTHROPIC_API_KEY) — demo uses the fake draft"
+      }`
+    );
   });
 };
 

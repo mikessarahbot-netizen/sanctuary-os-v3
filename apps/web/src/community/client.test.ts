@@ -261,6 +261,80 @@ describe("createCommunityClient comms gate", () => {
     });
   });
 
+  it("draftWithAi POSTs draftCommunicationWithAi with a group audience + PII-free hints and returns the ai-drafted draft", async () => {
+    const aiDrafted = {
+      bodyTemplate: "Hi {{firstName}}, we'd love to see you Sunday.",
+      channel: "sms",
+      messageId: "ai_message_1",
+      origin: "ai_drafted",
+      status: "draft",
+      subject: null
+    };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        jsonResponse({ data: { draftCommunicationWithAi: aiDrafted } })
+      )
+    );
+
+    const result = await createCommunityClient({ fetchImpl }).draftWithAi({
+      campaignIntent: "Re-engage members who have not attended recently.",
+      channel: "sms",
+      churchToneSummary: "Warm, brief, hopeful.",
+      groupId: "group-hospitality",
+      forbiddenTopics: ["giving"],
+      requiredPlaceholders: ["firstName"]
+    });
+
+    expect(result).toEqual(aiDrafted);
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    expect(body.query).toContain("mutation DraftCommunicationWithAi");
+    expect(body.query).toContain("$input: DraftCommunicationWithAiInput!");
+    // The mutation selects the drafted TEXT so the panel can show it for review.
+    expect(body.query).toContain("bodyTemplate");
+    // The audience is the group; only PII-free hints are sent — no recipient, no
+    // contact value.
+    expect(body.variables.input).toEqual({
+      audience: { groupId: "group-hospitality", kind: "group" },
+      campaignIntent: "Re-engage members who have not attended recently.",
+      channel: "sms",
+      churchToneSummary: "Warm, brief, hopeful.",
+      forbiddenTopics: ["giving"],
+      requiredPlaceholders: ["firstName"]
+    });
+  });
+
+  it("draftWithAi omits the optional list hints when they are not provided", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            draftCommunicationWithAi: {
+              bodyTemplate: "Hi {{firstName}}.",
+              channel: "sms",
+              messageId: "ai_message_2",
+              origin: "ai_drafted",
+              status: "draft",
+              subject: null
+            }
+          }
+        })
+      )
+    );
+
+    await createCommunityClient({ fetchImpl }).draftWithAi({
+      campaignIntent: "Invite the team to setup.",
+      channel: "sms",
+      churchToneSummary: "Warm.",
+      groupId: "group-hospitality"
+    });
+
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    // Absent optional lists are not sent (kept absent, not null — the server schema
+    // applies its own [] defaults).
+    expect(body.variables.input).not.toHaveProperty("forbiddenTopics");
+    expect(body.variables.input).not.toHaveProperty("requiredPlaceholders");
+  });
+
   it("getResolvedAudience POSTs resolvedAudience and returns included + suppressed refs", async () => {
     const audience = {
       channel: "sms",

@@ -4,8 +4,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CommunityComposePanel } from "./CommunityComposePanel.js";
 import { findSampleCommunityGroupDetail, resolveSampleAudience } from "./sample-data.js";
 import type {
+  AiDraftedMessage,
   CommunicationChannel,
   CommunicationMessageRef,
+  DraftWithAiInput,
   GroupMemberRow,
   QueuedCommunicationResult,
   ResolvedAudience
@@ -31,12 +33,19 @@ interface SpyCallbacks {
     readonly bodyTemplate: string;
     readonly subject?: string;
   }) => Promise<CommunicationMessageRef>;
+  readonly draftWithAi: (input: DraftWithAiInput) => Promise<AiDraftedMessage>;
+  readonly draftWithAiInputs: DraftWithAiInput[];
   readonly resolveAudience: (messageId: string) => Promise<ResolvedAudience | null>;
   readonly confirmAndQueue: (input: {
     readonly messageId: string;
     readonly reason: string;
   }) => Promise<QueuedCommunicationResult>;
 }
+
+// The AI-drafted message the fake `draftWithAi` returns: origin "ai-drafted",
+// status "draft", with a placeholder-token body (never a contact value).
+const AI_DRAFT_MESSAGE_ID = "ai-message-1";
+const AI_DRAFT_BODY = "Hi {{firstName}}, we'd love to see you Sunday.";
 
 /**
  * Stateful spy callbacks that record the method-call order so a test can prove
@@ -52,9 +61,11 @@ const makeSpy = (
   }) => Promise<QueuedCommunicationResult>
 ): SpyCallbacks => {
   const calls: string[] = [];
+  const draftWithAiInputs: DraftWithAiInput[] = [];
 
   return {
     calls,
+    draftWithAiInputs,
     composeDraft: (input): Promise<CommunicationMessageRef> => {
       calls.push("composeDraft");
 
@@ -63,6 +74,21 @@ const makeSpy = (
         messageId: "message-1",
         origin: "human",
         status: "draft"
+      });
+    },
+    draftWithAi: (input): Promise<AiDraftedMessage> => {
+      calls.push("draftWithAi");
+      draftWithAiInputs.push(input);
+
+      // The backend created an ai-drafted DRAFT (it never sends); return it with the
+      // drafted text so the panel can show it for review.
+      return Promise.resolve({
+        bodyTemplate: AI_DRAFT_BODY,
+        channel: input.channel,
+        messageId: AI_DRAFT_MESSAGE_ID,
+        origin: "ai-drafted",
+        status: "draft",
+        subject: input.channel === "email" ? "Hope to see you Sunday" : null
       });
     },
     resolveAudience: (messageId): Promise<ResolvedAudience | null> => {
@@ -105,6 +131,37 @@ const renderPanel = (spy: SpyCallbacks): void => {
       onConfirmAndQueue={spy.confirmAndQueue}
     />
   );
+};
+
+// Render with the AI-draft affordance wired (the screen passes `onDraftWithAi` from
+// the data source). Returns the container for DOM-wide privacy assertions.
+const renderPanelWithAi = (spy: SpyCallbacks): { readonly container: HTMLElement } => {
+  const { container } = render(
+    <CommunityComposePanel
+      groupId="group-hospitality"
+      groupLabel="Hospitality Team"
+      memberRows={HOSPITALITY_ROWS}
+      onComposeDraft={spy.composeDraft}
+      onDraftWithAi={spy.draftWithAi}
+      onResolveAudience={spy.resolveAudience}
+      onConfirmAndQueue={spy.confirmAndQueue}
+    />
+  );
+
+  return { container };
+};
+
+// Fill the AI hints and click "AI draft", then wait for the AI-drafted message to
+// appear (review state). Shared by the AI-flow tests below.
+const aiDraftAndReview = async (
+  user: ReturnType<typeof userEvent.setup>
+): Promise<void> => {
+  await user.type(
+    screen.getByLabelText("What is this message for?"),
+    "Invite the team to Sunday setup."
+  );
+  await user.click(screen.getByRole("button", { name: "AI draft" }));
+  await screen.findByRole("group", { name: "Resolved audience" });
 };
 
 const previewAudience = async (
@@ -316,5 +373,96 @@ describe("CommunityComposePanel human-confirm gate", () => {
     ).toBeInTheDocument();
     // No success result rendered.
     expect(screen.queryByText(/Queued to/)).toBeNull();
+  });
+});
+
+describe("CommunityComposePanel AI draft", () => {
+  it("clicking AI draft calls the mutation, shows the AI-drafted message + audience, and frames it as needing a human confirm", async () => {
+    const user = userEvent.setup();
+    const spy = makeSpy("sms");
+    const { container } = renderPanelWithAi(spy);
+
+    await aiDraftAndReview(user);
+
+    // The mutation was called with the group + channel + the PII-free hints.
+    expect(spy.calls).toEqual(["draftWithAi", "resolveAudience"]);
+    expect(spy.draftWithAiInputs).toHaveLength(1);
+    expect(spy.draftWithAiInputs[0]).toMatchObject({
+      campaignIntent: "Invite the team to Sunday setup.",
+      channel: "sms",
+      groupId: "group-hospitality"
+    });
+
+    // The AI-drafted message is shown for review with the "a human still confirms"
+    // framing visible.
+    const aiDraft = screen.getByRole("region", { name: "AI-drafted message" });
+    expect(aiDraft).toHaveTextContent(AI_DRAFT_BODY);
+    expect(
+      screen.getByText(/AI-drafted · a human still confirms before sending/)
+    ).toBeInTheDocument();
+
+    // The same consent-filtered audience the manual flow shows is resolved for the
+    // AI draft: Anita included, David + Maria suppressed.
+    const audience = screen.getByRole("group", { name: "Resolved audience" });
+    expect(within(audience).getByText("Included · 1")).toBeInTheDocument();
+    expect(within(audience).getByText("Anita Bello")).toBeInTheDocument();
+    expect(within(audience).getByText("Suppressed · 2")).toBeInTheDocument();
+
+    // Privacy: the placeholder-token body carries no contact value, and no
+    // channelRef token leaks to the DOM.
+    const text = container.textContent;
+    expect(text).not.toContain("@");
+    expect(text).not.toMatch(/\d{7,}/);
+    expect(text).not.toContain("channel-anita-sms");
+
+    // Nothing has been queued yet — only draft + resolve happened.
+    expect(spy.calls).not.toContain("confirmAndQueue");
+  });
+
+  it("INVARIANT: an AI-origin draft cannot bypass the confirm step — Send opens the gate and only an explicit Confirm queues", async () => {
+    const user = userEvent.setup();
+    const spy = makeSpy("sms");
+    renderPanelWithAi(spy);
+
+    await aiDraftAndReview(user);
+
+    // The AI draft did NOT auto-send: up to here, no queue has happened.
+    expect(spy.calls).not.toContain("confirmAndQueue");
+
+    // Send opens the loud human-confirm gate — still no queue.
+    await user.click(screen.getByRole("button", { name: /^Send to 1 recipient/ }));
+    await screen.findByRole("alertdialog", { name: "Confirm send" });
+    expect(spy.calls).not.toContain("confirmAndQueue");
+
+    // Only the explicit Confirm (with a reason) runs the queue path, exactly once,
+    // and only AFTER the AI draft + preview + gate-open.
+    await user.type(await screen.findByLabelText(/Reason/), "Approved by lead");
+    await user.click(
+      screen.getByRole("button", { name: /^Confirm and send to 1 person/ })
+    );
+    await waitFor(() => {
+      expect(screen.getByText("Queued to 1 recipient.")).toBeInTheDocument();
+    });
+
+    expect(spy.calls).toEqual([
+      "draftWithAi",
+      "resolveAudience",
+      "confirmAndQueue"
+    ]);
+    // The confirm is strictly the last action — the AI draft never reached the queue
+    // on its own.
+    expect(spy.calls.indexOf("confirmAndQueue")).toBe(spy.calls.length - 1);
+  });
+
+  it("does not render the AI-draft affordance when no onDraftWithAi is provided (manual compose unchanged)", () => {
+    const spy = makeSpy("sms");
+    renderPanel(spy);
+
+    expect(screen.queryByRole("button", { name: "AI draft" })).toBeNull();
+    expect(screen.queryByLabelText("What is this message for?")).toBeNull();
+    // The manual Preview-audience button is still there.
+    expect(
+      screen.getByRole("button", { name: "Preview audience" })
+    ).toBeInTheDocument();
   });
 });

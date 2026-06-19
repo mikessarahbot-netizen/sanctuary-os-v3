@@ -10,9 +10,11 @@ import {
   resolveSampleAudience
 } from "./sample-data.js";
 import type {
+  AiDraftedMessage,
   CommunicationMessageRef,
   CommunityGroup,
   CommunityGroupDetail,
+  DraftWithAiInput,
   QueuedCommunicationResult,
   ResolvedAudience
 } from "./types.js";
@@ -75,6 +77,27 @@ export const createDemoCommunityDataSource = (): CommunityDataSource => {
         messageId,
         origin: "human",
         status: "draft"
+      });
+    },
+    draftWithAi: (input: DraftWithAiInput): Promise<AiDraftedMessage> => {
+      // Demo mode does NOT hit the network: it returns a CANNED ai-drafted draft
+      // and registers it in the same `drafts` map a manual compose uses, so the
+      // returned draft flows through the EXACT same consent-preview +
+      // human-confirm-send gate (getResolvedAudience / confirmAndQueue). The body is
+      // placeholder-token text — never a resolved contact value. The live source
+      // calls the real claude-opus-4-8 adapter instead (when a key is set).
+      const messageId = `demo-ai-message-${String(nextMessageNumber++)}`;
+      drafts.set(messageId, { channel: input.channel, groupId: input.groupId });
+
+      return Promise.resolve({
+        bodyTemplate:
+          "Hi {{firstName}}, we'd love to see you this Sunday — it wouldn't be the same without you.",
+        channel: input.channel,
+        messageId,
+        origin: "ai-drafted",
+        status: "draft",
+        subject:
+          input.channel === "email" ? "Hope to see you Sunday" : null
       });
     },
     getResolvedAudience: (

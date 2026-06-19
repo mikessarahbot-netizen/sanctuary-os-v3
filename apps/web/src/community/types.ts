@@ -194,3 +194,36 @@ export interface QueuedCommunicationResult {
   readonly includedCount: number;
   readonly suppressedCount: number;
 }
+
+/**
+ * The draft an AI-assist produced (server-side `origin: "ai-drafted"`, `status:
+ * "draft"`). It extends the lifecycle ref with the AI's `bodyTemplate` (and a
+ * `subject` on email) so the compose panel can SHOW the drafted text for review.
+ * The draft already exists on the server; the operator reviews it, then drives it
+ * through the SAME consent-preview + human-confirm-send gate as a manual draft — an
+ * AI draft can never self-advance past `draft`. PRIVACY: the body is placeholder-
+ * token text (`{{firstName}}`), never a resolved contact value.
+ */
+export interface AiDraftedMessage {
+  readonly channel: string;
+  readonly messageId: string;
+  readonly origin: string;
+  readonly status: string;
+  readonly bodyTemplate: string;
+  readonly subject: string | null;
+}
+
+/**
+ * Input to request an AI-drafted communication for a group + channel. Carries only
+ * PII-free hints — the campaign intent, a church-tone summary, and (optional)
+ * placeholder tokens / forbidden topics. No member, no contact value. The audience
+ * is the selected group; the server builds the PII-free engagement projection.
+ */
+export interface DraftWithAiInput {
+  readonly groupId: string;
+  readonly channel: CommunicationChannel;
+  readonly campaignIntent: string;
+  readonly churchToneSummary: string;
+  readonly forbiddenTopics?: readonly string[];
+  readonly requiredPlaceholders?: readonly string[];
+}

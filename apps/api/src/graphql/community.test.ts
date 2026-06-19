@@ -17,6 +17,7 @@ import {
   createCommunityGraphqlResolvers,
   type CommunityGraphqlContext
 } from "./community.js";
+import { createInMemoryCommunityServicesAdapter } from "../services/community/in-memory.js";
 import { createPresenterGraphqlSchema } from "./presenter-schema.js";
 import { createPresenterGraphqlRequestHandler } from "./transport.js";
 
@@ -63,6 +64,22 @@ const message: CommunicationMessage = CommunicationMessageSchema.parse({
   createdByRef: "leader_1",
   messageId: "message_1",
   origin: "human",
+  status: "draft",
+  tenantId: "tenant_1",
+  updatedAt: timestamp
+});
+
+// The draft an AI-assist produces: same `CommunicationMessage` shape, but
+// `origin: "ai-drafted"` and still `status: "draft"` — bound by the same human-
+// confirm gate as any other draft.
+const aiDraftedMessage: CommunicationMessage = CommunicationMessageSchema.parse({
+  audience: { kind: "segment", segmentRef: "segment_a" },
+  bodyTemplate: "Hi {{firstName}}, we'd love to see you Sunday.",
+  channel: "sms",
+  createdAt: timestamp,
+  createdByRef: "leader_1",
+  messageId: "message_ai_1",
+  origin: "ai-drafted",
   status: "draft",
   tenantId: "tenant_1",
   updatedAt: timestamp
@@ -199,6 +216,17 @@ describe("communityGraphqlTypeDefs", () => {
     );
   });
 
+  it("declares the AI-assist draft mutation returning a CommunicationMessage", () => {
+    expect(communityGraphqlTypeDefs).toContain(
+      "draftCommunicationWithAi(\n      input: DraftCommunicationWithAiInput!\n    ): CommunicationMessage!"
+    );
+    // The input mirrors the service input: audience descriptor + campaign/tone
+    // hints + placeholder tokens + forbidden topics (PII-free), no recipient field.
+    expect(communityGraphqlTypeDefs).toContain("input DraftCommunicationWithAiInput {");
+    expect(communityGraphqlTypeDefs).toContain("campaignIntent: String!");
+    expect(communityGraphqlTypeDefs).toContain("churchToneSummary: String!");
+  });
+
   it("never exposes a raw contact-value field on any Community type", () => {
     expect(communityGraphqlTypeDefs).not.toContain("phone");
     expect(communityGraphqlTypeDefs).not.toContain("email:");
@@ -253,6 +281,48 @@ describe("createCommunityGraphqlResolvers", () => {
     expect(saveCommunityGroup).toHaveBeenCalledWith({
       actor: graphqlContext.actor,
       input: { archived: false, kind: "small-group", label: "Tuesday Group" },
+      requestId: "request_1"
+    });
+  });
+
+  it("delegates draftCommunicationWithAi with a branded audience and array defaults", async () => {
+    const draftCommunicationWithAi = vi.fn<
+      CommunityCommandService["draftCommunicationWithAi"]
+    >(() => Promise.resolve(aiDraftedMessage));
+    const resolvers = createCommunityGraphqlResolvers({
+      communityCommandService: createCommunityCommandService({
+        draftCommunicationWithAi
+      }),
+      communityQueryService: createCommunityQueryService()
+    });
+
+    // `forbiddenTopics` / `requiredPlaceholders` / `aiPolicyProfile` are omitted by
+    // the caller; the command schema fills the two list defaults to [].
+    await expect(
+      resolvers.Mutation.draftCommunicationWithAi(
+        undefined,
+        {
+          input: {
+            audience: { groupId: "group_1", kind: "group" },
+            campaignIntent: "Invite the team to Sunday setup.",
+            channel: "sms",
+            churchToneSummary: "Warm, brief, hopeful."
+          }
+        },
+        graphqlContext
+      )
+    ).resolves.toEqual(aiDraftedMessage);
+
+    expect(draftCommunicationWithAi).toHaveBeenCalledWith({
+      actor: graphqlContext.actor,
+      input: {
+        audience: { groupId: "group_1", kind: "group" },
+        campaignIntent: "Invite the team to Sunday setup.",
+        channel: "sms",
+        churchToneSummary: "Warm, brief, hopeful.",
+        forbiddenTopics: [],
+        requiredPlaceholders: []
+      },
       requestId: "request_1"
     });
   });
@@ -489,5 +559,154 @@ describe("Community GraphQL transport", () => {
     // before the service is reached.
     expect(response.body.errors).toBeDefined();
     expect(confirmCommunicationSend).not.toHaveBeenCalled();
+  });
+
+  it("drafts with AI through the full transport over the REAL service + a FAKE port (no network) and returns an ai-drafted draft", async () => {
+    // A FAKE ai-draft port: returns a canned, schema-valid suggestion and records
+    // the prompt it was handed. It never touches the network.
+    const promptsSeen: unknown[] = [];
+    const aiDraftPort = {
+      draftCommunication: (prompt: unknown): Promise<unknown> => {
+        promptsSeen.push(prompt);
+
+        return Promise.resolve({
+          bodyTemplate: "Hi {{firstName}}, we'd love to see you Sunday.",
+          needsReview: true,
+          rationale: "Re-engage members who have not attended recently.",
+          status: "drafted",
+          usedPlaceholders: ["firstName"]
+        });
+      }
+    };
+
+    // The REAL in-memory community service, wired with the fake AI port and a fixed
+    // message id so the assertion is exact.
+    const adapter = createInMemoryCommunityServicesAdapter({
+      aiDraftPort,
+      clock: () => timestamp,
+      ids: { messageId: () => "message_ai_real" }
+    });
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      schema: createPresenterGraphqlSchema({
+        ...presenterStub,
+        community: {
+          communityCommandService: adapter.commandService,
+          communityQueryService: adapter.queryService
+        }
+      })
+    });
+
+    const response = await handler({
+      body: {
+        query:
+          "mutation aiDraft($input: DraftCommunicationWithAiInput!) { draftCommunicationWithAi(input: $input) { messageId origin status channel bodyTemplate } }",
+        variables: {
+          input: {
+            audience: { kind: "segment", segmentRef: "segment_a" },
+            campaignIntent: "Re-engage members who have not attended recently.",
+            channel: "sms",
+            churchToneSummary: "Warm, brief, hopeful.",
+            forbiddenTopics: ["giving"],
+            requiredPlaceholders: ["firstName"]
+          }
+        }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(response.status).toBe(200);
+    // The created draft is `ai-drafted` (serialized as the underscore SDL name
+    // `ai_drafted`) and still `draft` — it did NOT self-advance.
+    expect(response.body).toEqual({
+      data: {
+        draftCommunicationWithAi: {
+          bodyTemplate: "Hi {{firstName}}, we'd love to see you Sunday.",
+          channel: "sms",
+          messageId: "message_ai_real",
+          origin: "ai_drafted",
+          status: "draft"
+        }
+      }
+    });
+    // The fake port was handed exactly one PII-free projection (no contact value,
+    // no member name) — versioned and carrying the non-PII hints only.
+    expect(promptsSeen).toHaveLength(1);
+    expect(JSON.stringify(promptsSeen[0])).not.toContain("@");
+  });
+
+  it("an AI-origin draft created through the transport still cannot be queued without a human confirm", async () => {
+    // Same REAL service + FAKE port, but now drive the lifecycle: the AI draft is
+    // created, then a queue is attempted straight from `draft` — the lifecycle gate
+    // refuses it (no human confirm), proving an ai-drafted message can't self-send.
+    const aiDraftPort = {
+      draftCommunication: (): Promise<unknown> =>
+        Promise.resolve({
+          bodyTemplate: "Hi {{firstName}}, join us Sunday.",
+          needsReview: true,
+          rationale: "Re-engage low-attendance members.",
+          status: "drafted"
+        })
+    };
+    const adapter = createInMemoryCommunityServicesAdapter({
+      aiDraftPort,
+      clock: () => timestamp,
+      ids: { messageId: () => "message_ai_gate" }
+    });
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      schema: createPresenterGraphqlSchema({
+        ...presenterStub,
+        community: {
+          communityCommandService: adapter.commandService,
+          communityQueryService: adapter.queryService
+        }
+      })
+    });
+
+    const draftResponse = await handler({
+      body: {
+        query:
+          "mutation aiDraft($input: DraftCommunicationWithAiInput!) { draftCommunicationWithAi(input: $input) { messageId origin status } }",
+        variables: {
+          input: {
+            audience: { kind: "segment", segmentRef: "segment_a" },
+            campaignIntent: "Re-engage members who have not attended recently.",
+            channel: "sms",
+            churchToneSummary: "Warm, brief, hopeful."
+          }
+        }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+    expect(draftResponse.body.data).toEqual({
+      draftCommunicationWithAi: {
+        messageId: "message_ai_gate",
+        origin: "ai_drafted",
+        status: "draft"
+      }
+    });
+
+    // Attempt to queue the ai-drafted message directly (no review, no confirm) →
+    // refused by the lifecycle gate with a typed error code.
+    const queueResponse = await handler({
+      body: {
+        query:
+          "mutation queue($input: QueueConfirmedCommunicationInput!) { queueConfirmedCommunication(input: $input) { messageId status } }",
+        variables: {
+          input: {
+            confirmationIntent: { confirmed: true, reason: "Send it." },
+            messageId: "message_ai_gate"
+          }
+        }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_2" }
+    });
+    // The mutation errored, so no `data` is returned; the typed lifecycle-gate
+    // error is surfaced as a stable conflict code. The carrier is never reached.
+    expect(queueResponse.body.data).toBeUndefined();
+    expect(queueResponse.body.errors?.[0]?.extensions?.["code"]).toBe(
+      "INVALID_LIFECYCLE_TRANSITION"
+    );
   });
 });

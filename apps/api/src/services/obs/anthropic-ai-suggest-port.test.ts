@@ -131,7 +131,7 @@ const projection: ObsAiActionSuggestionPrompt = ObsAiActionSuggestionPromptSchem
 });
 
 describe("createAnthropicObsAiSuggestionPort", () => {
-  it("calls messages.create with the default model, the spec as system prompt, structured output, adaptive thinking, and the projection in the user message", async () => {
+  it("calls messages.create with the default model, the spec as system prompt, structured output (no thinking), and the projection in the user message", async () => {
     const { client, bodies } = createFakeClient({
       kind: "message",
       message: messageWithText(validSuggestionJson)
@@ -156,9 +156,10 @@ describe("createAnthropicObsAiSuggestionPort", () => {
     expect(body.system).toContain(OBS_AI_ACTION_SUGGESTION_PROMPT_VERSION);
     expect(body.system).toContain("OBS Action Suggester");
 
-    // Structured output (json_schema) requested + adaptive thinking, non-streaming.
+    // Structured output (json_schema) requested; no thinking (deterministic
+    // structured generation); non-streaming.
     expect(body.output_config?.format?.type).toBe("json_schema");
-    expect(body.thinking).toEqual({ type: "adaptive" });
+    expect(body.thinking).toBeUndefined();
     expect(body.stream).toBeUndefined();
 
     // The user message carries exactly the projection serialized as JSON.
@@ -254,5 +255,30 @@ describe("createAnthropicObsAiSuggestionPort", () => {
     const port = createAnthropicObsAiSuggestionPort({ client });
 
     await expect(port.suggestObsAction(projection)).rejects.toThrow(/non-JSON/u);
+  });
+
+  it("strips an empty-string optional ref (targetSceneRef on a stream action) so the strict gate accepts the suggestion", async () => {
+    // Same wire-vs-gate gap as the comms adapter: structured outputs cannot express
+    // "non-empty or absent", so the model emits targetSceneRef:"" for start-stream
+    // (which carries no target). The adapter drops empty-string fields before the
+    // service re-validates with ObsAiActionSuggestionSchema (optional refs are
+    // NON-empty; start/stop-stream must carry no target ref).
+    const startStreamWithEmptyRef = JSON.stringify({
+      kind: "start-stream",
+      needsReview: true,
+      rationale: "Begin the stream for the start of the service.",
+      status: "suggested",
+      targetSceneRef: ""
+    });
+    const { client } = createFakeClient({
+      kind: "message",
+      message: messageWithText(startStreamWithEmptyRef)
+    });
+    const port = createAnthropicObsAiSuggestionPort({ client });
+
+    const result = await port.suggestObsAction(projection);
+
+    expect(result).not.toHaveProperty("targetSceneRef");
+    expect(ObsAiActionSuggestionSchema.safeParse(result).success).toBe(true);
   });
 });

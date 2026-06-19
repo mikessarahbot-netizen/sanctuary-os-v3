@@ -160,8 +160,7 @@ export const createAnthropicCommunityAiDraftPort = (
               type: "json_schema"
             }
           },
-          system: COMMUNITY_COMMS_DRAFT_V1_SYSTEM_PROMPT,
-          thinking: { type: "adaptive" }
+          system: COMMUNITY_COMMS_DRAFT_V1_SYSTEM_PROMPT
         });
       } catch (error: unknown) {
         // Map a typed SDK error to a thrown domain-appropriate error; the
@@ -200,13 +199,42 @@ const parseCommunityAiDraftResponse = (response: Anthropic.Message): unknown => 
     );
   }
 
+  let parsed: unknown;
   try {
-    return JSON.parse(text);
+    parsed = JSON.parse(text);
   } catch {
     throw new Error(
       "The Anthropic API returned a non-JSON Community comms-draft suggestion."
     );
   }
+
+  return withoutEmptyStringFields(parsed);
+};
+
+/**
+ * Drop top-level keys whose value is an empty string before the service
+ * re-validates. Structured outputs cannot express "non-empty or absent" (JSON
+ * Schema `minLength` is unsupported there), so the model returns an empty
+ * `subject: ""` for a non-email channel — which the authoritative
+ * `CommunityAiDraftSuggestionSchema` (`subject` is optional but NON-empty)
+ * correctly rejects. Stripping empty-string fields bridges that wire-vs-gate gap
+ * without weakening the gate: every string field in the suggestion is either a
+ * required non-empty field (a genuinely-empty one still fails as missing) or an
+ * optional non-empty field that is simply absent when empty.
+ */
+const withoutEmptyStringFields = (value: unknown): unknown => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry !== "") {
+      result[key] = entry;
+    }
+  }
+
+  return result;
 };
 
 const firstTextBlock = (response: Anthropic.Message): string | undefined => {

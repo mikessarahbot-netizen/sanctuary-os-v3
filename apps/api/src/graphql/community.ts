@@ -5,6 +5,7 @@ import {
   CancelCommunicationMessageCommandSchema,
   ConfirmCommunicationSendCommandSchema,
   DraftCommunicationMessageCommandSchema,
+  DraftCommunicationWithAiCommandSchema,
   GetAttendanceTallyQuerySchema,
   GetCommunicationMessageQuerySchema,
   GetCommunityGroupQuerySchema,
@@ -444,6 +445,21 @@ export const communityGraphqlTypeDefs = /* GraphQL */ `
     messageId: ID!
   }
 
+  input CommunityAiPolicyProfileInput {
+    humanReviewRequiredFor: [String!]!
+    piiSharingAllowed: Boolean!
+  }
+
+  input DraftCommunicationWithAiInput {
+    aiPolicyProfile: CommunityAiPolicyProfileInput
+    audience: AudienceDescriptorInput!
+    campaignIntent: String!
+    channel: CommunicationChannel!
+    churchToneSummary: String!
+    forbiddenTopics: [String!]
+    requiredPlaceholders: [String!]
+  }
+
   input RecomputeEngagementSummariesInput {
     windowEnd: DateTime!
     windowStart: DateTime!
@@ -496,6 +512,9 @@ export const communityGraphqlTypeDefs = /* GraphQL */ `
     ): CommunicationMessage!
     cancelCommunicationMessage(
       input: CancelCommunicationMessageInput!
+    ): CommunicationMessage!
+    draftCommunicationWithAi(
+      input: DraftCommunicationWithAiInput!
     ): CommunicationMessage!
     recomputeEngagementSummaries(
       input: RecomputeEngagementSummariesInput!
@@ -566,6 +585,7 @@ export interface CommunityMutationResolvers {
   readonly confirmCommunicationSend: GraphqlResolver<CommunicationMessage>;
   readonly queueConfirmedCommunication: GraphqlResolver<CommunicationMessage>;
   readonly cancelCommunicationMessage: GraphqlResolver<CommunicationMessage>;
+  readonly draftCommunicationWithAi: GraphqlResolver<CommunicationMessage>;
   readonly recomputeEngagementSummaries: GraphqlResolver<readonly EngagementSummary[]>;
 }
 
@@ -864,6 +884,45 @@ export const createCommunityGraphqlResolvers = (
         CancelCommunicationMessageCommandSchema.parse({
           actor: graphqlContext.actor,
           input: parseInput(args),
+          requestId: graphqlContext.requestId
+        })
+      );
+    },
+
+    draftCommunicationWithAi: async (
+      _parent,
+      args,
+      context
+    ): Promise<CommunicationMessage> => {
+      const graphqlContext = parseContext(context);
+      const input = parseInputObject(args);
+
+      // Mirror `draftCommunicationMessage`: brand the audience descriptor, then let
+      // the command schema apply its array defaults. The optional `aiPolicyProfile`
+      // and the nullable `[String!]` list fields are conditionally spread so an
+      // absent (or null) GraphQL value never reaches the `.strict()` Zod schema as
+      // `null` — it stays absent and the schema default ([]) applies.
+      return dependencies.communityCommandService.draftCommunicationWithAi(
+        DraftCommunicationWithAiCommandSchema.parse({
+          actor: graphqlContext.actor,
+          input: {
+            audience: audienceInputToDescriptor(input["audience"]),
+            campaignIntent: input["campaignIntent"],
+            channel: input["channel"],
+            churchToneSummary: input["churchToneSummary"],
+            ...(input["aiPolicyProfile"] !== undefined &&
+            input["aiPolicyProfile"] !== null
+              ? { aiPolicyProfile: input["aiPolicyProfile"] }
+              : {}),
+            ...(input["forbiddenTopics"] !== undefined &&
+            input["forbiddenTopics"] !== null
+              ? { forbiddenTopics: input["forbiddenTopics"] }
+              : {}),
+            ...(input["requiredPlaceholders"] !== undefined &&
+            input["requiredPlaceholders"] !== null
+              ? { requiredPlaceholders: input["requiredPlaceholders"] }
+              : {})
+          },
           requestId: graphqlContext.requestId
         })
       );

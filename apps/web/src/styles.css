@@ -1282,3 +1282,75 @@ body {
   font-size: 0.8rem;
   color: var(--muted);
 }
+
+/* The AI-draft affordance: a distinct (cool) accent so it reads as assistance,
+   never as the send action — the warm danger gate stays the only send path. */
+.comms-ai {
+  margin-top: 1rem;
+  border: 1px solid #2f4d63;
+  border-radius: 0.7rem;
+  background: #121c26;
+  padding: 1rem 1.15rem;
+}
+
+.comms-ai__heading {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #9ec9ff;
+}
+
+.comms-ai__note {
+  margin: 0 0 0.8rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.comms-ai__button {
+  margin-top: 0.4rem;
+}
+
+/* The drafted-by-AI message shown for review, with the "a human still confirms"
+   badge front and center. */
+.comms-ai-draft {
+  margin-top: 1rem;
+  border: 1px solid #3a5a73;
+  border-radius: 0.7rem;
+  background: #0f1a24;
+  padding: 1rem 1.15rem;
+}
+
+.comms-ai-draft__badge {
+  margin: 0 0 0.6rem;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: #9ec9ff;
+}
+
+.comms-ai-draft__subject {
+  margin: 0 0 0.4rem;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.comms-ai-draft__field-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.comms-ai-draft__body {
+  margin: 0;
+  font-size: 0.96rem;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.comms-ai-draft__note {
+  margin: 0.7rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}

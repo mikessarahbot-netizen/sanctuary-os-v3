@@ -1,8 +1,10 @@
 import type {
+  AiDraftedMessage,
   CommunicationChannel,
   CommunicationMessageRef,
   CommunityGroup,
   CommunityGroupDetail,
+  DraftWithAiInput,
   EngagementSummary,
   GroupMemberRow,
   GroupMembership,
@@ -149,6 +151,21 @@ const HUMAN_COMMS_ORIGIN = "human";
 
 const DRAFT_COMMUNICATION_MUTATION = `mutation DraftCommunicationMessage($input: DraftCommunicationMessageInput!) { draftCommunicationMessage(input: $input) { ${COMMUNICATION_MESSAGE_FIELDS} } }`;
 
+// The AI-draft projection adds the drafted TEXT (bodyTemplate + a subject on email)
+// to the lifecycle ref so the operator can SEE the AI draft for review. The body is
+// placeholder-token text — never a resolved contact value. The returned origin is
+// `ai_drafted`; the message is a `draft` bound by the same confirm-before-send gate.
+const AI_DRAFTED_MESSAGE_FIELDS = `
+  bodyTemplate
+  channel
+  messageId
+  origin
+  status
+  subject
+`;
+
+const DRAFT_WITH_AI_MUTATION = `mutation DraftCommunicationWithAi($input: DraftCommunicationWithAiInput!) { draftCommunicationWithAi(input: $input) { ${AI_DRAFTED_MESSAGE_FIELDS} } }`;
+
 const RESOLVED_AUDIENCE_QUERY = `query ResolvedAudience($messageId: ID!) { resolvedAudience(messageId: $messageId) { ${RESOLVED_AUDIENCE_FIELDS} } }`;
 
 const MARK_REVIEWED_MUTATION = `mutation MarkCommunicationReviewed($input: MarkCommunicationReviewedInput!) { markCommunicationReviewed(input: $input) { ${COMMUNICATION_MESSAGE_FIELDS} } }`;
@@ -188,6 +205,10 @@ interface ListEngagementSummariesData {
 
 interface DraftCommunicationData {
   readonly draftCommunicationMessage: CommunicationMessageRef;
+}
+
+interface DraftWithAiData {
+  readonly draftCommunicationWithAi: AiDraftedMessage;
 }
 
 interface ResolvedAudienceData {
@@ -326,6 +347,16 @@ export interface CommunityDataSource {
     input: ComposeDraftInput
   ) => Promise<CommunicationMessageRef>;
   /**
+   * Ask the backend to AI-DRAFT a message for a group + channel. The server calls
+   * the real `claude-opus-4-8` adapter (when a key is configured) and creates a
+   * `draft` message with `origin: "ai-drafted"`, returning it with the drafted text.
+   * The draft already exists on the server; the caller then previews its audience
+   * and drives it through the SAME human-confirm-send gate (`getResolvedAudience` →
+   * `confirmAndQueue`) as a manual draft. AI may draft, never send. In demo mode this
+   * returns a canned draft with no network call.
+   */
+  readonly draftWithAi: (input: DraftWithAiInput) => Promise<AiDraftedMessage>;
+  /**
    * The consent-filtered audience preview for a drafted message: who is included
    * (will be sent to) vs suppressed (will NOT), by reference + reason only — never
    * a contact value. Returns `null` when the message is unknown.
@@ -418,6 +449,31 @@ export const createCommunityClient = (
     );
 
     return data.draftCommunicationMessage;
+  },
+  draftWithAi: async (input: DraftWithAiInput): Promise<AiDraftedMessage> => {
+    // The audience is the selected GROUP; the server builds the PII-free engagement
+    // projection from it. Optional list hints are conditionally spread so an absent
+    // value stays absent (not `null`), which the server schema requires.
+    const data = await executeQuery<DraftWithAiData>(
+      options,
+      DRAFT_WITH_AI_MUTATION,
+      {
+        input: {
+          audience: { groupId: input.groupId, kind: "group" },
+          campaignIntent: input.campaignIntent,
+          channel: input.channel,
+          churchToneSummary: input.churchToneSummary,
+          ...(input.forbiddenTopics !== undefined
+            ? { forbiddenTopics: [...input.forbiddenTopics] }
+            : {}),
+          ...(input.requiredPlaceholders !== undefined
+            ? { requiredPlaceholders: [...input.requiredPlaceholders] }
+            : {})
+        }
+      }
+    );
+
+    return data.draftCommunicationWithAi;
   },
   getResolvedAudience: async (
     messageId: string

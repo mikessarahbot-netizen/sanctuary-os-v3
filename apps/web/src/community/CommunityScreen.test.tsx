@@ -70,6 +70,7 @@ describe("CommunityScreen", () => {
         Promise.reject(new Error("network down")),
       getCommunityGroupDetail: (): Promise<null> => Promise.resolve(null),
       composeDraft: (): Promise<never> => Promise.reject(new Error("unused")),
+      draftWithAi: (): Promise<never> => Promise.reject(new Error("unused")),
       getResolvedAudience: (): Promise<null> => Promise.resolve(null),
       confirmAndQueue: (): Promise<never> => Promise.reject(new Error("unused"))
     };

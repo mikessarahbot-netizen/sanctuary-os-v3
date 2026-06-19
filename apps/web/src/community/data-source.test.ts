@@ -169,6 +169,53 @@ describe("createDemoCommunityDataSource comms gate", () => {
     ).rejects.toThrow(/no longer available/);
   });
 
+  it("draftWithAi returns a canned ai-drafted draft that flows through the SAME consent + confirm gate", async () => {
+    const source = createDemoCommunityDataSource();
+
+    const draft = await source.draftWithAi({
+      campaignIntent: "Re-engage members who have not attended recently.",
+      channel: "sms",
+      churchToneSummary: "Warm, brief, hopeful.",
+      groupId: "group-hospitality"
+    });
+
+    // The demo returns an ai-drafted DRAFT (never sent) with placeholder-token text.
+    expect(draft.origin).toBe("ai-drafted");
+    expect(draft.status).toBe("draft");
+    expect(draft.bodyTemplate).toContain("{{firstName}}");
+    // PII-free: no contact value in the canned body.
+    expect(draft.bodyTemplate).not.toContain("@");
+    expect(draft.bodyTemplate).not.toMatch(/\d{7,}/);
+
+    // It enters the SAME gate as a manual draft: its audience resolves, and it can
+    // be confirmed + queued (the demo source registered it, so confirm-before-queue
+    // works — an AI draft can't bypass the gate).
+    const audience = await source.getResolvedAudience(draft.messageId);
+    expect(audience?.included.map((r) => r.memberRef)).toEqual(["member-anita"]);
+
+    const result = await source.confirmAndQueue({
+      confirmedByRef: "demo-web-operator",
+      messageId: draft.messageId,
+      reason: "Approved by lead"
+    });
+    expect(result.includedCount).toBe(1);
+    expect(result.suppressedCount).toBe(2);
+  });
+
+  it("GATE: an ai-drafted message the source never produced cannot be queued (no draft -> no queue)", async () => {
+    const source = createDemoCommunityDataSource();
+
+    // A messageId the source never issued (as if an AI draft were forged client-side)
+    // is refused — confirm-before-queue is enforced for AI drafts too.
+    await expect(
+      source.confirmAndQueue({
+        confirmedByRef: "demo-web-operator",
+        messageId: "forged-ai-message",
+        reason: "trying to skip the gate"
+      })
+    ).rejects.toThrow(/no longer available/);
+  });
+
   it("CONSENT FLOOR: queuing a channel with zero consented recipients is refused", async () => {
     // Tuesday group over push: neither Jon (push granted? no — push only Jon) —
     // actually Jon has push granted, so use a channel no Tuesday member consents to.

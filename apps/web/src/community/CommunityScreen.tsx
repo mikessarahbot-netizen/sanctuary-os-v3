@@ -113,6 +113,10 @@ export const CommunityScreen = (props: CommunityScreenProps): ReactElement => {
           messageId: input.messageId,
           reason: input.reason
         }),
+      // The AI-draft affordance: hand the data source's `draftWithAi` straight to the
+      // compose panel. The returned ai-drafted draft is routed through the same
+      // confirm-send gate (onConfirmAndQueue) — AI drafts, a human confirms.
+      onDraftWithAi: (input) => dataSource.draftWithAi(input),
       onResolveAudience: (messageId) => dataSource.getResolvedAudience(messageId)
     }),
     [dataSource]

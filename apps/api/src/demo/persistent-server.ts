@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as resolvePath } from "node:path";
+import { config } from "dotenv";
 import {
   createSqliteExecutor,
   type SqliteBindValue,
@@ -25,6 +26,8 @@ import {
   migratePlaySqliteSchema
 } from "../services/play/composition.js";
 import { createInMemoryPresenterServicesAdapter } from "../services/presenter/in-memory.js";
+import type { CommunityAiDraftPort } from "../services/community/ai-draft.js";
+import { resolveCommunityAiDraftPort } from "./community-ai.js";
 import {
   buildDemoSchema,
   createDemoClock,
@@ -157,6 +160,13 @@ export interface PersistentDemoComposition {
 }
 
 export interface CreatePersistentDemoCompositionDependencies {
+  /**
+   * The Community AI-draft port to inject. Defaults to NONE (the keyless fake
+   * path), exactly like the in-memory demo. `main()` resolves the real Anthropic
+   * port from `ANTHROPIC_API_KEY` (after dotenv) and passes it here; the durability
+   * test calls this with no dependency, so it always runs the keyless fake path.
+   */
+  readonly communityAiDraftPort?: CommunityAiDraftPort;
   /** Injectable DB opener so a test can pass a real `DatabaseSync` it owns. */
   readonly openDatabase?: (path: string) => Promise<NodeSqliteDatabaseLike>;
 }
@@ -211,11 +221,20 @@ export const createPersistentDemoComposition = async (
       { mode: "sql" },
       { sql: { clock, executor } }
     );
-    // Community uses its built-in default send port + no AI draft port — the same
-    // as the in-memory demo, which injects neither.
+    // Community uses its built-in default send port. The AI-draft port is injected
+    // ONLY when supplied (real Anthropic when `main()` found a key); absent
+    // otherwise — the keyless fake path, the same default the durability test runs.
     const communitySelection = createCommunityPersistenceSelection(
       { mode: "sql" },
-      { sql: { clock, executor } }
+      {
+        sql: {
+          clock,
+          executor,
+          ...(dependencies.communityAiDraftPort !== undefined
+            ? { aiDraftPort: dependencies.communityAiDraftPort }
+            : {})
+        }
+      }
     );
     // OBS: inject the SAME fake control port the in-memory demo uses (no real
     // obs-websocket). `refreshObsCatalog` reads this fake at seed time; the
@@ -301,9 +320,10 @@ export interface PersistentDemoServer {
  * listening). The thin `main` below resolves env + listens.
  */
 export const createPersistentDemoServer = async (
-  databasePath: string
+  databasePath: string,
+  dependencies: CreatePersistentDemoCompositionDependencies = {}
 ): Promise<PersistentDemoServer> => {
-  const composition = await createPersistentDemoComposition(databasePath);
+  const composition = await createPersistentDemoComposition(databasePath, dependencies);
   const server = createPresenterGraphqlHttpServer({
     authBoundary: composition.authBoundary,
     schema: composition.schema
@@ -320,16 +340,36 @@ export const createPersistentDemoServer = async (
  * `pnpm --filter @sanctuary-os/api dev:persistent`.
  */
 const main = async (): Promise<void> => {
+  // Load apps/api/.env relative to this file (src/demo/persistent-server.ts ->
+  // apps/api/.env) so `ANTHROPIC_API_KEY` loads regardless of cwd, then resolve the
+  // real-vs-fake Community AI-draft port. Kept in the entry point (not module
+  // scope) so the durability test, which constructs the composition directly, never
+  // loads the key or builds an Anthropic client.
+  const here = dirname(fileURLToPath(import.meta.url));
+  config({ path: resolvePath(here, "..", "..", ".env") });
+  const communityAiDraftPort = resolveCommunityAiDraftPort();
+
   const databasePath = resolveDemoDatabasePath();
-  const { composition, server } = await createPersistentDemoServer(databasePath);
+  const { composition, server } = await createPersistentDemoServer(
+    databasePath,
+    communityAiDraftPort !== undefined ? { communityAiDraftPort } : {}
+  );
 
   const port = resolvePort(process.env["PORT"]);
   const host = "127.0.0.1";
 
   server.listen(port, host, () => {
     // Surface the DB path + seed outcome so a restart is observable: the first
-    // boot logs "seeded", later boots over the same file log "reused".
+    // boot logs "seeded", later boots over the same file log "reused". Also surface
+    // whether the real AI-draft port is wired (key present) — never the key.
     console.log(`Persistent demo DB: ${composition.databasePath} (${composition.seedOutcome})`);
+    console.log(
+      `Community AI draft: ${
+        communityAiDraftPort !== undefined
+          ? "live Anthropic (ANTHROPIC_API_KEY detected)"
+          : "disabled (no ANTHROPIC_API_KEY) — demo uses the fake draft"
+      }`
+    );
     console.log(
       `Persistent demo GraphQL API listening at http://${host}:${String(port)}/graphql`
     );

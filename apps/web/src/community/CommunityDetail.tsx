@@ -1,10 +1,12 @@
 import type { ReactElement } from "react";
 import { CommunityComposePanel } from "./CommunityComposePanel.js";
 import type {
+  AiDraftedMessage,
   CommunicationChannel,
   CommunicationMessageRef,
   CommunityDetailState,
   ContactChannelRefEntry,
+  DraftWithAiInput,
   GroupMemberRow,
   QueuedCommunicationResult,
   ResolvedAudience
@@ -37,6 +39,7 @@ export interface CommunityCommsCallbacks {
     readonly bodyTemplate: string;
     readonly subject?: string;
   }) => Promise<CommunicationMessageRef>;
+  readonly onDraftWithAi?: (input: DraftWithAiInput) => Promise<AiDraftedMessage>;
   readonly onResolveAudience: (
     messageId: string
   ) => Promise<ResolvedAudience | null>;
@@ -152,6 +155,9 @@ export const CommunityDetail = (props: CommunityDetailProps): ReactElement => {
           onComposeDraft={comms.onComposeDraft}
           onResolveAudience={comms.onResolveAudience}
           onConfirmAndQueue={comms.onConfirmAndQueue}
+          {...(comms.onDraftWithAi !== undefined
+            ? { onDraftWithAi: comms.onDraftWithAi }
+            : {})}
         />
       ) : null}
     </section>

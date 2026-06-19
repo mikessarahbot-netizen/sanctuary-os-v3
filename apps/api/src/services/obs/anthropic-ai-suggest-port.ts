@@ -178,8 +178,7 @@ export const createAnthropicObsAiSuggestionPort = (
               type: "json_schema"
             }
           },
-          system: OBS_ACTION_SUGGESTION_V1_SYSTEM_PROMPT,
-          thinking: { type: "adaptive" }
+          system: OBS_ACTION_SUGGESTION_V1_SYSTEM_PROMPT
         });
       } catch (error: unknown) {
         // Map a typed SDK error to a thrown domain-appropriate error; the
@@ -218,13 +217,40 @@ const parseObsAiSuggestionResponse = (response: Anthropic.Message): unknown => {
     );
   }
 
+  let parsed: unknown;
   try {
-    return JSON.parse(text);
+    parsed = JSON.parse(text);
   } catch {
     throw new Error(
       "The Anthropic API returned a non-JSON OBS action suggestion."
     );
   }
+
+  return withoutEmptyStringFields(parsed);
+};
+
+/**
+ * Drop top-level keys whose value is an empty string before the service
+ * re-validates. Structured outputs cannot express "non-empty or absent" (JSON
+ * Schema `minLength` is unsupported there), so the model returns an empty
+ * `targetSceneRef: ""` (etc.) for an action kind that takes no target — which the
+ * authoritative `ObsAiActionSuggestionSchema` (optional refs are NON-empty, and
+ * start/stop-stream must carry no target) correctly rejects. Stripping
+ * empty-string fields bridges that wire-vs-gate gap without weakening the gate.
+ */
+const withoutEmptyStringFields = (value: unknown): unknown => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return value;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry !== "") {
+      result[key] = entry;
+    }
+  }
+
+  return result;
 };
 
 const firstTextBlock = (response: Anthropic.Message): string | undefined => {
