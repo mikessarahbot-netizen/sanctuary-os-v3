@@ -7,6 +7,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "vitest run src/e2e",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
@@ -16,7 +17,9 @@
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@sanctuary-os/api": "workspace:*",
     "@testing-library/jest-dom": "^6.6.3",
+    "graphql": "^16.14.2",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.0",

@@ -83,6 +83,9 @@ importers:
         specifier: ^19.2.0
         version: 19.2.7(react@19.2.7)
     devDependencies:
+      '@sanctuary-os/api':
+        specifier: workspace:*
+        version: link:../api
       '@testing-library/jest-dom':
         specifier: ^6.6.3
         version: 6.9.1
@@ -107,6 +110,9 @@ importers:
       eslint-plugin-react-refresh:
         specifier: ^0.4.20
         version: 0.4.26(eslint@9.39.4)
+      graphql:
+        specifier: ^16.14.2
+        version: 16.14.2
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
