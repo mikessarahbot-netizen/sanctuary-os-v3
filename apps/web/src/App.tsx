@@ -14,6 +14,11 @@ import {
   resolveCommunityDataSource,
   resolveCommunityDataSourceMode
 } from "./community/data-source.js";
+import { ObsScreen } from "./obs/ObsScreen.js";
+import {
+  resolveObsDataSource,
+  resolveObsDataSourceMode
+} from "./obs/data-source.js";
 
 /**
  * App root. Resolves the Charts, Play, and Community data sources (demo vs live)
@@ -22,7 +27,7 @@ import {
  * default so the app renders populated screens with no API. Charts is the
  * initial tab so the existing surface is unchanged on load.
  */
-type Surface = "charts" | "play" | "community";
+type Surface = "charts" | "play" | "community" | "obs";
 
 export const App = (): ReactElement => {
   const [surface, setSurface] = useState<Surface>("charts");
@@ -55,6 +60,12 @@ export const App = (): ReactElement => {
   const communityMode = resolveCommunityDataSourceMode(baseOptions);
   const communityDataSource = useMemo(
     () => resolveCommunityDataSource(baseOptions),
+    [baseOptions]
+  );
+
+  const obsMode = resolveObsDataSourceMode(baseOptions);
+  const obsDataSource = useMemo(
+    () => resolveObsDataSource(baseOptions),
     [baseOptions]
   );
 
@@ -93,13 +104,25 @@ export const App = (): ReactElement => {
         >
           Community
         </button>
+        <button
+          type="button"
+          className={surface === "obs" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"}
+          aria-current={surface === "obs" ? "page" : undefined}
+          onClick={(): void => {
+            setSurface("obs");
+          }}
+        >
+          OBS
+        </button>
       </nav>
       {surface === "charts" ? (
         <ChartsScreen dataSource={chartsDataSource} mode={chartsMode} />
       ) : surface === "play" ? (
         <PlayScreen dataSource={playDataSource} mode={playMode} />
-      ) : (
+      ) : surface === "community" ? (
         <CommunityScreen dataSource={communityDataSource} mode={communityMode} />
+      ) : (
+        <ObsScreen dataSource={obsDataSource} mode={obsMode} />
       )}
     </div>
   );

@@ -66,6 +66,35 @@ interface GraphqlEngagementSummary {
   readonly summaryId: string;
 }
 
+interface GraphqlObsConnectionProfile {
+  readonly connectionProfileId: string;
+  readonly connectionRef: string;
+  readonly connectionStatus: string;
+  readonly label: string;
+}
+
+interface GraphqlObsScene {
+  readonly displayName: string;
+  readonly isCurrentProgramScene: boolean;
+  readonly obsSceneRef: string;
+}
+
+interface GraphqlObsStreamState {
+  readonly streamStatus: string;
+}
+
+interface GraphqlObsRecordingState {
+  readonly recordingStatus: string;
+}
+
+interface GraphqlObsActionIntent {
+  readonly actionIntentId: string;
+  readonly kind: string;
+  readonly origin: string;
+  readonly status: string;
+  readonly targetSceneRef: string | null;
+}
+
 interface GraphqlBody<TData> {
   readonly data?: TData | null;
   readonly errors?: readonly { readonly message: string }[];
@@ -364,6 +393,235 @@ describe("createDemoServer", () => {
     );
     expect(memberRefs).toContain("member-anita");
     expect(anita?.servingCount).toBe(2);
+  });
+
+  it("serves the seeded OBS connection + scene catalog with the program scene highlighted", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const profilesPayload = await postGraphql<{
+      readonly obsConnectionProfiles: readonly GraphqlObsConnectionProfile[];
+    }>(endpoint, {
+      query:
+        "{ obsConnectionProfiles { connectionProfileId connectionRef connectionStatus label } }"
+    });
+
+    expect(profilesPayload.errors).toBeUndefined();
+    const profiles = profilesPayload.data?.obsConnectionProfiles ?? [];
+    const profile = profiles.find(
+      (entry) => entry.connectionProfileId === "obs-connection-sanctuary"
+    );
+    expect(profile?.label).toBe("Sanctuary OBS");
+    // A refresh reads the live (fake) port, so the connection is marked connected.
+    expect(profile?.connectionStatus).toBe("connected");
+    // The connection carries only an opaque vault ref — never a secret.
+    expect(profile?.connectionRef).toBe("vault://obs/demo-sanctuary");
+
+    const scenesPayload = await postGraphql<{
+      readonly obsScenes: readonly GraphqlObsScene[];
+    }>(endpoint, {
+      query:
+        "query Scenes($id: ID!) { obsScenes(connectionProfileId: $id) { displayName obsSceneRef isCurrentProgramScene } }",
+      variables: { id: "obs-connection-sanctuary" }
+    });
+
+    expect(scenesPayload.errors).toBeUndefined();
+    const scenes = scenesPayload.data?.obsScenes ?? [];
+    expect(scenes.map((scene) => scene.displayName).sort()).toEqual([
+      "Announcements",
+      "Sermon",
+      "Worship"
+    ]);
+    // Exactly one program scene, and it is Worship (the seeded program scene).
+    const programScenes = scenes.filter((scene) => scene.isCurrentProgramScene);
+    expect(programScenes).toHaveLength(1);
+    expect(programScenes[0]?.obsSceneRef).toBe("scene-worship");
+
+    const statePayload = await postGraphql<{
+      readonly obsStreamState: GraphqlObsStreamState | null;
+      readonly obsRecordingState: GraphqlObsRecordingState | null;
+    }>(endpoint, {
+      query:
+        "query State($id: ID!) { obsStreamState(connectionProfileId: $id) { streamStatus } obsRecordingState(connectionProfileId: $id) { recordingStatus } }",
+      variables: { id: "obs-connection-sanctuary" }
+    });
+
+    expect(statePayload.errors).toBeUndefined();
+    expect(statePayload.data?.obsStreamState?.streamStatus).toBe("active");
+    expect(statePayload.data?.obsRecordingState?.recordingStatus).toBe("inactive");
+  });
+
+  it("PRIVACY: OBS connection exposes no host/port/password/stream-key field", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    // Selecting a connection-secret field must be a schema error — no such field
+    // exists on ObsConnectionProfile; only the opaque connectionRef.
+    const invalid = await postGraphql<{ readonly obsConnectionProfiles: unknown }>(
+      endpoint,
+      {
+        query:
+          "{ obsConnectionProfiles { connectionRef host port password streamKey } }"
+      }
+    );
+    expect(invalid.errors).toBeDefined();
+
+    const valid = await postGraphql<{
+      readonly obsConnectionProfiles: readonly GraphqlObsConnectionProfile[];
+    }>(endpoint, {
+      query: "{ obsConnectionProfiles { connectionProfileId connectionRef label } }"
+    });
+    expect(valid.errors).toBeUndefined();
+    const serialized = JSON.stringify(valid.data?.obsConnectionProfiles ?? []);
+    // Only an opaque vault:// ref, never a ws:// URL, password, or stream key.
+    expect(serialized).toContain("vault://");
+    expect(serialized).not.toContain("ws://");
+    expect(serialized).not.toContain("password");
+  });
+
+  it("drives the request -> confirm -> dispatch scene-switch gate over HTTP and moves the program scene", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    // 1. Request a switch to Sermon. This proposes a `requested` intent and does
+    //    NOT touch OBS — the program scene is unchanged.
+    const requested = await postGraphql<{
+      readonly requestObsAction: GraphqlObsActionIntent;
+    }>(endpoint, {
+      query:
+        "mutation Request($input: RequestObsActionInput!) { requestObsAction(input: $input) { actionIntentId kind origin status targetSceneRef } }",
+      variables: {
+        input: {
+          connectionProfileId: "obs-connection-sanctuary",
+          kind: "switch_scene",
+          origin: "human",
+          requestedByRef: "demo-actor",
+          targetSceneRef: "scene-sermon"
+        }
+      }
+    });
+
+    expect(requested.errors).toBeUndefined();
+    const intent = requested.data?.requestObsAction;
+    expect(intent?.status).toBe("requested");
+    // The SDL underscored enum round-trips back to the SDL value name.
+    expect(intent?.kind).toBe("switch_scene");
+    expect(intent?.targetSceneRef).toBe("scene-sermon");
+    const actionIntentId = intent?.actionIntentId ?? "";
+
+    // Program scene is still Worship — a request alone never goes live.
+    const afterRequest = await postGraphql<{
+      readonly obsScenes: readonly GraphqlObsScene[];
+    }>(endpoint, {
+      query:
+        "query Scenes($id: ID!) { obsScenes(connectionProfileId: $id) { obsSceneRef isCurrentProgramScene } }",
+      variables: { id: "obs-connection-sanctuary" }
+    });
+    const programAfterRequest = (afterRequest.data?.obsScenes ?? []).find(
+      (scene) => scene.isCurrentProgramScene
+    );
+    expect(programAfterRequest?.obsSceneRef).toBe("scene-worship");
+
+    // 2. Confirm (human gate) with a reason.
+    const confirmed = await postGraphql<{
+      readonly confirmObsAction: GraphqlObsActionIntent;
+    }>(endpoint, {
+      query:
+        "mutation Confirm($input: ConfirmObsActionInput!) { confirmObsAction(input: $input) { actionIntentId status } }",
+      variables: {
+        input: {
+          actionIntentId,
+          confirmationIntent: { confirmed: true, reason: "Pastor is walking up." },
+          confirmedByRef: "demo-actor"
+        }
+      }
+    });
+    expect(confirmed.errors).toBeUndefined();
+    expect(confirmed.data?.confirmObsAction.status).toBe("confirmed");
+
+    // 3. Dispatch — the only step that reaches the (fake) OBS port.
+    const dispatched = await postGraphql<{
+      readonly dispatchObsAction: GraphqlObsActionIntent;
+    }>(endpoint, {
+      query:
+        "mutation Dispatch($input: DispatchObsActionInput!) { dispatchObsAction(input: $input) { actionIntentId status } }",
+      variables: { input: { actionIntentId } }
+    });
+    expect(dispatched.errors).toBeUndefined();
+    expect(dispatched.data?.dispatchObsAction.status).toBe("succeeded");
+
+    // The fake port applied the switch; refresh reconciles the durable snapshot so
+    // the program scene is now Sermon.
+    await postGraphql<{ readonly refreshObsCatalog: { readonly streamState: GraphqlObsStreamState } }>(
+      endpoint,
+      {
+        query:
+          "mutation Refresh($input: RefreshObsCatalogInput!) { refreshObsCatalog(input: $input) { streamState { streamStatus } } }",
+        variables: { input: { connectionProfileId: "obs-connection-sanctuary" } }
+      }
+    );
+
+    const afterDispatch = await postGraphql<{
+      readonly obsScenes: readonly GraphqlObsScene[];
+    }>(endpoint, {
+      query:
+        "query Scenes($id: ID!) { obsScenes(connectionProfileId: $id) { obsSceneRef isCurrentProgramScene } }",
+      variables: { id: "obs-connection-sanctuary" }
+    });
+    const programAfterDispatch = (afterDispatch.data?.obsScenes ?? []).find(
+      (scene) => scene.isCurrentProgramScene
+    );
+    expect(programAfterDispatch?.obsSceneRef).toBe("scene-sermon");
+  });
+
+  it("GATE: refuses to dispatch a scene switch that was not confirmed", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const requested = await postGraphql<{
+      readonly requestObsAction: GraphqlObsActionIntent;
+    }>(endpoint, {
+      query:
+        "mutation Request($input: RequestObsActionInput!) { requestObsAction(input: $input) { actionIntentId status } }",
+      variables: {
+        input: {
+          connectionProfileId: "obs-connection-sanctuary",
+          kind: "switch_scene",
+          origin: "human",
+          requestedByRef: "demo-actor",
+          targetSceneRef: "scene-announcements"
+        }
+      }
+    });
+    const actionIntentId = requested.data?.requestObsAction.actionIntentId ?? "";
+
+    // Dispatch WITHOUT confirming → the gate refuses (NOT_CONFIRMED), and the
+    // program scene is unchanged.
+    const dispatched = await postGraphql<{
+      readonly dispatchObsAction: GraphqlObsActionIntent | null;
+    }>(endpoint, {
+      query:
+        "mutation Dispatch($input: DispatchObsActionInput!) { dispatchObsAction(input: $input) { actionIntentId status } }",
+      variables: { input: { actionIntentId } }
+    });
+    expect(dispatched.errors).toBeDefined();
+    expect(dispatched.data?.dispatchObsAction ?? null).toBeNull();
+
+    const scenes = await postGraphql<{
+      readonly obsScenes: readonly GraphqlObsScene[];
+    }>(endpoint, {
+      query:
+        "query Scenes($id: ID!) { obsScenes(connectionProfileId: $id) { obsSceneRef isCurrentProgramScene } }",
+      variables: { id: "obs-connection-sanctuary" }
+    });
+    const program = (scenes.data?.obsScenes ?? []).find(
+      (scene) => scene.isCurrentProgramScene
+    );
+    expect(program?.obsSceneRef).toBe("scene-worship");
   });
 
   it("rejects a request with no Authorization header", async () => {

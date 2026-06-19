@@ -4,6 +4,7 @@ import { createPresenterGraphqlSchema } from "../graphql/presenter-schema.js";
 import { createInMemoryChartsServicesAdapter } from "../services/charts/in-memory.js";
 import { createInMemoryCommunityServicesAdapter } from "../services/community/in-memory.js";
 import { createInMemoryObsServicesAdapter } from "../services/obs/in-memory.js";
+import { createFakeObsControlPort } from "../services/obs/fake-control-port.js";
 import { createInMemoryPlayServicesAdapter } from "../services/play/in-memory.js";
 import { createInMemoryPresenterServicesAdapter } from "../services/presenter/in-memory.js";
 import type { Server } from "node:http";
@@ -20,9 +21,14 @@ import type { Server } from "node:http";
  * under the demo tenant so the `charts` / `chart`, `trackSets` / `trackSet` /
  * `playSections` / `playCues`, and `communityGroups` / `communityGroup` /
  * `groupMemberships` / `members` / `engagementSummaries` queries return populated
- * data. It exists only so the `apps/web` read surfaces can hit a live endpoint for
- * local screenshots; it is NOT a production server. The seeded Community+ data is
- * PII-safe (display names + opaque contact refs + consent only).
+ * data, plus an OBS connection + scene catalog (loaded into a FAKE control port —
+ * no real obs-websocket) so the `obsConnectionProfiles` / `obsScenes` /
+ * `obsStreamState` / `obsRecordingState` / `obsActionLog` queries and the
+ * request -> confirm -> dispatch scene-switch gate serve live data. It exists only
+ * so the `apps/web` read surfaces can hit a live endpoint for local screenshots;
+ * it is NOT a production server. The seeded Community+ data is PII-safe (display
+ * names + opaque contact refs + consent only); the OBS connection carries only an
+ * opaque `connectionRef` (no host / port / password / stream key).
  *
  * The demo auth is intentionally trivial (see `DemoAuthBoundary`): it ignores
  * the `Authorization` header value and always returns the same actor. Never
@@ -436,6 +442,44 @@ const DEMO_ENGAGEMENT_WINDOW = {
   windowStart: "2026-01-01T00:00:00.000Z"
 } as const;
 
+interface DemoSeedObsScene {
+  readonly displayName: string;
+  readonly obsSceneRef: string;
+}
+
+/**
+ * Demo OBS seed. Mirrors `apps/web/src/obs/sample-data.ts` (Worship / Sermon /
+ * Announcements, with Worship the current program scene) so the live OBS screen
+ * renders the same scene catalog demo mode shows.
+ *
+ * The catalog is loaded into a FAKE `ObsControlPort` (`createFakeObsControlPort`)
+ * — there is NO real obs-websocket dependency. The demo seed saves one
+ * `ObsConnectionProfile` (an opaque `connectionRef` vault handle — NEVER a host /
+ * port / password / stream key) and then calls the real `refreshObsCatalog`
+ * command, which reads the fake port and reconciles the durable scene /
+ * program-scene / stream / recording snapshot so the live `obsScenes` /
+ * `obsStreamState` / `obsRecordingState` / `obsActionLog` queries serve populated
+ * data and the request -> confirm -> dispatch gate runs against it.
+ *
+ * The `connectionRef` is the only place a connection is named, and it is an opaque
+ * `vault://` token, so no secret is ever seeded or rendered.
+ */
+const DEMO_OBS_CONNECTION = {
+  connectionProfileId: "obs-connection-sanctuary",
+  connectionRef: "vault://obs/demo-sanctuary",
+  label: "Sanctuary OBS"
+} as const;
+
+const DEMO_OBS_SCENES: readonly DemoSeedObsScene[] = [
+  { displayName: "Worship", obsSceneRef: "scene-worship" },
+  { displayName: "Sermon", obsSceneRef: "scene-sermon" },
+  { displayName: "Announcements", obsSceneRef: "scene-announcements" }
+];
+
+// Worship is on the program output when the demo boots; the operator drives the
+// gated switch to Sermon / Announcements for the live screenshot.
+const DEMO_OBS_PROGRAM_SCENE_REF = "scene-worship";
+
 export interface DemoServerComposition {
   readonly authBoundary: AuthBoundary;
   readonly seed: () => Promise<void>;
@@ -449,9 +493,9 @@ export interface CreateDemoServerOptions {
 /**
  * Compose the demo server: build the schema with all modules wired to in-memory
  * services, create the Node http server on the configured path, and return a
- * `seed()` that loads the demo Charts and Play track sets through the in-memory
- * command services. The caller decides when to `listen` and must `await seed()`
- * before serving.
+ * `seed()` that loads the demo Charts, Play track sets, Community+ structure, and
+ * the OBS connection + scene catalog through the in-memory command services. The
+ * caller decides when to `listen` and must `await seed()` before serving.
  */
 export const createDemoServer = (
   options: CreateDemoServerOptions = {}
@@ -460,7 +504,20 @@ export const createDemoServer = (
   const charts = createInMemoryChartsServicesAdapter({ clock });
   const presenter = createInMemoryPresenterServicesAdapter({ clock });
   const play = createInMemoryPlayServicesAdapter({ clock });
-  const obs = createInMemoryObsServicesAdapter({ clock });
+  // Pre-load the FAKE OBS control port with the demo scene catalog + current
+  // program scene (no real obs-websocket). `refreshObsCatalog` reads from this
+  // fake at seed time to populate the durable snapshot, and `dispatchObsAction`
+  // mutates it through the same fake when the operator confirms a scene switch.
+  const obsControlPort = createFakeObsControlPort({
+    currentProgramSceneRef: DEMO_OBS_PROGRAM_SCENE_REF,
+    recordingStatus: "inactive",
+    scenes: DEMO_OBS_SCENES.map((scene) => ({ ...scene })),
+    streamStatus: "active"
+  });
+  const obs = createInMemoryObsServicesAdapter({
+    clock,
+    controlPort: obsControlPort.port
+  });
   const community = createInMemoryCommunityServicesAdapter({ clock });
 
   const schema = createPresenterGraphqlSchema({
@@ -659,6 +716,29 @@ export const createDemoServer = (
         windowStart: DEMO_ENGAGEMENT_WINDOW.windowStart
       },
       requestId: "demo-seed-engagement-recompute"
+    });
+
+    // OBS: save the connection profile (opaque connectionRef — NO secret), then
+    // run the real `refreshObsCatalog` command. The refresh reads the FAKE control
+    // port (loaded above with the Worship / Sermon / Announcements catalog +
+    // Worship as the program scene + active stream) and reconciles the durable
+    // snapshot, so the live `obsConnectionProfiles` / `obsScenes` /
+    // `obsStreamState` / `obsRecordingState` queries serve populated data and the
+    // operator can drive the request -> confirm -> dispatch scene-switch gate.
+    await obs.commandService.saveObsConnectionProfile({
+      actor: demoActor,
+      input: {
+        connectionProfileId: DEMO_OBS_CONNECTION.connectionProfileId,
+        connectionRef: DEMO_OBS_CONNECTION.connectionRef,
+        label: DEMO_OBS_CONNECTION.label
+      },
+      requestId: `demo-seed-obs-connection-${DEMO_OBS_CONNECTION.connectionProfileId}`
+    });
+
+    await obs.commandService.refreshObsCatalog({
+      actor: demoActor,
+      input: { connectionProfileId: DEMO_OBS_CONNECTION.connectionProfileId },
+      requestId: `demo-seed-obs-refresh-${DEMO_OBS_CONNECTION.connectionProfileId}`
     });
   };
 

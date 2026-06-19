@@ -79,7 +79,28 @@ describe("App", () => {
     expect(screen.queryByText("Build My Life")).toBeNull();
   });
 
-  it("switches across Charts, Play, and Community without leaking surfaces", async () => {
+  it("switches to the OBS surface when the OBS tab is clicked", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Amazing Grace")).toBeInTheDocument();
+    });
+
+    const nav = screen.getByRole("navigation", { name: "Surfaces" });
+    await user.click(within(nav).getByRole("button", { name: "OBS" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "OBS" })).toBeInTheDocument();
+    });
+    // The OBS console renders the seeded scenes and connection.
+    expect(screen.getByText("Sanctuary OBS")).toBeInTheDocument();
+    expect(screen.getByText("Worship")).toBeInTheDocument();
+    // The Charts surface is unmounted.
+    expect(screen.queryByText("Amazing Grace")).toBeNull();
+  });
+
+  it("switches across Charts, Play, Community, and OBS without leaking surfaces", async () => {
     const user = userEvent.setup();
     render(<App />);
 
@@ -90,11 +111,17 @@ describe("App", () => {
       expect(screen.getByText("Tuesday Small Group")).toBeInTheDocument();
     });
 
+    await user.click(within(nav).getByRole("button", { name: "OBS" }));
+    await waitFor(() => {
+      expect(screen.getByText("Sanctuary OBS")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Tuesday Small Group")).toBeNull();
+
     await user.click(within(nav).getByRole("button", { name: "Play" }));
     await waitFor(() => {
       expect(screen.getByText("Build My Life")).toBeInTheDocument();
     });
-    expect(screen.queryByText("Tuesday Small Group")).toBeNull();
+    expect(screen.queryByText("Sanctuary OBS")).toBeNull();
 
     await user.click(within(nav).getByRole("button", { name: "Charts" }));
     await waitFor(() => {
