@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 9: WebSocket events (secret-free + PII-free)
+
+Tasks completed:
+- OBS slice 9 (delegated; parent verified gates): obs.connectionStatusChanged / streamStateChanged / recordingStateChanged / sceneChanged / actionStatusChanged added to the API event union with .strict() secret-free + PII-free payloads (opaque refs + coarse status only; no message field on actionStatusChanged so a redacted failure can't ride the event) + tenant/aggregate scope superRefines, emitted after successful durable commits (in-memory-only). Used the plan's authoritative 5-event set. +10 api tests. Gates green: db 466 / api 809 + 2 skipped / desktop 89 / church-context 5. Committed `8ea9265`.
+
+Next task:
+- OBS slice 10 (final OBS backend slice): AI assist (suggestion → requested intent that can't self-dispatch; PII-free/secret-free projection; injected port). Then OBS backend complete → ALL FOUR module backends complete → consolidated release check.
+
+Open questions / follow-ups: standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 8: persistence-backed service
 
 Tasks completed:
