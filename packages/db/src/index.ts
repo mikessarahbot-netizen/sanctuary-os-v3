@@ -37,6 +37,7 @@ export * from "./presenter-local-sync-queue-sql-repository.js";
 export * from "./presenter-local-sync-queue-status.js";
 export * from "./presenter-repository-contracts.js";
 export * from "./presenter-sql-repository.js";
+export * from "./postgresql-operator-executor.js";
 export * from "./postgresql-planning-executor.js";
 export * from "./repository-contracts.js";
 export * from "./sqlite-executor.js";

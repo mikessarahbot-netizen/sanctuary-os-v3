@@ -27,9 +27,10 @@
     "lint": "eslint \"src/**/*.ts\" --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:integration:postgres": "vitest run src/services/planning/postgresql-integration.test.ts src/services/presenter/postgresql-integration.test.ts",
+    "test:integration:postgres": "vitest run src/services/planning/postgresql-integration.test.ts src/services/presenter/postgresql-integration.test.ts src/services/charts/postgresql-integration.test.ts",
     "dev": "tsx src/demo/server.ts",
     "dev:persistent": "tsx src/demo/persistent-server.ts",
+    "dev:postgres": "tsx src/demo/postgres-server.ts",
     "ai:smoke": "tsx src/demo/ai-smoke-test.ts"
   },
   "dependencies": {
