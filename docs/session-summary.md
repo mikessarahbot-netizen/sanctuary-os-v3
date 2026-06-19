@@ -2,6 +2,20 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - CAPSTONE: full stack runs end-to-end (web -> live API), verified
+
+Tasks completed:
+- Built a runnable demo API server (delegated): `apps/api/src/demo/server.ts` composes the full executable schema (all 5 modules' in-memory services + fakes) behind a demo AuthBoundary (fixed demo tenant/actor) + seeded charts, served on :4000 via a `dev` script (tsx). Gate test boots it over HTTP + round-trips query + mutation. +5 api tests.
+- Wired the web app live: Vite `/graphql` proxy → :4000 (no CORS); fixed the Charts client to send a demo bearer token (the demo transport requires a non-empty Authorization header — that was a 401 until fixed). 
+- VERIFIED LIVE via the preview tools (parent-orchestrated): started both servers, loaded http://127.0.0.1:5173/?source=live, confirmed the "LIVE DATA" badge + 3 seeded charts fetched from the API, clicked through to the Amazing Grace ChordPro detail (chords over lyrics) — screenshotted both. Also curl-confirmed the raw `charts` query returns the seeded data.
+- Gates green: db 466 / api 852 + 2 skipped / desktop 89 / church-context 5 / web 30. Committed `2bb18fc` (demo server + live wiring; the web app itself was `1b8b99d`).
+- MILESTONE: the product RUNS end-to-end and is visually verified. Corrected the earlier "UIs aren't autonomously verifiable" — web is.
+
+Next task (verifiable web path, autonomous):
+- Deepen the Charts web surface (transpose/arrangements/annotations + write mutations), then Play / Community+ / OBS web surfaces (demo server already serves them), broaden the seed. Native desktop (Tauri) + mobile (Expo) surfaces and live external integrations (obs-websocket, comms carrier) still need the user.
+
+Open questions: which module surfaces to prioritize; native shells + external integrations need the user.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - First runnable UI: web Charts surface (visually verified)
 
 Tasks completed:

@@ -1,9 +1,16 @@
 # NOW
 
-## UPDATE: web UIs ARE autonomously verifiable — first runnable UI landed
-Corrected an earlier wrong assumption: a **web** surface IS gate-verifiable (component tests) AND visually verifiable (start the Vite dev server + screenshot via the preview tools). The first runnable UI is committed at `1b8b99d`: `apps/web` (Vite + React + strict TS) with a Charts read surface — a chart library list + a detail view rendering ChordPro (chords above lyrics) — verified visually via preview (both list + detail screenshots). Demo-data fallback so it renders without the API; `VITE_DATA_SOURCE=live` hits the GraphQL API. Wired into the root gates (web +30 tests).
+## CAPSTONE: the product RUNS end-to-end (web → live GraphQL API), visually verified
+The whole stack is runnable and was verified live:
+- `apps/web` (Vite + React + strict TS) — a Charts read surface (library list + a detail view rendering ChordPro with chords above lyrics). Committed `1b8b99d`.
+- `apps/api/src/demo/server.ts` — a runnable demo API (`pnpm --filter @sanctuary-os/api dev`, tsx, :4000) composing the full executable schema (all 5 modules' in-memory services + fakes) behind a demo auth context + seeded charts; the web app reaches it through a Vite `/graphql` proxy (no CORS) with a demo bearer token. A gate test boots it over HTTP and round-trips a query + a mutation. Committed `2bb18fc`.
+- VERIFIED LIVE via the preview tools: started both servers, loaded the web app in live mode ("LIVE DATA" badge), and screenshotted the seeded charts + the Amazing Grace ChordPro detail — all fetched from the running GraphQL API down through the resolvers → in-memory services → seeded data.
 
-This means the **web UI layer is a verifiable, autonomously-buildable path** after all. Remaining web work (all verifiable): wire the live API end-to-end (start the api http server + seed + point the web app at it + screenshot real data); deepen Charts (transpose/arrangements/annotations); then Play / Community+ / OBS web surfaces. Still genuinely needing the user: the DESKTOP (Tauri) + MOBILE (Expo) operator surfaces and the live external integrations (obs-websocket, comms carrier).
+So: an earlier wrong assumption is corrected — **web UIs ARE autonomously verifiable** (component tests + dev-server screenshots), and the **full vertical works**. The web UI layer is a verifiable, autonomously-buildable path.
+
+Remaining web work (all verifiable the same way): deepen Charts (transpose/arrangements/annotations, mutations), then Play / Community+ / OBS web surfaces (the demo server already serves all of them); broaden the seed. Still genuinely needing the user: the DESKTOP (Tauri) + MOBILE (Expo) native operator surfaces, and the live EXTERNAL integrations (real obs-websocket, comms carrier) — credentials/connections.
+
+Run it yourself: terminal 1 `pnpm --filter @sanctuary-os/api dev`; terminal 2 `pnpm --filter @sanctuary-os/web dev`; open http://127.0.0.1:5173/?source=live.
 
 ## MILESTONE: the autonomously-buildable backend is COMPLETE
 
