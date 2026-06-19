@@ -111,3 +111,86 @@ export type CommunityDetailState =
   | { readonly status: "error"; readonly message: string }
   | { readonly status: "missing" }
   | { readonly status: "loaded"; readonly detail: CommunityGroupDetail };
+
+/**
+ * Local, typed mirror of the Community+ outbound-communications GraphQL shapes
+ * (see `apps/api/src/graphql/community.ts`). This is the SECOND safety gate the web
+ * surface exposes (alongside OBS): an operator composes a message to a group, the
+ * server resolves the consent-filtered audience (who is included vs suppressed),
+ * and a message can only be queued after an explicit HUMAN confirmation. AI may
+ * draft, never send.
+ *
+ * PRIVACY (strictest PII surface): every field below is reference-only. A resolved
+ * recipient carries a `memberRef` + an opaque vault `channelRef` — NEVER a phone /
+ * email / address value. A suppressed recipient carries a `memberRef` + a machine
+ * `reason` (+ optional `consentStatus`) — again no contact value. The contact value
+ * behind a `channelRef` is resolved outside Community+, at send time, by the
+ * integration adapter. This surface renders display names (joined from the group
+ * members) + refs + reasons only.
+ *
+ * The send is FAKED in demo mode (and behind a fake port live) — composing through
+ * the queue never reaches a real carrier.
+ */
+
+/**
+ * The message channel the operator composes for. The SDL enum is hyphen-free so
+ * these literals are sent to the server unchanged. `sms` is the demo default
+ * because the seeded Hospitality Team has a granted, a denied, and a no-SMS-channel
+ * member — so the audience preview shows BOTH an included and two suppressed rows.
+ */
+export type CommunicationChannel = "sms" | "email" | "push";
+
+/**
+ * A resolved, consent-INCLUDED recipient: a `memberRef` plus the opaque vault
+ * `channelRef` the send will target. References only — never a contact value.
+ */
+export interface ResolvedRecipient {
+  readonly channelRef: string;
+  readonly memberRef: string;
+}
+
+/**
+ * A SUPPRESSED candidate recipient — flagged with a machine `reason` (and the
+ * observed `consentStatus` when the block is a consent posture), never silently
+ * dropped. Carries a `memberRef` only; no `channelRef` and no contact value. The
+ * UI joins `memberRef` to the group's member display name and renders a
+ * human-readable reason so consent suppression is visible.
+ */
+export interface SuppressedRecipient {
+  readonly consentStatus: string | null;
+  readonly memberRef: string;
+  readonly reason: string;
+}
+
+/**
+ * The server's consent-aware audience resolution for a drafted message: who is
+ * included (will be sent to) vs suppressed (will NOT), for the message channel.
+ */
+export interface ResolvedAudience {
+  readonly channel: string;
+  readonly included: readonly ResolvedRecipient[];
+  readonly suppressed: readonly SuppressedRecipient[];
+}
+
+/**
+ * A composed draft (status `draft`) the resolved audience is previewed against and
+ * the confirm-send gate acts on. Carries refs + the lifecycle `status` only — the
+ * surface never re-renders the `bodyTemplate` from here (the operator typed it).
+ */
+export interface CommunicationMessageRef {
+  readonly channel: string;
+  readonly messageId: string;
+  readonly origin: string;
+  readonly status: string;
+}
+
+/**
+ * The terminal result of a confirmed, queued send: the message reached a
+ * queued/sent state and the audience split is reported back so the UI can show
+ * "Queued to N recipients" + the suppressed count. PII-free — counts + refs only.
+ */
+export interface QueuedCommunicationResult {
+  readonly message: CommunicationMessageRef;
+  readonly includedCount: number;
+  readonly suppressedCount: number;
+}

@@ -1,10 +1,14 @@
 import { assembleGroupMemberRows } from "./client.js";
 import type {
+  CommunicationChannel,
   CommunityGroup,
   CommunityGroupDetail,
   EngagementSummary,
   GroupMembership,
-  Member
+  Member,
+  ResolvedAudience,
+  ResolvedRecipient,
+  SuppressedRecipient
 } from "./types.js";
 
 /**
@@ -218,4 +222,87 @@ export const findSampleCommunityGroupDetail = (
       SAMPLE_ENGAGEMENT_SUMMARIES
     )
   };
+};
+
+const SAMPLE_MEMBERS_BY_ID: ReadonlyMap<string, Member> = new Map(
+  SAMPLE_MEMBERS.map((member) => [member.memberId, member])
+);
+
+/**
+ * Pure, consent-aware audience resolution for a group + channel — a faithful
+ * mirror of the server's `resolveAudience` (`apps/api/src/domain/community/audience.ts`)
+ * over the SAME seeded members + memberships, so demo mode previews the exact
+ * included / suppressed split live mode shows. A candidate is INCLUDED only when it
+ * has a contact channel of the message kind whose `consentStatus === "granted"`;
+ * every other candidate is SUPPRESSED and flagged with a reason
+ * (`consent-not-granted` / `no-channel-of-kind` / `member-not-found`), never
+ * silently dropped. Returns refs + reasons only — never a contact value.
+ *
+ * For the demo's Hospitality Team over `sms`: Anita is included (sms granted),
+ * David is suppressed (sms denied → consent-not-granted), Maria is suppressed (no
+ * sms channel → no-channel-of-kind) — so the preview shows BOTH sides.
+ */
+export const resolveSampleAudience = (
+  groupId: string,
+  channel: CommunicationChannel
+): ResolvedAudience => {
+  const memberships = MEMBERSHIPS_BY_GROUP.get(groupId) ?? [];
+  const included: ResolvedRecipient[] = [];
+  const suppressed: SuppressedRecipient[] = [];
+  const seen = new Set<string>();
+
+  for (const membership of memberships) {
+    if (!membership.active || seen.has(membership.memberRef)) {
+      continue;
+    }
+    seen.add(membership.memberRef);
+
+    const member = SAMPLE_MEMBERS_BY_ID.get(membership.memberRef);
+
+    if (member === undefined) {
+      suppressed.push({
+        consentStatus: null,
+        memberRef: membership.memberRef,
+        reason: "member-not-found"
+      });
+      continue;
+    }
+
+    const channelsOfKind = member.contactChannelRefs.filter(
+      (entry) => entry.kind === channel
+    );
+
+    if (channelsOfKind.length === 0) {
+      suppressed.push({
+        consentStatus: null,
+        memberRef: member.memberId,
+        reason: "no-channel-of-kind"
+      });
+      continue;
+    }
+
+    const grantedChannel = channelsOfKind.find(
+      (entry) => entry.consentStatus === "granted"
+    );
+
+    if (grantedChannel === undefined) {
+      const deniedChannel = channelsOfKind.find(
+        (entry) => entry.consentStatus === "denied"
+      );
+
+      suppressed.push({
+        consentStatus: deniedChannel?.consentStatus ?? "unknown",
+        memberRef: member.memberId,
+        reason: "consent-not-granted"
+      });
+      continue;
+    }
+
+    included.push({
+      channelRef: grantedChannel.channelRef,
+      memberRef: member.memberId
+    });
+  }
+
+  return { channel, included, suppressed };
 };

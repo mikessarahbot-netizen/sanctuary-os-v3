@@ -1,10 +1,14 @@
 import type {
+  CommunicationChannel,
+  CommunicationMessageRef,
   CommunityGroup,
   CommunityGroupDetail,
   EngagementSummary,
   GroupMemberRow,
   GroupMembership,
-  Member
+  Member,
+  QueuedCommunicationResult,
+  ResolvedAudience
 } from "./types.js";
 
 /**
@@ -25,8 +29,25 @@ import type {
  * `status` + the opaque `contactChannelRefs` (channelRef / kind / consentStatus).
  * No phone/email/address scalar exists on any Community+ type, so this client can
  * never request — and the surface can never render — a raw contact value.
+ *
+ * THE COMMS GATE (the second safety gate, alongside OBS): the client also exposes
+ * the outbound-communications lifecycle — `composeDraft` (drafts a message for a
+ * group + channel), `getResolvedAudience` (the consent-filtered preview: included
+ * vs suppressed recipient REFS, never contact values), and the confirm-send path
+ * `confirmAndQueue` which runs `markCommunicationReviewed → confirmCommunicationSend
+ * (with the human reason) → queueConfirmedCommunication`. The server refuses to
+ * queue a message that has not been human-confirmed (lifecycle:
+ * `draft → reviewed → confirmed → queued`), so a queue can never fire without a
+ * confirm. The send itself is a FAKE port this slice — no real carrier is reached.
  */
 export const DEFAULT_API_URL = "/graphql";
+
+/**
+ * The actor ref a confirm-send is attributed to. Cosmetic in demo mode (the demo
+ * source does not authenticate); it pairs with the `demo-web-operator` bearer
+ * token the live client sends and the fixed demo actor the demo server resolves.
+ */
+export const DEFAULT_COMMS_ACTOR_REF = "demo-web-operator";
 
 /**
  * Demo bearer token for live mode. The local demo API (`apps/api/src/demo`)
@@ -93,6 +114,49 @@ const LIST_MEMBERS_QUERY = `query ListMembers { members { ${MEMBER_FIELDS} } }`;
 
 const LIST_ENGAGEMENT_SUMMARIES_QUERY = `query ListEngagementSummaries { engagementSummaries(filter: { scopeKind: member }) { ${ENGAGEMENT_SUMMARY_FIELDS} } }`;
 
+// The drafted-message projection the comms mutations return. Refs + lifecycle
+// status only — the surface never re-reads the body/subject from here (the
+// operator typed it), and there is no recipient contact value to select.
+const COMMUNICATION_MESSAGE_FIELDS = `
+  channel
+  messageId
+  origin
+  status
+`;
+
+// The consent-filtered audience preview. INCLUDED recipients carry a memberRef +
+// the opaque vault channelRef; SUPPRESSED recipients carry a memberRef + a machine
+// reason (+ observed consentStatus). There is deliberately NO contact-value field
+// to select on either side — the schema exposes none.
+const RESOLVED_AUDIENCE_FIELDS = `
+  channel
+  included {
+    channelRef
+    memberRef
+  }
+  suppressed {
+    consentStatus
+    memberRef
+    reason
+  }
+`;
+
+// The human-confirm gate sends `origin: human` for an operator-composed message
+// (an AI draft would be `ai_drafted`; either way the server binds it to the same
+// confirm-before-send gate). The SDL enum is hyphen-free, so this literal is sent
+// unchanged.
+const HUMAN_COMMS_ORIGIN = "human";
+
+const DRAFT_COMMUNICATION_MUTATION = `mutation DraftCommunicationMessage($input: DraftCommunicationMessageInput!) { draftCommunicationMessage(input: $input) { ${COMMUNICATION_MESSAGE_FIELDS} } }`;
+
+const RESOLVED_AUDIENCE_QUERY = `query ResolvedAudience($messageId: ID!) { resolvedAudience(messageId: $messageId) { ${RESOLVED_AUDIENCE_FIELDS} } }`;
+
+const MARK_REVIEWED_MUTATION = `mutation MarkCommunicationReviewed($input: MarkCommunicationReviewedInput!) { markCommunicationReviewed(input: $input) { ${COMMUNICATION_MESSAGE_FIELDS} } }`;
+
+const CONFIRM_SEND_MUTATION = `mutation ConfirmCommunicationSend($input: ConfirmCommunicationSendInput!) { confirmCommunicationSend(input: $input) { ${COMMUNICATION_MESSAGE_FIELDS} } }`;
+
+const QUEUE_CONFIRMED_MUTATION = `mutation QueueConfirmedCommunication($input: QueueConfirmedCommunicationInput!) { queueConfirmedCommunication(input: $input) { ${COMMUNICATION_MESSAGE_FIELDS} } }`;
+
 interface GraphqlError {
   readonly message: string;
 }
@@ -120,6 +184,49 @@ interface ListMembersData {
 
 interface ListEngagementSummariesData {
   readonly engagementSummaries: readonly EngagementSummary[];
+}
+
+interface DraftCommunicationData {
+  readonly draftCommunicationMessage: CommunicationMessageRef;
+}
+
+interface ResolvedAudienceData {
+  readonly resolvedAudience: ResolvedAudience | null;
+}
+
+interface MarkReviewedData {
+  readonly markCommunicationReviewed: CommunicationMessageRef;
+}
+
+interface ConfirmSendData {
+  readonly confirmCommunicationSend: CommunicationMessageRef;
+}
+
+interface QueueConfirmedData {
+  readonly queueConfirmedCommunication: CommunicationMessageRef;
+}
+
+/**
+ * Input to compose a draft for a group + channel. `subject` is allowed ONLY on the
+ * email channel (the server schema rejects a subject on sms/push); the caller omits
+ * it otherwise (conditional spread).
+ */
+export interface ComposeDraftInput {
+  readonly groupId: string;
+  readonly channel: CommunicationChannel;
+  readonly bodyTemplate: string;
+  readonly subject?: string;
+}
+
+/**
+ * Input to confirm + queue a previously composed draft. The single `reason` is the
+ * human confirmation reason recorded in the audit trail; it is reused for the
+ * confirm and the queue confirmation intents.
+ */
+export interface ConfirmAndQueueInput {
+  readonly messageId: string;
+  readonly reason: string;
+  readonly confirmedByRef: string;
 }
 
 export interface CommunityClientOptions {
@@ -210,6 +317,31 @@ export interface CommunityDataSource {
   readonly getCommunityGroupDetail: (
     groupId: string
   ) => Promise<CommunityGroupDetail | null>;
+  /**
+   * Compose + save a draft message for a group + channel (status `draft`). This is
+   * the first comms step and reaches NO recipient; it just creates the message the
+   * audience is previewed against and the gate acts on.
+   */
+  readonly composeDraft: (
+    input: ComposeDraftInput
+  ) => Promise<CommunicationMessageRef>;
+  /**
+   * The consent-filtered audience preview for a drafted message: who is included
+   * (will be sent to) vs suppressed (will NOT), by reference + reason only — never
+   * a contact value. Returns `null` when the message is unknown.
+   */
+  readonly getResolvedAudience: (
+    messageId: string
+  ) => Promise<ResolvedAudience | null>;
+  /**
+   * The human-confirm SEND path: review → confirm (with the operator's reason) →
+   * queue. This is the ONLY method that queues, and it always confirms first, so a
+   * queue can never fire without a human confirmation. Returns the queued result
+   * with the included / suppressed counts. The send is faked (no real carrier).
+   */
+  readonly confirmAndQueue: (
+    input: ConfirmAndQueueInput
+  ) => Promise<QueuedCommunicationResult>;
 }
 
 export const createCommunityClient = (
@@ -264,6 +396,80 @@ export const createCommunityClient = (
         membersData.members,
         engagementData.engagementSummaries
       )
+    };
+  },
+  composeDraft: async (
+    input: ComposeDraftInput
+  ): Promise<CommunicationMessageRef> => {
+    const data = await executeQuery<DraftCommunicationData>(
+      options,
+      DRAFT_COMMUNICATION_MUTATION,
+      {
+        input: {
+          audience: { groupId: input.groupId, kind: "group" },
+          bodyTemplate: input.bodyTemplate,
+          channel: input.channel,
+          origin: HUMAN_COMMS_ORIGIN,
+          // `subject` only on email; conditional spread keeps it absent (not
+          // `undefined`) otherwise, which the server schema requires for sms/push.
+          ...(input.subject !== undefined ? { subject: input.subject } : {})
+        }
+      }
+    );
+
+    return data.draftCommunicationMessage;
+  },
+  getResolvedAudience: async (
+    messageId: string
+  ): Promise<ResolvedAudience | null> => {
+    const data = await executeQuery<ResolvedAudienceData>(
+      options,
+      RESOLVED_AUDIENCE_QUERY,
+      { messageId }
+    );
+
+    return data.resolvedAudience;
+  },
+  confirmAndQueue: async (
+    input: ConfirmAndQueueInput
+  ): Promise<QueuedCommunicationResult> => {
+    // Resolve the audience first so the queued result can report the included /
+    // suppressed counts (it is also the consent-filtered set the server sends to).
+    const audienceData = await executeQuery<ResolvedAudienceData>(
+      options,
+      RESOLVED_AUDIENCE_QUERY,
+      { messageId: input.messageId }
+    );
+    const audience = audienceData.resolvedAudience;
+
+    // THE GATE, in order: review → confirm (human reason) → queue. The server
+    // refuses to queue an unconfirmed message, and queue runs only after confirm
+    // here, so a queue can never fire without a human confirmation.
+    await executeQuery<MarkReviewedData>(options, MARK_REVIEWED_MUTATION, {
+      input: { messageId: input.messageId }
+    });
+    await executeQuery<ConfirmSendData>(options, CONFIRM_SEND_MUTATION, {
+      input: {
+        confirmationIntent: { confirmed: true, reason: input.reason },
+        confirmedByRef: input.confirmedByRef,
+        messageId: input.messageId
+      }
+    });
+    const queuedData = await executeQuery<QueueConfirmedData>(
+      options,
+      QUEUE_CONFIRMED_MUTATION,
+      {
+        input: {
+          confirmationIntent: { confirmed: true, reason: input.reason },
+          messageId: input.messageId
+        }
+      }
+    );
+
+    return {
+      includedCount: audience?.included.length ?? 0,
+      message: queuedData.queueConfirmedCommunication,
+      suppressedCount: audience?.suppressed.length ?? 0
     };
   }
 });

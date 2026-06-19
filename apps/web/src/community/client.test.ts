@@ -186,6 +186,245 @@ describe("createCommunityClient", () => {
   });
 });
 
+describe("createCommunityClient comms gate", () => {
+  const messageRef = {
+    channel: "sms",
+    messageId: "message_1",
+    origin: "human",
+    status: "draft"
+  };
+
+  const requestBody = (
+    init: RequestInit | undefined
+  ): { readonly query: string; readonly variables: Record<string, unknown> } => {
+    const body = init?.body;
+
+    if (typeof body !== "string") {
+      throw new Error("Expected a string request body.");
+    }
+
+    return JSON.parse(body) as {
+      query: string;
+      variables: Record<string, unknown>;
+    };
+  };
+
+  it("composeDraft POSTs draftCommunicationMessage with a group audience + human origin", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        jsonResponse({ data: { draftCommunicationMessage: messageRef } })
+      )
+    );
+
+    const result = await createCommunityClient({ fetchImpl }).composeDraft({
+      bodyTemplate: "Setup is at 9am.",
+      channel: "sms",
+      groupId: "group-hospitality"
+    });
+
+    expect(result).toEqual(messageRef);
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    expect(body.query).toContain("mutation DraftCommunicationMessage");
+    expect(body.query).toContain("$input: DraftCommunicationMessageInput!");
+    expect(body.variables.input).toEqual({
+      audience: { groupId: "group-hospitality", kind: "group" },
+      bodyTemplate: "Setup is at 9am.",
+      channel: "sms",
+      origin: "human"
+    });
+    // No subject is sent on a non-email channel (the server schema rejects one).
+    expect(body.variables.input).not.toHaveProperty("subject");
+  });
+
+  it("composeDraft includes a subject only on the email channel", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(
+        jsonResponse({
+          data: {
+            draftCommunicationMessage: { ...messageRef, channel: "email" }
+          }
+        })
+      )
+    );
+
+    await createCommunityClient({ fetchImpl }).composeDraft({
+      bodyTemplate: "Schedule below.",
+      channel: "email",
+      groupId: "group-hospitality",
+      subject: "This Sunday"
+    });
+
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    expect(body.variables.input).toMatchObject({
+      channel: "email",
+      subject: "This Sunday"
+    });
+  });
+
+  it("getResolvedAudience POSTs resolvedAudience and returns included + suppressed refs", async () => {
+    const audience = {
+      channel: "sms",
+      included: [{ channelRef: "channel-anita-sms", memberRef: "member-anita" }],
+      suppressed: [
+        {
+          consentStatus: "denied",
+          memberRef: "member-david",
+          reason: "consent-not-granted"
+        }
+      ]
+    };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { resolvedAudience: audience } }))
+    );
+
+    const result = await createCommunityClient({ fetchImpl }).getResolvedAudience(
+      "message_1"
+    );
+
+    expect(result).toEqual(audience);
+    const body = requestBody(fetchImpl.mock.calls[0]?.[1]);
+    expect(body.query).toContain("query ResolvedAudience");
+    expect(body.query).toContain("$messageId: ID!");
+    expect(body.variables).toEqual({ messageId: "message_1" });
+  });
+
+  it("confirmAndQueue resolves audience, then reviews, confirms (with reason), then queues — in that order", async () => {
+    const operations: string[] = [];
+    const audience = {
+      channel: "sms",
+      included: [{ channelRef: "channel-anita-sms", memberRef: "member-anita" }],
+      suppressed: [
+        {
+          consentStatus: "denied",
+          memberRef: "member-david",
+          reason: "consent-not-granted"
+        },
+        { consentStatus: null, memberRef: "member-maria", reason: "no-channel-of-kind" }
+      ]
+    };
+    const fetchImpl = vi.fn<typeof fetch>((_url, init) => {
+      const { query } = requestBody(init);
+
+      if (query.includes("query ResolvedAudience")) {
+        operations.push("audience");
+
+        return Promise.resolve(jsonResponse({ data: { resolvedAudience: audience } }));
+      }
+      if (query.includes("mutation MarkCommunicationReviewed")) {
+        operations.push("review");
+
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              markCommunicationReviewed: { ...messageRef, status: "reviewed" }
+            }
+          })
+        );
+      }
+      if (query.includes("mutation ConfirmCommunicationSend")) {
+        operations.push("confirm");
+
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              confirmCommunicationSend: { ...messageRef, status: "confirmed" }
+            }
+          })
+        );
+      }
+      if (query.includes("mutation QueueConfirmedCommunication")) {
+        operations.push("queue");
+
+        return Promise.resolve(
+          jsonResponse({
+            data: {
+              queueConfirmedCommunication: { ...messageRef, status: "sent" }
+            }
+          })
+        );
+      }
+
+      throw new Error(`Unexpected query: ${query}`);
+    });
+
+    const result = await createCommunityClient({ fetchImpl }).confirmAndQueue({
+      confirmedByRef: "demo-web-operator",
+      messageId: "message_1",
+      reason: "Approved by lead"
+    });
+
+    // The queued result reports the included + suppressed counts.
+    expect(result.includedCount).toBe(1);
+    expect(result.suppressedCount).toBe(2);
+    expect(result.message.status).toBe("sent");
+
+    // INVARIANT: confirm precedes queue, and queue is the last operation.
+    expect(operations).toEqual(["audience", "review", "confirm", "queue"]);
+    expect(operations.indexOf("confirm")).toBeLessThan(operations.indexOf("queue"));
+
+    // The confirm carries the human confirmationIntent (confirmed + reason).
+    const confirmCall = fetchImpl.mock.calls.find((call) =>
+      requestBody(call[1]).query.includes("mutation ConfirmCommunicationSend")
+    );
+    expect(requestBody(confirmCall?.[1]).variables.input).toEqual({
+      confirmationIntent: { confirmed: true, reason: "Approved by lead" },
+      confirmedByRef: "demo-web-operator",
+      messageId: "message_1"
+    });
+    // The queue also carries the confirmationIntent.
+    const queueCall = fetchImpl.mock.calls.find((call) =>
+      requestBody(call[1]).query.includes("mutation QueueConfirmedCommunication")
+    );
+    expect(requestBody(queueCall?.[1]).variables.input).toEqual({
+      confirmationIntent: { confirmed: true, reason: "Approved by lead" },
+      messageId: "message_1"
+    });
+  });
+
+  it("PRIVACY: no comms document selects a contact-value field", async () => {
+    const queries: string[] = [];
+    const fetchImpl = vi.fn<typeof fetch>((_url, init) => {
+      const { query } = requestBody(init);
+      queries.push(query);
+
+      if (query.includes("query ResolvedAudience")) {
+        return Promise.resolve(
+          jsonResponse({
+            data: { resolvedAudience: { channel: "sms", included: [], suppressed: [] } }
+          })
+        );
+      }
+      if (query.includes("MarkCommunicationReviewed")) {
+        return Promise.resolve(
+          jsonResponse({ data: { markCommunicationReviewed: messageRef } })
+        );
+      }
+      if (query.includes("ConfirmCommunicationSend")) {
+        return Promise.resolve(
+          jsonResponse({ data: { confirmCommunicationSend: messageRef } })
+        );
+      }
+      if (query.includes("QueueConfirmedCommunication")) {
+        return Promise.resolve(
+          jsonResponse({ data: { queueConfirmedCommunication: messageRef } })
+        );
+      }
+
+      throw new Error(`Unexpected query: ${query}`);
+    });
+
+    await createCommunityClient({ fetchImpl }).confirmAndQueue({
+      confirmedByRef: "demo-web-operator",
+      messageId: "message_1",
+      reason: "go"
+    });
+
+    for (const query of queries) {
+      expect(query).not.toMatch(/\b(phone|address|phoneNumber|emailAddress)\b/i);
+    }
+  });
+});
+
 describe("assembleGroupMemberRows", () => {
   it("joins memberships to members and engagement by memberRef", () => {
     const rows = assembleGroupMemberRows(

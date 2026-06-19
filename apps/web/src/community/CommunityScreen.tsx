@@ -1,19 +1,27 @@
-import { useCallback, useEffect, useState, type ReactElement } from "react";
-import type { CommunityDataSource } from "./client.js";
-import { CommunityDetail } from "./CommunityDetail.js";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
+import {
+  DEFAULT_COMMS_ACTOR_REF,
+  type CommunityDataSource
+} from "./client.js";
+import { CommunityDetail, type CommunityCommsCallbacks } from "./CommunityDetail.js";
 import { CommunityList } from "./CommunityList.js";
 import type { CommunityDetailState, CommunityLoadState } from "./types.js";
 
 /**
- * Community+ read surface container.
+ * Community+ surface container.
  *
  * Loads the community-group list from the injected `CommunityDataSource`, tracks
  * the selected group, and loads that group's detail (resolved members + their
  * engagement summaries). The data source is injected so the same component
  * renders against demo sample data, a live GraphQL endpoint, or a test double.
  * The `mode` label is surfaced in the header so a screenshot makes clear whether
- * the data is demo or live. Mirrors `apps/web/src/play/PlayScreen` (read-only — no
- * write path). The surface renders only PII-safe fields.
+ * the data is demo or live. The read surface mirrors `apps/web/src/play/PlayScreen`
+ * and renders only PII-safe fields.
+ *
+ * It also wires the COMMS gate: the data source's `composeDraft` /
+ * `getResolvedAudience` / `confirmAndQueue` are passed down to the detail's compose
+ * panel, which drives the consent-preview + human-confirm-send flow. The
+ * confirm-send is attributed to `DEFAULT_COMMS_ACTOR_REF` (cosmetic in demo).
  */
 export interface CommunityScreenProps {
   readonly dataSource: CommunityDataSource;
@@ -93,6 +101,23 @@ export const CommunityScreen = (props: CommunityScreenProps): ReactElement => {
     setSelectedGroupId(groupId);
   }, []);
 
+  // Adapt the data source's comms methods into the detail panel's callback shape.
+  // `confirmAndQueue` is attributed to the demo operator ref; this object is the
+  // ONLY thing that exposes a queue path to the UI, and it always confirms first.
+  const comms = useMemo<CommunityCommsCallbacks>(
+    () => ({
+      onComposeDraft: (input) => dataSource.composeDraft(input),
+      onConfirmAndQueue: (input) =>
+        dataSource.confirmAndQueue({
+          confirmedByRef: DEFAULT_COMMS_ACTOR_REF,
+          messageId: input.messageId,
+          reason: input.reason
+        }),
+      onResolveAudience: (messageId) => dataSource.getResolvedAudience(messageId)
+    }),
+    [dataSource]
+  );
+
   return (
     <main className="charts-screen">
       <header className="charts-screen__header">
@@ -107,7 +132,7 @@ export const CommunityScreen = (props: CommunityScreenProps): ReactElement => {
             onSelect={handleSelect}
           />
         </nav>
-        <CommunityDetail state={detailState} />
+        <CommunityDetail state={detailState} comms={comms} />
       </div>
     </main>
   );

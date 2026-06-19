@@ -1,8 +1,13 @@
 import type { ReactElement } from "react";
+import { CommunityComposePanel } from "./CommunityComposePanel.js";
 import type {
+  CommunicationChannel,
+  CommunicationMessageRef,
   CommunityDetailState,
   ContactChannelRefEntry,
-  GroupMemberRow
+  GroupMemberRow,
+  QueuedCommunicationResult,
+  ResolvedAudience
 } from "./types.js";
 
 /**
@@ -11,15 +16,39 @@ import type {
  * member's display name, role in the group, status, opaque contact-channel refs
  * (kind + consent — NEVER a contact value), and (when available) their PII-free
  * engagement summary counts. Renders the discriminated `CommunityDetailState` so
- * loading / error / missing / loaded are all explicit. Read-only — mirrors the
- * shape of `apps/web/src/play/PlayDetail`.
+ * loading / error / missing / loaded are all explicit. Mirrors the shape of
+ * `apps/web/src/play/PlayDetail`.
+ *
+ * When the comms callbacks are provided (the screen wires them to the data
+ * source), the loaded view also renders the COMPOSE affordance — a
+ * `CommunityComposePanel` for the selected group that drives the consent-preview +
+ * human-confirm-send gate. Omitting them keeps the view read-only (the existing
+ * groups/members surface is unchanged), exactly like `ChartDetail`'s optional
+ * `onSave`.
  *
  * PRIVACY: a `ContactChannelRefEntry` is rendered as "<kind> · <consent>"
  * (e.g. "sms · granted") and never prints the `channelRef` token or any contact
  * value, so no phone/email/address-shaped text can reach the DOM.
  */
+export interface CommunityCommsCallbacks {
+  readonly onComposeDraft: (input: {
+    readonly groupId: string;
+    readonly channel: CommunicationChannel;
+    readonly bodyTemplate: string;
+    readonly subject?: string;
+  }) => Promise<CommunicationMessageRef>;
+  readonly onResolveAudience: (
+    messageId: string
+  ) => Promise<ResolvedAudience | null>;
+  readonly onConfirmAndQueue: (input: {
+    readonly messageId: string;
+    readonly reason: string;
+  }) => Promise<QueuedCommunicationResult>;
+}
+
 export interface CommunityDetailProps {
   readonly state: CommunityDetailState;
+  readonly comms?: CommunityCommsCallbacks;
 }
 
 const renderContactRef = (
@@ -55,7 +84,7 @@ const renderMemberRow = (row: GroupMemberRow): ReactElement => {
 };
 
 export const CommunityDetail = (props: CommunityDetailProps): ReactElement => {
-  const { state } = props;
+  const { state, comms } = props;
 
   if (state.status === "loading") {
     return (
@@ -114,6 +143,17 @@ export const CommunityDetail = (props: CommunityDetailProps): ReactElement => {
           <ul className="play-list">{detail.members.map(renderMemberRow)}</ul>
         )}
       </div>
+
+      {comms !== undefined ? (
+        <CommunityComposePanel
+          groupId={group.groupId}
+          groupLabel={group.label}
+          memberRows={detail.members}
+          onComposeDraft={comms.onComposeDraft}
+          onResolveAudience={comms.onResolveAudience}
+          onConfirmAndQueue={comms.onConfirmAndQueue}
+        />
+      ) : null}
     </section>
   );
 };

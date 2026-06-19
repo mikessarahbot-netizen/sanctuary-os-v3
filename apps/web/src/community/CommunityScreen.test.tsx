@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import type { CommunityDataSource } from "./client.js";
@@ -68,7 +68,10 @@ describe("CommunityScreen", () => {
     const failing: CommunityDataSource = {
       listCommunityGroups: (): Promise<never> =>
         Promise.reject(new Error("network down")),
-      getCommunityGroupDetail: (): Promise<null> => Promise.resolve(null)
+      getCommunityGroupDetail: (): Promise<null> => Promise.resolve(null),
+      composeDraft: (): Promise<never> => Promise.reject(new Error("unused")),
+      getResolvedAudience: (): Promise<null> => Promise.resolve(null),
+      confirmAndQueue: (): Promise<never> => Promise.reject(new Error("unused"))
     };
 
     render(<CommunityScreen dataSource={failing} mode="live" />);
@@ -76,5 +79,46 @@ describe("CommunityScreen", () => {
     await waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("network down");
     });
+  });
+
+  it("drives the comms gate end-to-end against the demo source: compose -> preview -> confirm -> queued", async () => {
+    const user = userEvent.setup();
+    render(
+      <CommunityScreen dataSource={createDemoCommunityDataSource()} mode="demo" />
+    );
+
+    // Select Hospitality Team, then compose an SMS to it.
+    await waitFor(() => {
+      expect(screen.getByText("Hospitality Team")).toBeInTheDocument();
+    });
+    await user.click(screen.getByText("Hospitality Team"));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Compose message")).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText("Message"), "Setup is at 9am Sunday.");
+    await user.click(screen.getByRole("button", { name: "Preview audience" }));
+
+    // The consent-filtered audience is visible: Anita included; David + Maria
+    // suppressed (this is the whole point — consent suppression is shown).
+    const audience = await screen.findByRole("group", { name: "Resolved audience" });
+    expect(within(audience).getByText("Anita Bello")).toBeInTheDocument();
+    expect(within(audience).getByText("David Okoye")).toBeInTheDocument();
+    expect(within(audience).getByText("consent not granted")).toBeInTheDocument();
+
+    // Open the confirm gate, type a reason, confirm.
+    await user.click(screen.getByRole("button", { name: /^Send to 1 recipient/ }));
+    await user.type(await screen.findByLabelText(/Reason/), "Approved by lead");
+    await user.click(
+      screen.getByRole("button", { name: /^Confirm and send to 1 person/ })
+    );
+
+    // The queued result shows N included + the suppressed count.
+    await waitFor(() => {
+      expect(screen.getByText("Queued to 1 recipient.")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/2 recipients suppressed/)
+    ).toBeInTheDocument();
   });
 });
