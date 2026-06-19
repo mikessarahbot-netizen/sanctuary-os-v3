@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChartDetail } from "./ChartDetail.js";
@@ -158,5 +158,127 @@ describe("ChartDetail", () => {
     });
     // The editor stays open so the user can retry.
     expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("starts untransposed with the chart's default key and a zero offset", () => {
+    render(<ChartDetail state={{ status: "loaded", chart: firstChart }} />);
+
+    const transpose = screen.getByLabelText("Transpose chart");
+    // Stored chords render unchanged; the readout shows the default key + "0".
+    expect(within(transpose).getByText("G")).toBeInTheDocument();
+    expect(within(transpose).getByText("0")).toBeInTheDocument();
+    expect(screen.getByText("G7")).toBeInTheDocument();
+    expect(screen.getByText("Em")).toBeInTheDocument();
+  });
+
+  it("transposes the displayed chords and key up when + is clicked twice", async () => {
+    const user = userEvent.setup();
+    render(<ChartDetail state={{ status: "loaded", chart: firstChart }} />);
+
+    const up = screen.getByRole("button", { name: "Transpose up a semitone" });
+    await user.click(up);
+    await user.click(up);
+
+    // G -> A (+2): the original chord tokens are gone, the transposed ones show.
+    expect(screen.queryByText("G7")).toBeNull();
+    expect(screen.getByText("A7")).toBeInTheDocument();
+    expect(screen.getByText("F#m")).toBeInTheDocument();
+
+    const transpose = screen.getByLabelText("Transpose chart");
+    // Readout shows the transposed key (G -> A) and the "+2" offset.
+    expect(within(transpose).getByText("A")).toBeInTheDocument();
+    expect(within(transpose).getByText("+2")).toBeInTheDocument();
+  });
+
+  it("transposes down when − is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ChartDetail state={{ status: "loaded", chart: firstChart }} />);
+
+    await user.click(screen.getByRole("button", { name: "Transpose down a semitone" }));
+
+    // G -> F# (-1): every chord shifts down a semitone.
+    expect(screen.getByText("F#7")).toBeInTheDocument();
+    const transpose = screen.getByLabelText("Transpose chart");
+    expect(within(transpose).getByText("F#")).toBeInTheDocument();
+    expect(within(transpose).getByText("-1")).toBeInTheDocument();
+  });
+
+  it("restores the original chords and key when Reset is clicked", async () => {
+    const user = userEvent.setup();
+    render(<ChartDetail state={{ status: "loaded", chart: firstChart }} />);
+
+    const up = screen.getByRole("button", { name: "Transpose up a semitone" });
+    await user.click(up);
+    await user.click(up);
+    expect(screen.getByText("A7")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Reset" }));
+
+    // Back to the stored chords and default key at offset 0.
+    expect(screen.getByText("G7")).toBeInTheDocument();
+    expect(screen.queryByText("A7")).toBeNull();
+    const transpose = screen.getByLabelText("Transpose chart");
+    expect(within(transpose).getByText("G")).toBeInTheDocument();
+    expect(within(transpose).getByText("0")).toBeInTheDocument();
+  });
+
+  it("does not call onSave when transposing (view-only)", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn<(source: string) => Promise<Chart>>(() =>
+      Promise.resolve(firstChart)
+    );
+    render(
+      <ChartDetail state={{ status: "loaded", chart: firstChart }} onSave={onSave} />
+    );
+
+    const up = screen.getByRole("button", { name: "Transpose up a semitone" });
+    await user.click(up);
+    await user.click(up);
+    await user.click(screen.getByRole("button", { name: "Reset" }));
+
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("hides the transpose control while editing the source", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChartDetail
+        state={{ status: "loaded", chart: firstChart }}
+        onSave={(): Promise<Chart> => Promise.resolve(firstChart)}
+      />
+    );
+
+    expect(screen.getByLabelText("Transpose chart")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.queryByLabelText("Transpose chart")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByLabelText("Transpose chart")).toBeInTheDocument();
+  });
+
+  it("resets the transpose offset when a different chart is selected", async () => {
+    const user = userEvent.setup();
+    const [, secondChart] = SAMPLE_CHARTS;
+
+    if (secondChart === undefined) {
+      throw new Error("Expected a second sample chart.");
+    }
+
+    const { rerender } = render(
+      <ChartDetail state={{ status: "loaded", chart: firstChart }} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Transpose up a semitone" }));
+    expect(
+      within(screen.getByLabelText("Transpose chart")).getByText("+1")
+    ).toBeInTheDocument();
+
+    rerender(<ChartDetail state={{ status: "loaded", chart: secondChart }} />);
+
+    // The new chart opens untransposed: offset back to 0, default key shown.
+    const transpose = screen.getByLabelText("Transpose chart");
+    expect(within(transpose).getByText("0")).toBeInTheDocument();
+    expect(within(transpose).getByText(secondChart.defaultKey)).toBeInTheDocument();
   });
 });

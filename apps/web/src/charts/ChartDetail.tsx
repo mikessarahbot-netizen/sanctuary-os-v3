@@ -1,6 +1,19 @@
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import { parseChordProSource, type ChordProLine } from "./chordpro.js";
+import { transposeChordProSource, transposeKey } from "./transpose.js";
 import type { Chart, ChartDetailState } from "./types.js";
+
+// The transpose control is a capo-like VIEW transform: it shifts the rendered
+// chords by a semitone offset, clamped to a single octave either side, without
+// mutating or saving the stored source.
+const MIN_TRANSPOSE = -11;
+const MAX_TRANSPOSE = 11;
+
+const clampSemitones = (semitones: number): number =>
+  Math.max(MIN_TRANSPOSE, Math.min(MAX_TRANSPOSE, semitones));
+
+const formatOffset = (semitones: number): string =>
+  semitones > 0 ? `+${semitones.toString()}` : semitones.toString();
 
 /**
  * Chart DETAIL view. Shows the chart title, its default key, and a simple
@@ -59,13 +72,20 @@ type EditStatus =
 interface ChartSourceEditorProps {
   readonly chart: Chart;
   readonly onSave: (chordProSource: string) => Promise<Chart>;
+  readonly onEditingChange: (editing: boolean) => void;
 }
 
 const ChartSourceEditor = (props: ChartSourceEditorProps): ReactElement => {
-  const { chart, onSave } = props;
+  const { chart, onSave, onEditingChange } = props;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(chart.chordProSource);
   const [status, setStatus] = useState<EditStatus>({ kind: "idle" });
+
+  // Keep the parent loaded view in sync so it can hide the transpose control
+  // (a read-only view transform) while the source is being edited.
+  useEffect(() => {
+    onEditingChange(editing);
+  }, [editing, onEditingChange]);
 
   // When the underlying chart changes identity (selecting a different chart, or
   // a save replacing it), leave edit mode and re-seed the draft from the source.
@@ -162,6 +182,122 @@ const ChartSourceEditor = (props: ChartSourceEditorProps): ReactElement => {
   );
 };
 
+interface TransposeControlProps {
+  readonly chart: Chart;
+  readonly semitones: number;
+  readonly onChange: (semitones: number) => void;
+}
+
+const TransposeControl = (props: TransposeControlProps): ReactElement => {
+  const { chart, semitones, onChange } = props;
+  const transposedKey = transposeKey(chart.defaultKey, semitones);
+
+  const shift = useCallback(
+    (delta: number): void => {
+      onChange(clampSemitones(semitones + delta));
+    },
+    [onChange, semitones]
+  );
+
+  const reset = useCallback((): void => {
+    onChange(0);
+  }, [onChange]);
+
+  return (
+    <div className="chart-transpose" aria-label="Transpose chart">
+      <span className="chart-transpose__label">Transpose</span>
+      <div className="chart-transpose__controls">
+        <button
+          type="button"
+          className="chart-transpose__button"
+          aria-label="Transpose down a semitone"
+          onClick={(): void => {
+            shift(-1);
+          }}
+          disabled={semitones <= MIN_TRANSPOSE}
+        >
+          −
+        </button>
+        <span className="chart-transpose__readout">
+          <span className="chart-transpose__key">{transposedKey}</span>
+          <span className="chart-transpose__offset">{formatOffset(semitones)}</span>
+        </span>
+        <button
+          type="button"
+          className="chart-transpose__button"
+          aria-label="Transpose up a semitone"
+          onClick={(): void => {
+            shift(1);
+          }}
+          disabled={semitones >= MAX_TRANSPOSE}
+        >
+          +
+        </button>
+      </div>
+      <button
+        type="button"
+        className="chart-transpose__reset"
+        onClick={reset}
+        disabled={semitones === 0}
+      >
+        Reset
+      </button>
+    </div>
+  );
+};
+
+interface ChartLoadedViewProps {
+  readonly chart: Chart;
+  readonly onSave?: (chordProSource: string) => Promise<Chart>;
+}
+
+const ChartLoadedView = (props: ChartLoadedViewProps): ReactElement => {
+  const { chart, onSave } = props;
+  const title = chart.title ?? `Untitled (${chart.defaultKey})`;
+  const [semitones, setSemitones] = useState(0);
+  const [editing, setEditing] = useState(false);
+
+  // Each chart opens untransposed: reset the capo-like offset whenever a
+  // different chart (or a saved replacement) becomes the loaded chart.
+  useEffect(() => {
+    setSemitones(0);
+  }, [chart.chartId, chart.chordProSource]);
+
+  // Re-parse the source for rendering, applying the view-only transpose. At a
+  // zero offset this renders the stored chords unchanged.
+  const lines = useMemo(
+    () => parseChordProSource(transposeChordProSource(chart.chordProSource, semitones)),
+    [chart.chordProSource, semitones]
+  );
+
+  return (
+    <section className="chart-detail" aria-label="Chart detail">
+      <header className="chart-detail__header">
+        <h2 className="chart-detail__title">{title}</h2>
+        <dl className="chart-detail__facts">
+          <div>
+            <dt>Default key</dt>
+            <dd className="chart-key">{chart.defaultKey}</dd>
+          </div>
+          <div>
+            <dt>Song ref</dt>
+            <dd className="chart-songref">{chart.songRef}</dd>
+          </div>
+        </dl>
+      </header>
+      {onSave !== undefined ? (
+        <ChartSourceEditor chart={chart} onSave={onSave} onEditingChange={setEditing} />
+      ) : null}
+      {!editing ? (
+        <TransposeControl chart={chart} semitones={semitones} onChange={setSemitones} />
+      ) : null}
+      <div className="chordpro" aria-label="ChordPro source">
+        {lines.map(renderLine)}
+      </div>
+    </section>
+  );
+};
+
 export const ChartDetail = (props: ChartDetailProps): ReactElement => {
   const { state, onSave } = props;
 
@@ -189,31 +325,10 @@ export const ChartDetail = (props: ChartDetailProps): ReactElement => {
     );
   }
 
-  const { chart } = state;
-  const title = chart.title ?? `Untitled (${chart.defaultKey})`;
-  const lines = parseChordProSource(chart.chordProSource);
-
   return (
-    <section className="chart-detail" aria-label="Chart detail">
-      <header className="chart-detail__header">
-        <h2 className="chart-detail__title">{title}</h2>
-        <dl className="chart-detail__facts">
-          <div>
-            <dt>Default key</dt>
-            <dd className="chart-key">{chart.defaultKey}</dd>
-          </div>
-          <div>
-            <dt>Song ref</dt>
-            <dd className="chart-songref">{chart.songRef}</dd>
-          </div>
-        </dl>
-      </header>
-      {onSave !== undefined ? (
-        <ChartSourceEditor chart={chart} onSave={onSave} />
-      ) : null}
-      <div className="chordpro" aria-label="ChordPro source">
-        {lines.map(renderLine)}
-      </div>
-    </section>
+    <ChartLoadedView
+      chart={state.chart}
+      {...(onSave !== undefined ? { onSave } : {})}
+    />
   );
 };
