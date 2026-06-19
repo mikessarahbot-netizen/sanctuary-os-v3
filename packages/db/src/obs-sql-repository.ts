@@ -23,6 +23,7 @@ import {
   ObsScenePersistenceRecordSchema,
   ObsSourcePersistenceRecordSchema,
   ObsStreamStatePersistenceRecordSchema,
+  RemoveObsConnectionProfilePersistenceOperationSchema,
   ReplaceObsCatalogSnapshotPersistenceOperationSchema,
   SaveObsActionIntentPersistenceOperationSchema,
   SetObsActionIntentStatusPersistenceOperationSchema,
@@ -91,6 +92,9 @@ type ListObsActionLogPersistenceOperation = z.infer<
 >;
 type UpsertObsConnectionProfilePersistenceOperation = z.infer<
   typeof UpsertObsConnectionProfilePersistenceOperationSchema
+>;
+type RemoveObsConnectionProfilePersistenceOperation = z.infer<
+  typeof RemoveObsConnectionProfilePersistenceOperationSchema
 >;
 type UpsertObsScenePersistenceOperation = z.infer<
   typeof UpsertObsScenePersistenceOperationSchema
@@ -870,6 +874,22 @@ RETURNING ${OBS_ACTION_LOG_COLUMNS}
     return ObsActionLogEntrySqlRowSchema.parse(
       firstRow(result.rows, "OBS action log insert did not return the appended row.")
     );
+  },
+
+  removeObsConnectionProfile: async (
+    rawOperation: RemoveObsConnectionProfilePersistenceOperation
+  ) => {
+    const operation =
+      RemoveObsConnectionProfilePersistenceOperationSchema.parse(rawOperation);
+    await dependencies.executor.query({
+      name: "obs.connection_profiles.remove",
+      parameters: [
+        operation.options.context.tenantId,
+        operation.input.connectionProfileId
+      ],
+      sql: `DELETE FROM obs_connection_profiles WHERE tenant_id = ? AND connection_profile_id = ?`,
+      ...optionalTransaction(operation.options.transaction)
+    });
   },
 
   replaceObsCatalogSnapshot: async (

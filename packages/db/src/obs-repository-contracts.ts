@@ -552,6 +552,15 @@ export const ListObsActionLogPersistenceInputSchema = z
 
 export const UpsertObsConnectionProfilePersistenceInputSchema =
   ObsConnectionProfilePersistenceRecordSchema;
+
+/**
+ * Remove a connection profile (destructive). The opaque `connectionProfileId`
+ * names the row; tenant scope is supplied by the write options. Mirrors
+ * Community+ `RemoveGroupMembershipPersistenceInput`.
+ */
+export const RemoveObsConnectionProfilePersistenceInputSchema = z
+  .object({ connectionProfileId: NonEmptyStringSchema })
+  .strict();
 export const UpsertObsScenePersistenceInputSchema = ObsScenePersistenceRecordSchema;
 export const UpsertObsSourcePersistenceInputSchema = ObsSourcePersistenceRecordSchema;
 export const UpsertObsSceneItemPersistenceInputSchema =
@@ -756,6 +765,9 @@ export const ListObsActionLogPersistenceOperationSchema = readOperation(
 export const UpsertObsConnectionProfilePersistenceOperationSchema = writeOperation(
   UpsertObsConnectionProfilePersistenceInputSchema
 );
+export const RemoveObsConnectionProfilePersistenceOperationSchema = writeOperation(
+  RemoveObsConnectionProfilePersistenceInputSchema
+);
 export const UpsertObsScenePersistenceOperationSchema = writeOperation(
   UpsertObsScenePersistenceInputSchema
 );
@@ -863,6 +875,9 @@ export type GetObsActionIntentPersistenceInput = z.infer<
 export type ListObsActionLogPersistenceInput = z.infer<
   typeof ListObsActionLogPersistenceInputSchema
 >;
+export type RemoveObsConnectionProfilePersistenceInput = z.infer<
+  typeof RemoveObsConnectionProfilePersistenceInputSchema
+>;
 export type ReplaceObsCatalogSnapshotPersistenceInput = z.infer<
   typeof ReplaceObsCatalogSnapshotPersistenceInputSchema
 >;
@@ -926,6 +941,9 @@ export interface ObsCommandPersistenceRepository {
   readonly upsertObsConnectionProfile: (
     operation: ObsPersistenceOperation<ObsConnectionProfilePersistenceRecord>
   ) => Promise<ObsConnectionProfilePersistenceRecord>;
+  readonly removeObsConnectionProfile: (
+    operation: ObsPersistenceOperation<RemoveObsConnectionProfilePersistenceInput>
+  ) => Promise<void>;
   readonly upsertObsScene: (
     operation: ObsPersistenceOperation<ObsScenePersistenceRecord>
   ) => Promise<ObsScenePersistenceRecord>;

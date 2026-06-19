@@ -55,6 +55,10 @@ import {
   type ObsDispatchErrorClassifier
 } from "./error-classifier.js";
 import { createFakeObsControlPort } from "./fake-control-port.js";
+import {
+  callObsPortForAction,
+  requireObsActionField
+} from "./port-bridge.js";
 
 /**
  * In-memory OBS service adapter — the slice-6 test double.
@@ -439,71 +443,27 @@ export const createInMemoryObsServicesAdapter = (
         entry.obsSceneItemId === targetSceneItemId
     );
 
-    return requireActionField(sceneItem?.sceneRef, "target scene-item scene");
+    return requireObsActionField(sceneItem?.sceneRef, "target scene-item scene");
   };
 
   /**
-   * Call the single `ObsControlPort` mutate method that realizes a dispatched
-   * action's `kind`, and nothing else. Reached ONLY from `dispatchObsAction`, ONLY
-   * for a confirmed-then-dispatched intent — it is the sole bridge from the OBS
-   * service to a port mutate method. Stream actions return the port's observed
-   * coarse stream status (so the service records the durable transition);
-   * scene/source toggles resolve `void` and return `undefined`. A normalized
-   * `ObsControlError` from the port propagates to the dispatch caller, which
-   * classifies and records it. The five v1 kinds are handled exhaustively (no
-   * default branch), so adding a kind is a compile error here until it is wired.
+   * Realize a dispatched action's `kind` through the shared port bridge — the one
+   * place a port mutate method is called, shared verbatim with the persistence
+   * adapter so the gate cannot drift between paths. The in-memory scene-item
+   * resolver is injected so the bridge stays storage-agnostic. Stream actions
+   * return the port's observed coarse stream status; scene/source toggles resolve
+   * `undefined`. A normalized `ObsControlError` propagates to the dispatch caller.
    */
-  const callPortForAction = async (
+  const callPortForAction = (
     connectionRef: ObsConnectionProfile["connectionRef"],
     intent: ObsActionIntent
-  ): Promise<ObsStreamState["streamStatus"] | undefined> => {
-    switch (intent.kind) {
-      case "switch-scene": {
-        await controlPort.setCurrentProgramScene(
-          connectionRef,
-          requireActionField(intent.targetSceneRef, "target scene")
-        );
-
-        return undefined;
-      }
-
-      case "toggle-source-visibility": {
-        const targetSceneItemId = requireActionField(
-          intent.targetSceneItemId,
-          "target scene-item"
-        );
-
-        await controlPort.setSceneItemEnabled(connectionRef, {
-          enabled: requireActionField(intent.desiredVisible, "desired visibility"),
-          obsSceneItemId: targetSceneItemId,
-          obsSceneRef: resolveSceneRefForSceneItem(intent, targetSceneItemId)
-        });
-
-        return undefined;
-      }
-
-      case "toggle-source-mute": {
-        await controlPort.setInputMute(connectionRef, {
-          muted: requireActionField(intent.desiredMuted, "desired mute"),
-          obsSourceRef: requireActionField(intent.targetSourceRef, "target source")
-        });
-
-        return undefined;
-      }
-
-      case "start-stream": {
-        const observed = await controlPort.startStream(connectionRef);
-
-        return observed.streamStatus;
-      }
-
-      case "stop-stream": {
-        const observed = await controlPort.stopStream(connectionRef);
-
-        return observed.streamStatus;
-      }
-    }
-  };
+  ): Promise<ObsStreamState["streamStatus"] | undefined> =>
+    callObsPortForAction(
+      controlPort,
+      connectionRef,
+      intent,
+      resolveSceneRefForSceneItem
+    );
 
   /**
    * Replace a connection's entire catalog snapshot from a freshly-observed port
@@ -1148,27 +1108,6 @@ const createObsIds = (
     sceneItemId: overrides?.sceneItemId ?? counter("scene_item"),
     sourceId: overrides?.sourceId ?? counter("source")
   };
-};
-
-/**
- * Missing-ref guard for the dispatch switch. The `ObsActionIntentSchema`
- * superRefine already guarantees the per-kind target refs are present on any
- * stored intent, but the *types* are optional, so this narrows them and fails
- * closed with `VALIDATION_FAILED` rather than letting an `undefined` ref reach the
- * port — a stored intent should never hit this.
- */
-const requireActionField = <TValue>(
-  value: TValue | undefined,
-  field: string
-): TValue => {
-  if (value === undefined) {
-    throw new ObsDomainError(
-      "VALIDATION_FAILED",
-      `This OBS action is missing its required ${field}.`
-    );
-  }
-
-  return value;
 };
 
 /**
