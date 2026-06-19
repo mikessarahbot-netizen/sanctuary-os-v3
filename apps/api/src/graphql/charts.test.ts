@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthBoundary, AuthenticatedActor } from "../auth/index.js";
 import {
+  ChartAnnotationSchema,
   ChartArrangementSchema,
   ChartSchema,
   ChartsDomainError,
   MusicianChartPreferenceSchema,
   type Chart,
+  type ChartAnnotation,
   type ChartArrangement,
   type ChartsCommandService,
   type ChartsQueryService,
@@ -60,6 +62,18 @@ const preference: MusicianChartPreference = MusicianChartPreferenceSchema.parse(
   musicianId: "musician_1",
   tenantId: "tenant_1",
   transposeSemitones: 0,
+  updatedAt: timestamp
+});
+
+const sectionMarkerAnnotation: ChartAnnotation = ChartAnnotationSchema.parse({
+  annotationId: "annotation_1",
+  chartId: "chart_1",
+  createdAt: timestamp,
+  kind: "section-marker",
+  lineIndex: 0,
+  musicianId: "musician_1",
+  sectionIndex: 0,
+  tenantId: "tenant_1",
   updatedAt: timestamp
 });
 
@@ -301,6 +315,78 @@ describe("Charts GraphQL transport", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       data: { chartsForSong: [{ chartId: "chart_1", songRef: "song_1" }] }
+    });
+  });
+
+  it("round-trips the hyphenated ChartAnnotationKind through the full transport", async () => {
+    const addChartAnnotation = vi.fn<ChartsCommandService["addChartAnnotation"]>(() =>
+      Promise.resolve(sectionMarkerAnnotation)
+    );
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      schema: createPresenterGraphqlSchema({
+        ...presenterStub,
+        charts: {
+          chartsCommandService: createChartsCommandService({ addChartAnnotation }),
+          chartsQueryService: createChartsQueryService({
+            listChartAnnotations: vi.fn<ChartsQueryService["listChartAnnotations"]>(() =>
+              Promise.resolve([sectionMarkerAnnotation])
+            )
+          })
+        }
+      })
+    });
+
+    const mutationResponse = await handler({
+      body: {
+        query:
+          "mutation add($input: AddChartAnnotationInput!) { addChartAnnotation(input: $input) { annotationId kind } }",
+        variables: {
+          input: {
+            chartId: "chart_1",
+            kind: "section_marker",
+            lineIndex: 0,
+            musicianId: "musician_1",
+            sectionIndex: 0
+          }
+        }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(mutationResponse.status).toBe(200);
+    // `section_marker` (SDL) is mapped to the domain value `section-marker` before
+    // the service is called.
+    expect(addChartAnnotation).toHaveBeenCalledWith({
+      actor,
+      input: {
+        chartId: "chart_1",
+        kind: "section-marker",
+        lineIndex: 0,
+        musicianId: "musician_1",
+        sectionIndex: 0
+      },
+      requestId: "request_1"
+    });
+    // The hyphenated domain kind serializes back as the underscore SDL enum name.
+    expect(mutationResponse.body).toEqual({
+      data: {
+        addChartAnnotation: { annotationId: "annotation_1", kind: "section_marker" }
+      }
+    });
+
+    const queryResponse = await handler({
+      body: {
+        query: "{ chartAnnotations(chartId: \"chart_1\") { annotationId kind } }"
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body).toEqual({
+      data: {
+        chartAnnotations: [{ annotationId: "annotation_1", kind: "section_marker" }]
+      }
     });
   });
 

@@ -35,9 +35,14 @@ import {
  * pass-through: variables arrive already parsed, literals are converted with
  * graphql's untyped AST reader. The Charts SDL also `extend`s the roots and
  * reuses the `DateTime` scalar the Presenter SDL declares, so it is only merged
- * in when Charts dependencies are supplied. The Play SDL likewise `extend`s the
+ * in when Charts dependencies are supplied; its hyphenated enum value
+ * (`ChartAnnotationKind`'s `section-marker`) is exposed with an underscore SDL
+ * name and mapped back to the domain value via the Charts enum value maps below
+ * (GraphQL enum names cannot contain hyphens). The Play SDL likewise `extend`s the
  * roots and reuses the `DateTime` scalar, so it is only merged in when Play
- * dependencies are supplied. The Community SDL follows the same pattern and is
+ * dependencies are supplied; its hyphenated enum values (`PlayCueAction`'s
+ * `pad-change` / `click-toggle`) are exposed with underscore SDL names and mapped
+ * back via the Play enum value maps below. The Community SDL follows the same pattern and is
  * only merged in when Community dependencies are supplied; its hyphenated enum
  * values (`small-group`, `serving-team`, `co-leader`, `ai-drafted`) are exposed
  * with underscore SDL names and mapped back to the domain values via the enum
@@ -125,6 +130,40 @@ const obsEnumValueMaps = {
   }
 } as const;
 
+/**
+ * Enum value maps for the Charts enums whose domain values contain hyphens.
+ * Registering the internal value for each underscore SDL name makes graphql-js
+ * coerce inputs to the hyphenated domain value (so the Zod enums parse) and
+ * serialize the hyphenated value back to the underscore SDL name. The hyphen-free
+ * Charts enum (`ChartInstrument`) needs no map (SDL name === value).
+ */
+const chartsEnumValueMaps = {
+  ChartAnnotationKind: {
+    highlight: "highlight",
+    note: "note",
+    repeat: "repeat",
+    section_marker: "section-marker"
+  }
+} as const;
+
+/**
+ * Enum value maps for the Play enums whose domain values contain hyphens.
+ * Registering the internal value for each underscore SDL name makes graphql-js
+ * coerce inputs to the hyphenated domain value (so the Zod enums parse) and
+ * serialize the hyphenated value back to the underscore SDL name. The hyphen-free
+ * Play enums (`PlaySectionKind`, `PlayCueFireMode`, `TransportStatus`,
+ * `TrackRole`) need no map (SDL name === value).
+ */
+const playEnumValueMaps = {
+  PlayCueAction: {
+    click_toggle: "click-toggle",
+    jump: "jump",
+    pad_change: "pad-change",
+    play: "play",
+    stop: "stop"
+  }
+} as const;
+
 export interface ApiGraphqlSchemaDependencies extends PresenterGraphqlResolverDependencies {
   readonly charts?: ChartsGraphqlResolverDependencies;
   readonly community?: CommunityGraphqlResolverDependencies;
@@ -171,6 +210,8 @@ export const createPresenterGraphqlSchema = (
         ...(communityResolvers !== undefined ? communityResolvers.Query : {}),
         ...(obsResolvers !== undefined ? obsResolvers.Query : {})
       },
+      ...(chartsResolvers !== undefined ? chartsEnumValueMaps : {}),
+      ...(playResolvers !== undefined ? playEnumValueMaps : {}),
       ...(communityResolvers !== undefined
         ? {
             AudienceDescriptor: communityResolvers.AudienceDescriptor,

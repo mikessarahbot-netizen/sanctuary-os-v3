@@ -63,6 +63,33 @@ const cue: PlayCue = PlayCueSchema.parse({
   updatedAt: timestamp
 });
 
+const padChangeCue: PlayCue = PlayCueSchema.parse({
+  action: "pad-change",
+  createdAt: timestamp,
+  cueId: "cue_pad",
+  fireMode: "manual",
+  label: "Swap pad",
+  markerOffsetBeats: 0,
+  padLayerRef: "pad_layer_1",
+  sectionId: "section_intro",
+  tenantId: "tenant_1",
+  trackSetId: "track_set_1",
+  updatedAt: timestamp
+});
+
+const clickToggleCue: PlayCue = PlayCueSchema.parse({
+  action: "click-toggle",
+  createdAt: timestamp,
+  cueId: "cue_click",
+  fireMode: "manual",
+  label: "Toggle click",
+  markerOffsetBeats: 0,
+  sectionId: "section_intro",
+  tenantId: "tenant_1",
+  trackSetId: "track_set_1",
+  updatedAt: timestamp
+});
+
 const playbackState: PlaybackState = PlaybackStateSchema.parse({
   clickEnabled: true,
   positionBeats: 0,
@@ -317,6 +344,148 @@ describe("Play GraphQL transport", () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       data: { trackSetsForSong: [{ songRef: "song_1", trackSetId: "track_set_1" }] }
+    });
+  });
+
+  it("round-trips the hyphenated PlayCueAction pad-change through the full transport", async () => {
+    const addPlayCue = vi.fn<PlayCommandService["addPlayCue"]>(() =>
+      Promise.resolve(padChangeCue)
+    );
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      schema: createPresenterGraphqlSchema({
+        ...presenterStub,
+        play: {
+          playCommandService: createPlayCommandService({ addPlayCue }),
+          playQueryService: createPlayQueryService({
+            listPlayCues: vi.fn<PlayQueryService["listPlayCues"]>(() =>
+              Promise.resolve([padChangeCue])
+            )
+          })
+        }
+      })
+    });
+
+    const mutationResponse = await handler({
+      body: {
+        query:
+          "mutation add($input: AddPlayCueInput!) { addPlayCue(input: $input) { cueId action } }",
+        variables: {
+          input: {
+            action: "pad_change",
+            fireMode: "manual",
+            label: "Swap pad",
+            markerOffsetBeats: 0,
+            padLayerRef: "pad_layer_1",
+            sectionId: "section_intro",
+            trackSetId: "track_set_1"
+          }
+        }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(mutationResponse.status).toBe(200);
+    // `pad_change` (SDL) is mapped to the domain value `pad-change` before the
+    // service is called.
+    expect(addPlayCue).toHaveBeenCalledWith({
+      actor,
+      input: {
+        action: "pad-change",
+        fireMode: "manual",
+        label: "Swap pad",
+        markerOffsetBeats: 0,
+        padLayerRef: "pad_layer_1",
+        sectionId: "section_intro",
+        trackSetId: "track_set_1"
+      },
+      requestId: "request_1"
+    });
+    // The hyphenated domain action serializes back as the underscore SDL enum name.
+    expect(mutationResponse.body).toEqual({
+      data: { addPlayCue: { action: "pad_change", cueId: "cue_pad" } }
+    });
+
+    const queryResponse = await handler({
+      body: {
+        query: "{ playCues(trackSetId: \"track_set_1\") { cueId action } }"
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body).toEqual({
+      data: { playCues: [{ action: "pad_change", cueId: "cue_pad" }] }
+    });
+  });
+
+  it("round-trips the hyphenated PlayCueAction click-toggle through the full transport", async () => {
+    const addPlayCue = vi.fn<PlayCommandService["addPlayCue"]>(() =>
+      Promise.resolve(clickToggleCue)
+    );
+    const handler = createPresenterGraphqlRequestHandler({
+      authBoundary,
+      schema: createPresenterGraphqlSchema({
+        ...presenterStub,
+        play: {
+          playCommandService: createPlayCommandService({ addPlayCue }),
+          playQueryService: createPlayQueryService({
+            listPlayCues: vi.fn<PlayQueryService["listPlayCues"]>(() =>
+              Promise.resolve([clickToggleCue])
+            )
+          })
+        }
+      })
+    });
+
+    const mutationResponse = await handler({
+      body: {
+        query:
+          "mutation add($input: AddPlayCueInput!) { addPlayCue(input: $input) { cueId action } }",
+        variables: {
+          input: {
+            action: "click_toggle",
+            fireMode: "manual",
+            label: "Toggle click",
+            markerOffsetBeats: 0,
+            sectionId: "section_intro",
+            trackSetId: "track_set_1"
+          }
+        }
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(mutationResponse.status).toBe(200);
+    // `click_toggle` (SDL) is mapped to the domain value `click-toggle` before the
+    // service is called.
+    expect(addPlayCue).toHaveBeenCalledWith({
+      actor,
+      input: {
+        action: "click-toggle",
+        fireMode: "manual",
+        label: "Toggle click",
+        markerOffsetBeats: 0,
+        sectionId: "section_intro",
+        trackSetId: "track_set_1"
+      },
+      requestId: "request_1"
+    });
+    // The hyphenated domain action serializes back as the underscore SDL enum name.
+    expect(mutationResponse.body).toEqual({
+      data: { addPlayCue: { action: "click_toggle", cueId: "cue_click" } }
+    });
+
+    const queryResponse = await handler({
+      body: {
+        query: "{ playCues(trackSetId: \"track_set_1\") { cueId action } }"
+      },
+      headers: { Authorization: "Bearer good-token", "x-request-id": "request_1" }
+    });
+
+    expect(queryResponse.status).toBe(200);
+    expect(queryResponse.body).toEqual({
+      data: { playCues: [{ action: "click_toggle", cueId: "cue_click" }] }
     });
   });
 
