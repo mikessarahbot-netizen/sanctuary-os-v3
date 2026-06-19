@@ -756,6 +756,305 @@ describe("createInMemoryEventPublisher", () => {
       ).toThrow("Unrecognized key");
     }
   });
+
+  it("validates OBS event payload contracts and schema versions", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "connection_1",
+      actorId: "actor_1",
+      eventType: "obs.connectionStatusChanged",
+      occurredAt: "2026-06-21T15:00:00.000Z",
+      payload: {
+        connectionProfileId: "connection_1",
+        connectionStatus: "connected",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T15:00:00.000Z"
+      },
+      requestId: "request_connection_status",
+      schemaVersion: "obs-connection-status-changed.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "connection_1",
+      actorId: "actor_1",
+      eventType: "obs.streamStateChanged",
+      occurredAt: "2026-06-21T15:01:00.000Z",
+      payload: {
+        connectionProfileId: "connection_1",
+        lastActionIntentRef: "action_1",
+        lastTransitionAt: "2026-06-21T15:01:00.000Z",
+        streamStatus: "active",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T15:01:00.000Z"
+      },
+      requestId: "request_stream_state",
+      schemaVersion: "obs-stream-state-changed.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "connection_1",
+      actorId: "actor_1",
+      eventType: "obs.recordingStateChanged",
+      occurredAt: "2026-06-21T15:02:00.000Z",
+      payload: {
+        connectionProfileId: "connection_1",
+        recordingStatus: "inactive",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T15:02:00.000Z"
+      },
+      requestId: "request_recording_state",
+      schemaVersion: "obs-recording-state-changed.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "connection_1",
+      actorId: "actor_1",
+      eventType: "obs.sceneChanged",
+      occurredAt: "2026-06-21T15:03:00.000Z",
+      payload: {
+        connectionProfileId: "connection_1",
+        programSceneRef: "scene-main",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T15:03:00.000Z"
+      },
+      requestId: "request_scene_changed",
+      schemaVersion: "obs-scene-changed.v1",
+      tenantId: "tenant_1"
+    });
+    await eventPublisher.publishAfterCommit({
+      aggregateId: "action_1",
+      actorId: "actor_1",
+      eventType: "obs.actionStatusChanged",
+      occurredAt: "2026-06-21T15:04:00.000Z",
+      payload: {
+        actionIntentId: "action_1",
+        connectionProfileId: "connection_1",
+        kind: "switch-scene",
+        origin: "human",
+        status: "succeeded",
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T15:04:00.000Z"
+      },
+      requestId: "request_action_status",
+      schemaVersion: "obs-action-status-changed.v1",
+      tenantId: "tenant_1"
+    });
+
+    expect(
+      eventPublisher.readPublishedEvents().map((event) => ({
+        eventType: event.eventType,
+        schemaVersion: event.schemaVersion
+      }))
+    ).toEqual([
+      {
+        eventType: "obs.connectionStatusChanged",
+        schemaVersion: "obs-connection-status-changed.v1"
+      },
+      {
+        eventType: "obs.streamStateChanged",
+        schemaVersion: "obs-stream-state-changed.v1"
+      },
+      {
+        eventType: "obs.recordingStateChanged",
+        schemaVersion: "obs-recording-state-changed.v1"
+      },
+      {
+        eventType: "obs.sceneChanged",
+        schemaVersion: "obs-scene-changed.v1"
+      },
+      {
+        eventType: "obs.actionStatusChanged",
+        schemaVersion: "obs-action-status-changed.v1"
+      }
+    ]);
+  });
+
+  it("rejects OBS event tenant and aggregate mismatches", () => {
+    // Connection-scoped events: tenant mismatch.
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "connection_1",
+        actorId: "actor_1",
+        eventType: "obs.streamStateChanged",
+        occurredAt: "2026-06-21T15:01:00.000Z",
+        payload: {
+          connectionProfileId: "connection_1",
+          streamStatus: "active",
+          tenantId: "tenant_2",
+          updatedAt: "2026-06-21T15:01:00.000Z"
+        },
+        requestId: "request_stream_state",
+        schemaVersion: "obs-stream-state-changed.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("OBS event tenant must match payload tenant.");
+
+    // Connection-scoped events: aggregate must be the connection profile id.
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "connection_2",
+        actorId: "actor_1",
+        eventType: "obs.sceneChanged",
+        occurredAt: "2026-06-21T15:03:00.000Z",
+        payload: {
+          connectionProfileId: "connection_1",
+          programSceneRef: "scene-main",
+          tenantId: "tenant_1",
+          updatedAt: "2026-06-21T15:03:00.000Z"
+        },
+        requestId: "request_scene_changed",
+        schemaVersion: "obs-scene-changed.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("OBS event aggregate must match connection profile ID.");
+
+    // Action-status event: aggregate must be the action intent id.
+    expect(() =>
+      validateApiEventEnvelope({
+        aggregateId: "connection_1",
+        actorId: "actor_1",
+        eventType: "obs.actionStatusChanged",
+        occurredAt: "2026-06-21T15:04:00.000Z",
+        payload: {
+          actionIntentId: "action_1",
+          connectionProfileId: "connection_1",
+          kind: "switch-scene",
+          origin: "human",
+          status: "succeeded",
+          tenantId: "tenant_1",
+          updatedAt: "2026-06-21T15:04:00.000Z"
+        },
+        requestId: "request_action_status",
+        schemaVersion: "obs-action-status-changed.v1",
+        tenantId: "tenant_1"
+      })
+    ).toThrow("OBS event aggregate must match action intent ID.");
+  });
+
+  it("rejects OBS event payloads carrying any secret, connection-detail, or telemetry field", () => {
+    // The stream-state event is the highest-risk surface: it must reject every
+    // secret/connection-detail (host/port/password/token/streamKey/url) AND every
+    // high-frequency telemetry field (bitrate/dropped frames/uptime), which stay
+    // on the local runtime bus and are intentionally off the union.
+    const streamBaseEvent = {
+      aggregateId: "connection_1",
+      actorId: "actor_1",
+      eventType: "obs.streamStateChanged" as const,
+      occurredAt: "2026-06-21T15:01:00.000Z",
+      payload: {
+        connectionProfileId: "connection_1",
+        streamStatus: "active" as const,
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T15:01:00.000Z"
+      },
+      requestId: "request_stream_state",
+      schemaVersion: "obs-stream-state-changed.v1" as const,
+      tenantId: "tenant_1"
+    };
+
+    for (const leakKey of [
+      "host",
+      "port",
+      "password",
+      "token",
+      "authToken",
+      "streamKey",
+      "url",
+      "bitrate",
+      "droppedFrames",
+      "uptimeSeconds"
+    ]) {
+      expect(() =>
+        validateApiEventEnvelope({
+          ...streamBaseEvent,
+          payload: {
+            ...streamBaseEvent.payload,
+            [leakKey]: "leaked"
+          }
+        })
+      ).toThrow("Unrecognized key");
+    }
+
+    // The connection-status event must reject the same secret/connection-detail
+    // keys AND any PII key (OBS controls production, not people; none is permitted).
+    const connectionBaseEvent = {
+      aggregateId: "connection_1",
+      actorId: "actor_1",
+      eventType: "obs.connectionStatusChanged" as const,
+      occurredAt: "2026-06-21T15:00:00.000Z",
+      payload: {
+        connectionProfileId: "connection_1",
+        connectionStatus: "connected" as const,
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T15:00:00.000Z"
+      },
+      requestId: "request_connection_status",
+      schemaVersion: "obs-connection-status-changed.v1" as const,
+      tenantId: "tenant_1"
+    };
+
+    for (const leakKey of [
+      "host",
+      "port",
+      "password",
+      "token",
+      "streamKey",
+      "url",
+      "name",
+      "displayName",
+      "contact"
+    ]) {
+      expect(() =>
+        validateApiEventEnvelope({
+          ...connectionBaseEvent,
+          payload: {
+            ...connectionBaseEvent.payload,
+            [leakKey]: "leaked"
+          }
+        })
+      ).toThrow("Unrecognized key");
+    }
+
+    // The action-status event carries no message field, so a redacted failure
+    // message / raw obs-websocket payload / secret can never ride along.
+    const actionBaseEvent = {
+      aggregateId: "action_1",
+      actorId: "actor_1",
+      eventType: "obs.actionStatusChanged" as const,
+      occurredAt: "2026-06-21T15:04:00.000Z",
+      payload: {
+        actionIntentId: "action_1",
+        connectionProfileId: "connection_1",
+        kind: "switch-scene" as const,
+        origin: "human" as const,
+        status: "failed" as const,
+        tenantId: "tenant_1",
+        updatedAt: "2026-06-21T15:04:00.000Z"
+      },
+      requestId: "request_action_status",
+      schemaVersion: "obs-action-status-changed.v1" as const,
+      tenantId: "tenant_1"
+    };
+
+    for (const leakKey of [
+      "safeFailureMessage",
+      "rawPayload",
+      "password",
+      "streamKey",
+      "displayName"
+    ]) {
+      expect(() =>
+        validateApiEventEnvelope({
+          ...actionBaseEvent,
+          payload: {
+            ...actionBaseEvent.payload,
+            [leakKey]: "leaked"
+          }
+        })
+      ).toThrow("Unrecognized key");
+    }
+  });
 });
 
 describe("API event transport", () => {

@@ -1,4 +1,5 @@
 import type { AuthenticatedActor } from "../../auth/index.js";
+import type { ApiEventEnvelope, EventPublisher } from "../../events/index.js";
 import {
   CancelObsActionCommandSchema,
   ConfirmObsActionCommandSchema,
@@ -127,6 +128,7 @@ export interface InMemoryObsServiceDependencies {
   readonly clock?: () => string;
   readonly controlPort?: ObsControlPort;
   readonly errorClassifier?: ObsDispatchErrorClassifier;
+  readonly eventPublisher?: EventPublisher;
   readonly ids?: Partial<InMemoryObsServiceIds>;
   readonly seed?: InMemoryObsServiceSeed;
 }
@@ -163,6 +165,7 @@ export const createInMemoryObsServicesAdapter = (
     createFakeObsControlPort({ failures: { getSceneList: { code: "disconnected" } } })
       .port;
   const errorClassifier = dependencies.errorClassifier ?? classifyObsDispatchError;
+  const eventPublisher = dependencies.eventPublisher;
 
   const connectionProfiles = new Map<string, ObsConnectionProfile>();
   const scenes = new Map<string, ObsScene>();
@@ -802,6 +805,47 @@ export const createInMemoryObsServicesAdapter = (
           connectionProfile
         );
 
+        // A refresh is a durable snapshot commit: OBS answered, the connection is
+        // now `connected`, and the coarse stream/recording/scene snapshot has been
+        // reconciled and persisted. Emit the durable, coarse OBS state events
+        // AFTER those commits — connection, stream, recording, and the resolved
+        // program scene. The program-scene ref is the single
+        // `isCurrentProgramScene` scene from the reconciled snapshot (at most one),
+        // omitted when OBS reported no current program scene. All payloads are
+        // secret-free + PII-free (ids/refs + coarse status only).
+        const programSceneRef = snapshot.scenes.find(
+          (scene) => scene.isCurrentProgramScene
+        )?.obsSceneRef;
+        await publishObsEvents(eventPublisher, [
+          createObsConnectionStatusChangedEvent({
+            actor: command.actor,
+            occurredAt: now,
+            profile: connectionProfile,
+            requestId: command.requestId
+          }),
+          createObsStreamStateChangedEvent({
+            actor: command.actor,
+            occurredAt: now,
+            requestId: command.requestId,
+            streamState
+          }),
+          createObsRecordingStateChangedEvent({
+            actor: command.actor,
+            occurredAt: now,
+            recordingState,
+            requestId: command.requestId
+          }),
+          createObsSceneChangedEvent({
+            actor: command.actor,
+            connectionProfileId: connectionProfile.connectionProfileId,
+            occurredAt: now,
+            requestId: command.requestId,
+            tenantId: connectionProfile.tenantId,
+            updatedAt: now,
+            ...(programSceneRef !== undefined ? { programSceneRef } : {})
+          })
+        ]);
+
         return {
           connectionProfile,
           recordingState,
@@ -1014,6 +1058,21 @@ export const createInMemoryObsServicesAdapter = (
             safeMessage: classification.safeMessage
           });
 
+          // A failed dispatch is still a durable action-status commit (the intent
+          // moved confirmed → dispatched → failed and is persisted), so emit the
+          // coarse `actionStatusChanged(failed)` AFTER that commit. The payload is
+          // structurally secret-free — it carries only ids/refs + the coarse kind/
+          // origin/status enums, with NO message field, so the redacted
+          // safeMessage stays on the intent/audit row and never reaches the event.
+          await publishObsEvents(eventPublisher, [
+            createObsActionStatusChangedEvent({
+              actor: command.actor,
+              intent: failed,
+              occurredAt: failedAt,
+              requestId: command.requestId
+            })
+          ]);
+
           return failed;
         }
 
@@ -1021,12 +1080,16 @@ export const createInMemoryObsServicesAdapter = (
         // after this confirmed dispatch succeeded). Then mark the intent
         // `succeeded` and audit.
         const succeededAt = clock();
+        let committedStreamState: ObsStreamState | undefined;
         if (observedStreamStatus !== undefined) {
           recordStreamTransition(
             dispatched,
             command.actor,
             observedStreamStatus,
             succeededAt
+          );
+          committedStreamState = streamStates.get(
+            connectionScopedKey(dispatched.tenantId, dispatched.connectionProfileId)
           );
         }
 
@@ -1039,6 +1102,33 @@ export const createInMemoryObsServicesAdapter = (
           outcome: "succeeded",
           reason: `Dispatched ${succeeded.kind} to OBS successfully.`
         });
+
+        // Emit ONLY after the durable commits succeeded. Always emit the coarse
+        // `actionStatusChanged(succeeded)`; additionally emit
+        // `streamStateChanged` when this dispatch actually moved the durable stream
+        // snapshot (a `start-stream`/`stop-stream` whose port read returned a coarse
+        // status). Scene/source toggles do not re-snapshot the catalog on dispatch
+        // (the program-scene snapshot is reconciled by `refreshObsCatalog`), so this
+        // path emits no `sceneChanged`. Both payloads are secret-free + PII-free.
+        const dispatchEvents: ApiEventEnvelope[] = [
+          createObsActionStatusChangedEvent({
+            actor: command.actor,
+            intent: succeeded,
+            occurredAt: succeededAt,
+            requestId: command.requestId
+          })
+        ];
+        if (committedStreamState !== undefined) {
+          dispatchEvents.push(
+            createObsStreamStateChangedEvent({
+              actor: command.actor,
+              occurredAt: succeededAt,
+              requestId: command.requestId,
+              streamState: committedStreamState
+            })
+          );
+        }
+        await publishObsEvents(eventPublisher, dispatchEvents);
 
         return succeeded;
       }),
@@ -1167,3 +1257,147 @@ const runObsOperation = <TResult>(
     );
   }
 };
+
+/**
+ * Publish durable OBS events strictly AFTER the commit, in order, mirroring the
+ * Play/Community `publishXxxEvents` reducers. No-ops when no publisher is
+ * injected (the test-double default), so emission is opt-in and never blocks the
+ * in-memory adapter. Events are awaited sequentially so a downstream transport
+ * failure surfaces to the caller without reordering.
+ */
+const publishObsEvents = (
+  eventPublisher: EventPublisher | undefined,
+  events: readonly ApiEventEnvelope[]
+): Promise<void> => {
+  if (eventPublisher === undefined) {
+    return Promise.resolve();
+  }
+
+  return events.reduce(
+    (previousPublish, event) =>
+      previousPublish.then(() => eventPublisher.publishAfterCommit(event)),
+    Promise.resolve()
+  );
+};
+
+const createObsConnectionStatusChangedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly occurredAt: string;
+  readonly profile: ObsConnectionProfile;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.profile.connectionProfileId,
+  actorId: input.actor.actorId,
+  eventType: "obs.connectionStatusChanged",
+  occurredAt: input.occurredAt,
+  payload: {
+    connectionProfileId: input.profile.connectionProfileId,
+    connectionStatus: input.profile.connectionStatus,
+    tenantId: input.profile.tenantId,
+    updatedAt: input.profile.updatedAt
+  },
+  requestId: input.requestId,
+  schemaVersion: "obs-connection-status-changed.v1",
+  tenantId: input.profile.tenantId
+});
+
+const createObsStreamStateChangedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly occurredAt: string;
+  readonly requestId: string;
+  readonly streamState: ObsStreamState;
+}): ApiEventEnvelope => ({
+  aggregateId: input.streamState.connectionProfileId,
+  actorId: input.actor.actorId,
+  eventType: "obs.streamStateChanged",
+  occurredAt: input.occurredAt,
+  payload: {
+    connectionProfileId: input.streamState.connectionProfileId,
+    streamStatus: input.streamState.streamStatus,
+    tenantId: input.streamState.tenantId,
+    updatedAt: input.streamState.updatedAt,
+    ...(input.streamState.lastActionIntentRef !== undefined
+      ? { lastActionIntentRef: input.streamState.lastActionIntentRef }
+      : {}),
+    ...(input.streamState.lastTransitionAt !== undefined
+      ? { lastTransitionAt: input.streamState.lastTransitionAt }
+      : {})
+  },
+  requestId: input.requestId,
+  schemaVersion: "obs-stream-state-changed.v1",
+  tenantId: input.streamState.tenantId
+});
+
+const createObsRecordingStateChangedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly occurredAt: string;
+  readonly recordingState: ObsRecordingState;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.recordingState.connectionProfileId,
+  actorId: input.actor.actorId,
+  eventType: "obs.recordingStateChanged",
+  occurredAt: input.occurredAt,
+  payload: {
+    connectionProfileId: input.recordingState.connectionProfileId,
+    recordingStatus: input.recordingState.recordingStatus,
+    tenantId: input.recordingState.tenantId,
+    updatedAt: input.recordingState.updatedAt,
+    ...(input.recordingState.lastTransitionAt !== undefined
+      ? { lastTransitionAt: input.recordingState.lastTransitionAt }
+      : {})
+  },
+  requestId: input.requestId,
+  schemaVersion: "obs-recording-state-changed.v1",
+  tenantId: input.recordingState.tenantId
+});
+
+const createObsSceneChangedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly connectionProfileId: string;
+  readonly occurredAt: string;
+  readonly programSceneRef?: string;
+  readonly requestId: string;
+  readonly tenantId: string;
+  readonly updatedAt: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.connectionProfileId,
+  actorId: input.actor.actorId,
+  eventType: "obs.sceneChanged",
+  occurredAt: input.occurredAt,
+  payload: {
+    connectionProfileId: input.connectionProfileId,
+    tenantId: input.tenantId,
+    updatedAt: input.updatedAt,
+    ...(input.programSceneRef !== undefined
+      ? { programSceneRef: input.programSceneRef }
+      : {})
+  },
+  requestId: input.requestId,
+  schemaVersion: "obs-scene-changed.v1",
+  tenantId: input.tenantId
+});
+
+const createObsActionStatusChangedEvent = (input: {
+  readonly actor: AuthenticatedActor;
+  readonly intent: ObsActionIntent;
+  readonly occurredAt: string;
+  readonly requestId: string;
+}): ApiEventEnvelope => ({
+  aggregateId: input.intent.actionIntentId,
+  actorId: input.actor.actorId,
+  eventType: "obs.actionStatusChanged",
+  occurredAt: input.occurredAt,
+  payload: {
+    actionIntentId: input.intent.actionIntentId,
+    connectionProfileId: input.intent.connectionProfileId,
+    kind: input.intent.kind,
+    origin: input.intent.origin,
+    status: input.intent.status,
+    tenantId: input.intent.tenantId,
+    updatedAt: input.intent.updatedAt
+  },
+  requestId: input.requestId,
+  schemaVersion: "obs-action-status-changed.v1",
+  tenantId: input.intent.tenantId
+});

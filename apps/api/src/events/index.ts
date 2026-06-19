@@ -13,7 +13,12 @@ export const ApiEventTypeSchema = z.enum([
   "play.cueFired",
   "community.memberUpdated",
   "community.attendanceRecorded",
-  "community.communicationStatusChanged"
+  "community.communicationStatusChanged",
+  "obs.connectionStatusChanged",
+  "obs.streamStateChanged",
+  "obs.recordingStateChanged",
+  "obs.sceneChanged",
+  "obs.actionStatusChanged"
 ]);
 
 export const ApiEventEnvelopeSchema = z.object({
@@ -172,6 +177,86 @@ export const CommunityCommunicationStatusChangedEventPayloadSchema = z
   })
   .strict();
 
+/**
+ * OBS controls live, public-facing output and resolves its credentials through a
+ * separate secret/vault boundary, so its event payloads are the system's
+ * strictest "secret-free **and** PII-free" surface. Every OBS payload carries
+ * **only opaque references, coarse status/kind/origin enums, and timestamps** —
+ * never an OBS host/port/password/auth token/stream key, never a raw
+ * obs-websocket payload, never bitrate/uptime/dropped-frame/per-frame telemetry,
+ * and never PII (OBS controls production hardware/scenes, not people; no PII is
+ * expected and the shapes provide nowhere to put it). `.strict()` rejects every
+ * unrecognized key, so a subscriber can never learn a secret or a high-frequency
+ * stat from an OBS event: `connectionProfileId`, `actionIntentId`, and
+ * `programSceneRef` are opaque IDs/refs, and the only non-ID/ref fields are enums
+ * (`connectionStatus`, `streamStatus`, `recordingStatus`, `kind`, `origin`,
+ * `status`) and ISO timestamps. High-frequency telemetry stays on the local
+ * runtime bus and is intentionally excluded from the union.
+ */
+export const ObsConnectionStatusChangedEventPayloadSchema = z
+  .object({
+    connectionProfileId: z.string().min(1),
+    connectionStatus: z.enum(["connected", "disconnected", "unknown"]),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
+export const ObsStreamStateChangedEventPayloadSchema = z
+  .object({
+    connectionProfileId: z.string().min(1),
+    lastActionIntentRef: z.string().min(1).optional(),
+    lastTransitionAt: z.string().datetime({ offset: true }).optional(),
+    streamStatus: z.enum(["active", "inactive", "unknown"]),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
+export const ObsRecordingStateChangedEventPayloadSchema = z
+  .object({
+    connectionProfileId: z.string().min(1),
+    lastTransitionAt: z.string().datetime({ offset: true }).optional(),
+    recordingStatus: z.enum(["active", "paused", "inactive", "unknown"]),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
+export const ObsSceneChangedEventPayloadSchema = z
+  .object({
+    connectionProfileId: z.string().min(1),
+    programSceneRef: z.string().min(1).optional(),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
+export const ObsActionStatusChangedEventPayloadSchema = z
+  .object({
+    actionIntentId: z.string().min(1),
+    connectionProfileId: z.string().min(1),
+    kind: z.enum([
+      "start-stream",
+      "stop-stream",
+      "switch-scene",
+      "toggle-source-visibility",
+      "toggle-source-mute"
+    ]),
+    origin: z.enum(["human", "ai-suggested"]),
+    status: z.enum([
+      "requested",
+      "confirmed",
+      "dispatched",
+      "succeeded",
+      "failed",
+      "canceled"
+    ]),
+    tenantId: z.string().min(1),
+    updatedAt: z.string().datetime({ offset: true })
+  })
+  .strict();
+
 const validatePresenterEventScope = (
   event: {
     readonly aggregateId: string;
@@ -312,6 +397,69 @@ const validateCommunityCommunicationEventScope = (
   }
 };
 
+/**
+ * The connection/stream/recording/scene OBS events are all scoped to a single
+ * `ObsConnectionProfile`, so they share one aggregate-scope check: the envelope
+ * tenant must match the payload tenant, and the envelope aggregate must be the
+ * `connectionProfileId`. (The action-status event is scoped to its action intent
+ * instead — see `validateObsActionEventScope`.)
+ */
+const validateObsConnectionScopedEventScope = (
+  event: {
+    readonly aggregateId: string;
+    readonly payload: {
+      readonly connectionProfileId: string;
+      readonly tenantId: string;
+    };
+    readonly tenantId: string;
+  },
+  context: z.RefinementCtx
+): void => {
+  if (event.tenantId !== event.payload.tenantId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "OBS event tenant must match payload tenant.",
+      path: ["payload", "tenantId"]
+    });
+  }
+
+  if (event.aggregateId !== event.payload.connectionProfileId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "OBS event aggregate must match connection profile ID.",
+      path: ["aggregateId"]
+    });
+  }
+};
+
+const validateObsActionEventScope = (
+  event: {
+    readonly aggregateId: string;
+    readonly payload: {
+      readonly actionIntentId: string;
+      readonly tenantId: string;
+    };
+    readonly tenantId: string;
+  },
+  context: z.RefinementCtx
+): void => {
+  if (event.tenantId !== event.payload.tenantId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "OBS event tenant must match payload tenant.",
+      path: ["payload", "tenantId"]
+    });
+  }
+
+  if (event.aggregateId !== event.payload.actionIntentId) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "OBS event aggregate must match action intent ID.",
+      path: ["aggregateId"]
+    });
+  }
+};
+
 const ValidatedApiEventEnvelopeBaseSchema = z.discriminatedUnion("eventType", [
   ApiEventEnvelopeSchema.extend({
     eventType: z.literal("service.published"),
@@ -377,6 +525,31 @@ const ValidatedApiEventEnvelopeBaseSchema = z.discriminatedUnion("eventType", [
     eventType: z.literal("community.communicationStatusChanged"),
     payload: CommunityCommunicationStatusChangedEventPayloadSchema,
     schemaVersion: z.literal("community-communication-status-changed.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("obs.connectionStatusChanged"),
+    payload: ObsConnectionStatusChangedEventPayloadSchema,
+    schemaVersion: z.literal("obs-connection-status-changed.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("obs.streamStateChanged"),
+    payload: ObsStreamStateChangedEventPayloadSchema,
+    schemaVersion: z.literal("obs-stream-state-changed.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("obs.recordingStateChanged"),
+    payload: ObsRecordingStateChangedEventPayloadSchema,
+    schemaVersion: z.literal("obs-recording-state-changed.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("obs.sceneChanged"),
+    payload: ObsSceneChangedEventPayloadSchema,
+    schemaVersion: z.literal("obs-scene-changed.v1")
+  }),
+  ApiEventEnvelopeSchema.extend({
+    eventType: z.literal("obs.actionStatusChanged"),
+    payload: ObsActionStatusChangedEventPayloadSchema,
+    schemaVersion: z.literal("obs-action-status-changed.v1")
   })
 ]);
 
@@ -409,6 +582,19 @@ export const ValidatedApiEventEnvelopeSchema =
 
     if (event.eventType === "community.communicationStatusChanged") {
       validateCommunityCommunicationEventScope(event, context);
+    }
+
+    if (
+      event.eventType === "obs.connectionStatusChanged" ||
+      event.eventType === "obs.streamStateChanged" ||
+      event.eventType === "obs.recordingStateChanged" ||
+      event.eventType === "obs.sceneChanged"
+    ) {
+      validateObsConnectionScopedEventScope(event, context);
+    }
+
+    if (event.eventType === "obs.actionStatusChanged") {
+      validateObsActionEventScope(event, context);
     }
   });
 
@@ -447,6 +633,21 @@ export type CommunityAttendanceRecordedEventPayload = z.infer<
 >;
 export type CommunityCommunicationStatusChangedEventPayload = z.infer<
   typeof CommunityCommunicationStatusChangedEventPayloadSchema
+>;
+export type ObsConnectionStatusChangedEventPayload = z.infer<
+  typeof ObsConnectionStatusChangedEventPayloadSchema
+>;
+export type ObsStreamStateChangedEventPayload = z.infer<
+  typeof ObsStreamStateChangedEventPayloadSchema
+>;
+export type ObsRecordingStateChangedEventPayload = z.infer<
+  typeof ObsRecordingStateChangedEventPayloadSchema
+>;
+export type ObsSceneChangedEventPayload = z.infer<
+  typeof ObsSceneChangedEventPayloadSchema
+>;
+export type ObsActionStatusChangedEventPayload = z.infer<
+  typeof ObsActionStatusChangedEventPayloadSchema
 >;
 
 export interface EventPublisher {

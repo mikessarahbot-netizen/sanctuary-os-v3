@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AuthenticatedActor } from "../../auth/index.js";
 import {
+  createInMemoryEventPublisher,
+  type InMemoryEventPublisher,
+  type ValidatedApiEventEnvelope
+} from "../../events/index.js";
+import {
   ObsConnectionProfileSchema,
   isObsDomainError,
   type ObsActionIntent,
@@ -1034,5 +1039,384 @@ describe("createInMemoryObsServicesAdapter action gate (slice 7)", () => {
       "ACTION_INTENT_NOT_FOUND"
     );
     expectNoPortMutation(fakePort);
+  });
+});
+
+describe("createInMemoryObsServicesAdapter durable event emission (slice 9)", () => {
+  const sequentialIds = (): {
+    readonly actionIntentId: () => string;
+    readonly logEntryId: () => string;
+  } => {
+    const counter = (prefix: string): (() => string) => {
+      let next = 0;
+      return () => {
+        next += 1;
+        return `${prefix}_${String(next)}`;
+      };
+    };
+
+    return { actionIntentId: counter("action"), logEntryId: counter("log") };
+  };
+
+  /**
+   * A connected adapter with an injected in-memory event publisher and a fake port
+   * primed with a catalog. Each test runs its own `refresh` (which seeds the
+   * snapshot and emits the four connection-scoped events), then `clear()`s the
+   * publisher when it only cares about a later dispatch's emissions.
+   */
+  const setupWithPublisher = (): {
+    readonly adapter: ReturnType<typeof createInMemoryObsServicesAdapter>;
+    readonly eventPublisher: InMemoryEventPublisher;
+    readonly fakePort: FakeObsControlPort;
+  } => {
+    const eventPublisher = createInMemoryEventPublisher();
+    const fakePort = connectedFakePort();
+    const adapter = createInMemoryObsServicesAdapter({
+      clock: () => timestamp,
+      controlPort: fakePort.port,
+      eventPublisher,
+      ids: sequentialIds(),
+      seed: { connectionProfiles: [connectedProfile] }
+    });
+
+    return { adapter, eventPublisher, fakePort };
+  };
+
+  const refresh = (
+    adapter: ReturnType<typeof createInMemoryObsServicesAdapter>
+  ): Promise<unknown> =>
+    adapter.commandService.refreshObsCatalog({
+      actor: leader,
+      input: { connectionProfileId: "connection_1" },
+      requestId: "request_refresh"
+    });
+
+  const summarize = (
+    events: readonly ValidatedApiEventEnvelope[]
+  ): readonly {
+    readonly aggregateId: string;
+    readonly eventType: string;
+    readonly tenantId: string;
+  }[] =>
+    events.map((event) => ({
+      aggregateId: event.aggregateId,
+      eventType: event.eventType,
+      tenantId: event.tenantId
+    }));
+
+  it("refreshObsCatalog emits the four connection-scoped OBS state events after the durable snapshot commit", async () => {
+    const { adapter, eventPublisher } = setupWithPublisher();
+
+    await refresh(adapter);
+
+    // All four connection-scoped events fire, in order, aggregate = connection id,
+    // tenant-scoped — only after the snapshot/stream/recording/connection commits.
+    expect(summarize(eventPublisher.readPublishedEvents())).toEqual([
+      {
+        aggregateId: "connection_1",
+        eventType: "obs.connectionStatusChanged",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "connection_1",
+        eventType: "obs.streamStateChanged",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "connection_1",
+        eventType: "obs.recordingStateChanged",
+        tenantId: "tenant_1"
+      },
+      {
+        aggregateId: "connection_1",
+        eventType: "obs.sceneChanged",
+        tenantId: "tenant_1"
+      }
+    ]);
+
+    // The scene event carries the resolved coarse program-scene ref (the single
+    // isCurrentProgramScene from the reconciled snapshot) and nothing else risky.
+    const sceneEvent = eventPublisher
+      .readPublishedEvents()
+      .find((event) => event.eventType === "obs.sceneChanged");
+    expect(sceneEvent?.payload).toEqual({
+      connectionProfileId: "connection_1",
+      programSceneRef: "scene-main",
+      tenantId: "tenant_1",
+      updatedAt: timestamp
+    });
+
+    // The connection event reports the coarse connected status — no host/port/etc.
+    const connectionEvent = eventPublisher
+      .readPublishedEvents()
+      .find((event) => event.eventType === "obs.connectionStatusChanged");
+    expect(connectionEvent?.payload).toEqual({
+      connectionProfileId: "connection_1",
+      connectionStatus: "connected",
+      tenantId: "tenant_1",
+      updatedAt: timestamp
+    });
+  });
+
+  it("a failed refresh (disconnected port) commits no snapshot and emits nothing", async () => {
+    const eventPublisher = createInMemoryEventPublisher();
+    // Default port is a disconnected fake → the read fails → OBS_DISCONNECTED.
+    const adapter = createInMemoryObsServicesAdapter({
+      clock: () => timestamp,
+      eventPublisher,
+      ids: sequentialIds(),
+      seed: { connectionProfiles: [connectedProfile] }
+    });
+
+    await expectDomainErrorCode(refresh(adapter), "OBS_DISCONNECTED");
+
+    // The pre-commit failure means no durable state changed, so no event is emitted.
+    expect(eventPublisher.readPublishedEvents()).toEqual([]);
+  });
+
+  it("a successful switch-scene dispatch emits obs.actionStatusChanged(succeeded) scoped to the action intent, and no stream event", async () => {
+    const { adapter, eventPublisher } = setupWithPublisher();
+    await refresh(adapter);
+    eventPublisher.clear();
+
+    const requested = await adapter.commandService.requestObsAction({
+      actor: leader,
+      input: {
+        connectionProfileId: "connection_1",
+        kind: "switch-scene",
+        origin: "human",
+        requestedByRef: "operator_1",
+        targetSceneRef: "scene-lower"
+      },
+      requestId: "request_switch"
+    });
+
+    // requestObsAction is a pre-dispatch step: it must emit NOTHING.
+    expect(eventPublisher.readPublishedEvents()).toEqual([]);
+
+    await adapter.commandService.confirmObsAction({
+      actor: leader,
+      input: {
+        actionIntentId: requested.actionIntentId,
+        confirmationIntent: { confirmed: true, reason: "Go to the lower third." },
+        confirmedByRef: "operator_1"
+      },
+      requestId: "request_confirm"
+    });
+
+    // confirmObsAction is also a pre-dispatch step: still NOTHING emitted.
+    expect(eventPublisher.readPublishedEvents()).toEqual([]);
+
+    await adapter.commandService.dispatchObsAction({
+      actor: leader,
+      input: { actionIntentId: requested.actionIntentId },
+      requestId: "request_dispatch"
+    });
+
+    // Only on the successful dispatch: a single action-status event, scoped to the
+    // ACTION INTENT id (not the connection) — a scene toggle re-snapshots no stream
+    // state, so no obs.streamStateChanged rides along.
+    const emitted = eventPublisher.readPublishedEvents();
+    expect(emitted.map((event) => event.eventType)).toEqual([
+      "obs.actionStatusChanged"
+    ]);
+    expect(emitted[0]?.aggregateId).toBe(requested.actionIntentId);
+    expect(emitted[0]?.payload).toEqual({
+      actionIntentId: requested.actionIntentId,
+      connectionProfileId: "connection_1",
+      kind: "switch-scene",
+      origin: "human",
+      status: "succeeded",
+      tenantId: "tenant_1",
+      updatedAt: timestamp
+    });
+  });
+
+  it("a successful start-stream dispatch emits obs.actionStatusChanged(succeeded) AND obs.streamStateChanged for the durable stream transition", async () => {
+    const { adapter, eventPublisher } = setupWithPublisher();
+    await refresh(adapter);
+    eventPublisher.clear();
+
+    const requested = await adapter.commandService.requestObsAction({
+      actor: leader,
+      input: {
+        connectionProfileId: "connection_1",
+        kind: "start-stream",
+        origin: "human",
+        requestedByRef: "operator_1"
+      },
+      requestId: "request_start_stream"
+    });
+    await adapter.commandService.confirmObsAction({
+      actor: leader,
+      input: {
+        actionIntentId: requested.actionIntentId,
+        confirmationIntent: { confirmed: true, reason: "Service is starting." },
+        confirmedByRef: "operator_1"
+      },
+      requestId: "request_confirm_stream"
+    });
+    await adapter.commandService.dispatchObsAction({
+      actor: leader,
+      input: { actionIntentId: requested.actionIntentId },
+      requestId: "request_dispatch_stream"
+    });
+
+    const emitted = eventPublisher.readPublishedEvents();
+    // Action-status first (action-intent scoped), then the durable stream change
+    // (connection scoped) — both only after the confirmed dispatch succeeded.
+    expect(
+      emitted.map((event) => ({
+        aggregateId: event.aggregateId,
+        eventType: event.eventType
+      }))
+    ).toEqual([
+      { aggregateId: requested.actionIntentId, eventType: "obs.actionStatusChanged" },
+      { aggregateId: "connection_1", eventType: "obs.streamStateChanged" }
+    ]);
+
+    const streamEvent = emitted.find(
+      (event) => event.eventType === "obs.streamStateChanged"
+    );
+    expect(streamEvent?.payload).toEqual({
+      connectionProfileId: "connection_1",
+      lastActionIntentRef: requested.actionIntentId,
+      lastTransitionAt: timestamp,
+      streamStatus: "active",
+      tenantId: "tenant_1",
+      updatedAt: timestamp
+    });
+  });
+
+  it("CRITICAL: a dispatch refused pre-commit (NOT_CONFIRMED) emits NOTHING — no event rides an un-dispatched action", async () => {
+    const { adapter, eventPublisher } = setupWithPublisher();
+    await refresh(adapter);
+    eventPublisher.clear();
+
+    const requested = await adapter.commandService.requestObsAction({
+      actor: leader,
+      input: {
+        connectionProfileId: "connection_1",
+        kind: "switch-scene",
+        origin: "human",
+        requestedByRef: "operator_1",
+        targetSceneRef: "scene-lower"
+      },
+      requestId: "request_switch"
+    });
+    // requestObsAction emitted nothing.
+    expect(eventPublisher.readPublishedEvents()).toEqual([]);
+
+    // Dispatch WITHOUT a confirm is refused by the gate before the port/commit.
+    await expectDomainErrorCode(
+      adapter.commandService.dispatchObsAction({
+        actor: leader,
+        input: { actionIntentId: requested.actionIntentId },
+        requestId: "request_dispatch_unconfirmed"
+      }),
+      "NOT_CONFIRMED"
+    );
+
+    // No durable dispatch happened, so no event was emitted.
+    expect(eventPublisher.readPublishedEvents()).toEqual([]);
+  });
+
+  it("a port-failed dispatch emits a single obs.actionStatusChanged(failed) whose payload is secret-free (no message field)", async () => {
+    const { adapter, eventPublisher, fakePort } = setupWithPublisher();
+    await refresh(adapter);
+    eventPublisher.clear();
+    fakePort.setFailure("setCurrentProgramScene", { code: "action-rejected" });
+
+    const requested = await adapter.commandService.requestObsAction({
+      actor: leader,
+      input: {
+        connectionProfileId: "connection_1",
+        kind: "switch-scene",
+        origin: "human",
+        requestedByRef: "operator_1",
+        targetSceneRef: "scene-lower"
+      },
+      requestId: "request_switch"
+    });
+    await adapter.commandService.confirmObsAction({
+      actor: leader,
+      input: {
+        actionIntentId: requested.actionIntentId,
+        confirmationIntent: { confirmed: true, reason: "Go to the lower third." },
+        confirmedByRef: "operator_1"
+      },
+      requestId: "request_confirm"
+    });
+    const failed = await adapter.commandService.dispatchObsAction({
+      actor: leader,
+      input: { actionIntentId: requested.actionIntentId },
+      requestId: "request_dispatch_failing"
+    });
+    expect(failed.status).toBe("failed");
+    // The intent itself carries the redacted failure message...
+    expect(failed.safeFailureMessage).toBe("OBS rejected the requested action.");
+
+    const emitted = eventPublisher.readPublishedEvents();
+    expect(emitted.map((event) => event.eventType)).toEqual([
+      "obs.actionStatusChanged"
+    ]);
+    // ...but the EVENT payload is status + ids + kind/origin only — it has no
+    // message/safeFailureMessage field at all, so the redaction can never leak onto
+    // the event union.
+    expect(emitted[0]?.payload).toEqual({
+      actionIntentId: requested.actionIntentId,
+      connectionProfileId: "connection_1",
+      kind: "switch-scene",
+      origin: "human",
+      status: "failed",
+      tenantId: "tenant_1",
+      updatedAt: timestamp
+    });
+    expect(emitted[0]?.payload).not.toHaveProperty("safeFailureMessage");
+  });
+
+  it("emits nothing when no event publisher is injected (emission is opt-in)", async () => {
+    // Same successful dispatch flow, but no publisher — the publishObsEvents reducer
+    // no-ops, so the adapter behaves exactly as before slice 9.
+    const fakePort = connectedFakePort();
+    const adapter = createInMemoryObsServicesAdapter({
+      clock: () => timestamp,
+      controlPort: fakePort.port,
+      ids: sequentialIds(),
+      seed: { connectionProfiles: [connectedProfile] }
+    });
+    await adapter.commandService.refreshObsCatalog({
+      actor: leader,
+      input: { connectionProfileId: "connection_1" },
+      requestId: "request_refresh"
+    });
+    const requested = await adapter.commandService.requestObsAction({
+      actor: leader,
+      input: {
+        connectionProfileId: "connection_1",
+        kind: "start-stream",
+        origin: "human",
+        requestedByRef: "operator_1"
+      },
+      requestId: "request_start_stream"
+    });
+    await adapter.commandService.confirmObsAction({
+      actor: leader,
+      input: {
+        actionIntentId: requested.actionIntentId,
+        confirmationIntent: { confirmed: true, reason: "Service is starting." },
+        confirmedByRef: "operator_1"
+      },
+      requestId: "request_confirm_stream"
+    });
+
+    // No throw, normal success path — the absence of a publisher is invisible.
+    await expect(
+      adapter.commandService.dispatchObsAction({
+        actor: leader,
+        input: { actionIntentId: requested.actionIntentId },
+        requestId: "request_dispatch_stream"
+      })
+    ).resolves.toMatchObject({ status: "succeeded" });
   });
 });
