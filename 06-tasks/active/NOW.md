@@ -1,55 +1,29 @@
-# NOW
+# NOW — active task
 
-## CAPSTONE: the product RUNS end-to-end (web → live GraphQL API), visually verified
-The whole stack is runnable and was verified live:
-- `apps/web` (Vite + React + strict TS) — a Charts read surface (library list + a detail view rendering ChordPro with chords above lyrics). Committed `1b8b99d`.
-- `apps/api/src/demo/server.ts` — a runnable demo API (`pnpm --filter @sanctuary-os/api dev`, tsx, :4000) composing the full executable schema (all 5 modules' in-memory services + fakes) behind a demo auth context + seeded charts; the web app reaches it through a Vite `/graphql` proxy (no CORS) with a demo bearer token. A gate test boots it over HTTP and round-trips a query + a mutation. Committed `2bb18fc`.
-- VERIFIED LIVE via the preview tools: started both servers, loaded the web app in live mode ("LIVE DATA" badge), and screenshotted the seeded charts + the Amazing Grace ChordPro detail — all fetched from the running GraphQL API down through the resolvers → in-memory services → seeded data.
+**Branch:** `feature/presenter-release-handoff` (pushed to origin; HEAD `c441534`). NOT `feature/presenter-domain-contracts` (stale, checked out in another worktree — verify the branch yourself; a prior summary got it wrong).
 
-So: an earlier wrong assumption is corrected — **web UIs ARE autonomously verifiable** (component tests + dev-server screenshots), and the **full vertical works**. The web UI layer is a verifiable, autonomously-buildable path.
+**Worktree:** `/Users/SarahBot/.codex/worktrees/presenter-release-handoff`. Preview launch config name: `web` (port 5173, proxies `/graphql` → demo API on :4000).
 
-WEB BREADTH COMPLETE — the web product now spans ALL FOUR modules, each live-verified:
-- Charts (`1b8b99d`) — read + ChordPro detail + edit/save write path (`d3deafa`, full CRUD, server-side-persisted).
-- Play (`82a25d5`) — track-set library + detail (sections + cues).
-- Community+ (`4cbc68f`) — groups + members + engagement, PII-safe (contact channels shown as "kind · consent", never values).
-- OBS (`d76c600`) — console + the human-confirm scene-switch gate (request → confirm w/ audited reason → dispatch), verified live (Worship→Sermon→ON AIR).
-All over the runnable demo API (seeded, all modules), via the Vite proxy.
+## Done + verified + pushed (do NOT rebuild)
+- Four modules (Charts / Play / Community+ / OBS): backend services + Vite/React web SPA, human-confirm gates (OBS scene + stream start/stop; Community comms draft→reviewed→confirmed→queued/sent — AI may draft, never send).
+- On-disk SQLite persistence, restart-durable (`pnpm --filter @sanctuary-os/api dev:persistent`, `DEMO_DB_PATH`).
+- e2e web↔api GraphQL contract tests; adversarial safety audit (gates can't be bypassed, tenant isolation, no secret/PII leak — all hold).
+- **AI fully surfaced + LIVE-verified in the browser, both modules:** Community AI-draft + OBS AI-suggest, real `claude-opus-4-8` adapters (`apps/api/src/services/{community/anthropic-ai-draft-port,obs/anthropic-ai-suggest-port}.ts`), env-gated via `apps/api/src/demo/{community-ai,obs-ai}.ts` on `ANTHROPIC_API_KEY` (in gitignored `apps/api/.env`). Adapters strip empty-string optional fields + use NO adaptive thinking (two bugs caught by live verification). `pnpm --filter @sanctuary-os/api ai:smoke` smoke-tests them.
+- **PostgreSQL backend for the 4 modules (Supabase-ready):** `packages/db/src/postgresql-operator-executor.ts` (translates `?`→`$N`; SQLite SQL untouched), `apps/api/src/demo/postgres-server.ts` (`dev:postgres`, gated on `SANCTUARY_OS_POSTGRES_URL`, isolates objects in a `sanctuary_os` schema). The 26-table schema is **DEPLOYED + SQL-round-trip-verified** on the user's Supabase project **"Claude Projects" (`kmprojychrtodbemvwcd`)** via the Supabase MCP.
 
-Remaining (all verifiable the same way): web DEPTH — more features per module (Charts transpose/arrangements/annotations; Play playback state; Community comms draft; OBS more action kinds). Still genuinely needing the user: the DESKTOP (Tauri) + MOBILE (Expo) native operator surfaces, and the live EXTERNAL integrations (real obs-websocket, comms carrier) — credentials/connections.
+Gates: **db 472 · api 908 (+3 skipped) · web 239 · desktop 89 · church-context 5**; lint + 5 typechecks green.
 
-Run it yourself: terminal 1 `pnpm --filter @sanctuary-os/api dev`; terminal 2 `pnpm --filter @sanctuary-os/web dev`; open http://127.0.0.1:5173/?source=live.
+## NEXT slice — finish cloud-persistence verification (small; needs ONE user input)
+- **In-scope steps:** the user puts the Supabase Postgres connection string for "Claude Projects" into `apps/api/.env` as `SANCTUARY_OS_POSTGRES_URL=postgresql://...` (the DB password is the user's; the MCP doesn't expose it). Then run the adapter-level verify against the already-deployed `sanctuary_os` schema:
+  - `SANCTUARY_OS_POSTGRES_URL=... pnpm --filter @sanctuary-os/api exec vitest run src/services/charts/postgresql-integration.test.ts` (un-skips → CRUD round-trip for all 4 modules), and/or
+  - `SANCTUARY_OS_POSTGRES_URL=... pnpm --filter @sanctuary-os/api dev:postgres` then drive the web app in live mode.
+- **Done when:** the charts postgresql-integration test passes against real Supabase, proving the 4 modules' adapter CODE (not just the schema) persists to cloud Postgres end-to-end. Then commit a `docs`/`test` note + push.
 
-## MILESTONE: the autonomously-buildable backend is COMPLETE
+## Remaining gated paths (need a user credential / account / hardware / decision)
+- Live OBS: real obs-websocket adapter in `packages/obs-agent` + a running OBS instance + host/password.
+- Comms carrier: pick a provider (Twilio / Resend / SendGrid) + API key + verified sender → replace the fake send port.
+- Native shells: Tauri desktop (needs Rust toolchain) + Expo mobile (`apps/mobile` is a placeholder + a UX decision).
+- Deploy/CI: a host + a GitHub Actions workflow (activates Actions on the user's account — needs explicit OK).
 
-All four module backends — **Charts, Play, Community+, OBS** — are complete end-to-end, plus the pre-existing Planning + Presenter work. All green and pushed at `b17b20e`.
-
-Gates: **db 466 · api 828 (+2 skipped) · desktop 89 · church-context 5** · lint clean · all 4 projects typecheck.
-
-Per-module backend release checks in `07-reviews/architecture/`:
-- `charts-*`, `play-backend-release-check.md`, `community-backend-release-check.md`, `obs-backend-release-check.md`.
-
-What's built per module: domain + pure logic → persistence contracts → migration → SQLite adapter → GraphQL + in-memory service → persistence-backed service → offline-sync queue + replay (Charts/Play) → events → AI assist; plus the desktop replay runtimes (Presenter, Play) and the OBS control-port gate. Privacy/safety holds throughout (no PII to AI / PII-free projections; no secrets in records; human-confirm gates for comms send + OBS stream/scene; tenant scope everywhere).
-
-## The two autonomously-verifiable cleanups are now DONE
-- ✅ Cross-module GraphQL enum hyphen/underscore fix — Charts/Play enum value maps added; values round-trip; `3b56010` (resolved task_85338bf7).
-- ✅ Network-executor `$input: JSON!` gap — desktop presenter+play replay now use typed-input documents (canonical maps in `@sanctuary-os/api`, imported by desktop), validated against the executable schema by a new api test with a negative control; `0f9f575`.
-
-With these, **the autonomously-buildable, gate-verifiable work is complete.** There is nothing left I can build AND verify without you.
-
-## The remaining Sanctuary OS work — ALL of it needs the user
-This is the honest frontier. None of it is autonomously gate-verifiable; each needs a decision and/or visual verification only the user can give:
-
-1. **UIs for every module** (Charts, Play, Community+, OBS) — `apps/web` + `apps/mobile` are bare; `apps/desktop` is Node-runtime-only (no webview UI). A UI on any surface is a from-scratch frontend + a surface/scaffold decision + visual verification.
-2. **Live integrations:**
-   - Real obs-websocket v5 client in `packages/obs-agent` (OBS slice 11) — needs an OBS connection + a vault/secret-store decision.
-   - The comms send carrier (Community+ slice 11) — needs a carrier/account decision.
-   - Desktop/mobile app shells + wiring the replay runtimes / OBS agent to live transports.
-
-## Decision for the user (the build can't meaningfully continue autonomously without this)
-Pick a direction:
-- **"runnable: <surface>"** (web / desktop / mobile) → I build one module's UI end-to-end against the live GraphQL API, with you doing the visual check.
-- **a specific integration** (e.g. "wire real obs-websocket") → I'll need the connection/account/vault details.
-- **"stop"** → review the complete backend on `feature/presenter-domain-contracts`.
-
-## Session protocol (in force)
-`agents.md` › "Session continuity protocol". Everything is committed + pushed; a fresh session can resume from this NOW.md + the module plans + `docs/session-summary.md`.
+## How to run / verify
+See `docs/running.md`. Standard gate suite: `pnpm lint && pnpm typecheck && pnpm test`.
