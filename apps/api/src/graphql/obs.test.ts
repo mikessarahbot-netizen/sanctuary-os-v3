@@ -129,6 +129,9 @@ const createObsCommandService = (
   saveObsConnectionProfile: vi.fn<ObsCommandService["saveObsConnectionProfile"]>(
     () => Promise.resolve(connectionProfile)
   ),
+  suggestObsActionWithAi: vi.fn<ObsCommandService["suggestObsActionWithAi"]>(() =>
+    Promise.resolve(requestedIntent)
+  ),
   ...overrides
 });
 

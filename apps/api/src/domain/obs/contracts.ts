@@ -300,6 +300,46 @@ export const CancelObsActionCommandSchema = ObsServiceRequestSchema.extend({
     .strict()
 }).strict();
 
+// ---------------------------------------------------------------------------
+// Commands — AI assist (reviewable suggestion → a `requested`, ai-suggested intent)
+// ---------------------------------------------------------------------------
+
+/**
+ * AI-assist: request a reviewable AI-suggested OBS action (slice 10 — the final
+ * OBS backend slice). The service builds the smallest secret-free + PII-free
+ * projection (scene/source/scene-item refs + coarse stream/recording state + an
+ * opaque connection-profile ref + the smallest non-PII `ChurchContext` segment
+ * labels + the `aiPolicyProfile`), calls the injected `ObsAiSuggestionPort`,
+ * Zod-validates the suggestion, runs the pure eligibility checker, and creates a
+ * `requested`, `origin = "ai-suggested"` `ObsActionIntent`. That intent is bound by
+ * the **same slice-7 confirm→dispatch gate** as any human request — it can never
+ * self-advance past `requested`; the AI can never reach `confirmObsAction` /
+ * `dispatchObsAction`, so it can never go live. The input carries no secret and no
+ * PII: only the connection-profile id, the requesting actor ref, optional non-PII
+ * hints (an operator intent + service-order segment labels), and an optional policy
+ * override (which still defaults to PII-free). `affectsLiveOutput`, the `origin`
+ * (`ai-suggested`), and `status` (`requested`) are not inputs — the service sets
+ * them; the host/port/password/token/stream key and the `connectionRef` vault
+ * handle are resolved nowhere on this surface.
+ */
+export const SuggestObsActionWithAiCommandSchema = ObsServiceRequestSchema.extend({
+  input: z
+    .object({
+      aiPolicyProfile: z
+        .object({
+          humanReviewRequiredFor: z.array(NonEmptyStringSchema),
+          piiSharingAllowed: z.boolean()
+        })
+        .strict()
+        .optional(),
+      connectionProfileId: NonEmptyStringSchema,
+      operatorIntent: OptionalNonEmptyStringSchema,
+      requestedByRef: NonEmptyStringSchema,
+      serviceSegmentLabels: z.array(NonEmptyStringSchema).default([])
+    })
+    .strict()
+}).strict();
+
 export type ListObsConnectionProfilesQuery = z.infer<
   typeof ListObsConnectionProfilesQuerySchema
 >;
@@ -338,6 +378,9 @@ export type DispatchObsActionCommand = z.infer<
 >;
 export type CancelObsActionCommand = z.infer<
   typeof CancelObsActionCommandSchema
+>;
+export type SuggestObsActionWithAiCommand = z.infer<
+  typeof SuggestObsActionWithAiCommandSchema
 >;
 
 /**
@@ -405,5 +448,8 @@ export interface ObsCommandService {
   ) => Promise<ObsActionIntent>;
   readonly cancelObsAction: (
     command: CancelObsActionCommand
+  ) => Promise<ObsActionIntent>;
+  readonly suggestObsActionWithAi: (
+    command: SuggestObsActionWithAiCommand
   ) => Promise<ObsActionIntent>;
 }

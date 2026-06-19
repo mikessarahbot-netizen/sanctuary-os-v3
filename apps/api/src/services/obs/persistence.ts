@@ -41,6 +41,7 @@ import {
   RemoveObsConnectionProfileCommandSchema,
   RequestObsActionCommandSchema,
   SaveObsConnectionProfileCommandSchema,
+  SuggestObsActionWithAiCommandSchema,
   applyActionTransition,
   checkActionEligibility,
   type ActionBlockReason,
@@ -60,6 +61,12 @@ import {
   type ObsSource,
   type ObsStreamState
 } from "../../domain/obs/index.js";
+import {
+  ObsAiActionSuggestionSchema,
+  buildObsAiActionSuggestionPrompt,
+  type ObsAiPolicyProfile,
+  type ObsAiSuggestionPort
+} from "./ai-suggest.js";
 import {
   isObsControlError,
   type ObsControlPort,
@@ -126,6 +133,17 @@ const obsCommandRoles = [
   "worship_leader"
 ] as const;
 
+/**
+ * The safest AI policy when a caller supplies none: PII is never shared with the
+ * model. OBS records carry no PII regardless, so the suggestion projection is
+ * PII-free either way; this keeps the policy shape consistent with the Community+
+ * AI-draft default and makes the secret-free/PII-free posture explicit.
+ */
+const DEFAULT_PII_FREE_AI_POLICY: ObsAiPolicyProfile = {
+  humanReviewRequiredFor: ["obs-action"],
+  piiSharingAllowed: false
+};
+
 export interface PersistenceBackedObsServiceIds {
   readonly actionIntentId: () => string;
   readonly connectionProfileId: () => string;
@@ -136,6 +154,7 @@ export interface PersistenceBackedObsServiceIds {
 }
 
 export interface PersistenceBackedObsServiceDependencies {
+  readonly aiSuggestionPort?: ObsAiSuggestionPort;
   readonly clock?: () => string;
   readonly commandRepository: ObsCommandPersistenceRepository;
   readonly controlPort?: ObsControlPort;
@@ -161,6 +180,7 @@ export const createPersistenceBackedObsServicesAdapter = (
     createFakeObsControlPort({ failures: { getSceneList: { code: "disconnected" } } })
       .port;
   const errorClassifier = dependencies.errorClassifier ?? classifyObsDispatchError;
+  const aiSuggestionPort = dependencies.aiSuggestionPort;
   const { commandRepository, queryRepository } = dependencies;
 
   /**
@@ -532,6 +552,106 @@ export const createPersistenceBackedObsServicesAdapter = (
     };
   };
 
+  /**
+   * Build a `requested` `ObsActionIntent` from an already-validated action shape,
+   * run the PURE eligibility precondition checker against the last-known persisted
+   * snapshot, and — only on an eligible request — persist it and write the
+   * `requested` audit row. This NEVER touches the OBS port (no dispatch at request
+   * time). It is the single creation path shared by both an operator
+   * `requestObsAction` and an `ai-suggested` `suggestObsActionWithAi`, so an
+   * AI-originated intent is born exactly like a human one — `status = requested`,
+   * unconfirmed — and is bound by the identical slice-7 confirm→dispatch gate. An
+   * ineligible request throws a typed error (disconnected-only → OBS_DISCONNECTED;
+   * any other block → ACTION_INELIGIBLE) and persists nothing.
+   */
+  const createRequestedActionIntent = async (
+    actor: AuthenticatedActor,
+    requestId: string,
+    profile: ObsConnectionProfilePersistenceRecord,
+    now: string,
+    action: {
+      readonly kind: ObsActionIntent["kind"];
+      readonly origin: ObsActionIntent["origin"];
+      readonly requestedByRef: string;
+      readonly desiredMuted?: boolean;
+      readonly desiredVisible?: boolean;
+      readonly targetSceneItemId?: string;
+      readonly targetSceneRef?: string;
+      readonly targetSourceRef?: string;
+    }
+  ): Promise<ObsActionIntent> => {
+    // Every v1 kind affects live output, so affectsLiveOutput is always true; the
+    // schema's superRefine validates the per-kind target-ref shape and rejects a
+    // confirmation on a requested action.
+    const intent = ObsActionIntentSchema.parse({
+      actionIntentId: ids.actionIntentId(),
+      affectsLiveOutput: true,
+      connectionProfileId: profile.connectionProfileId,
+      createdAt: now,
+      kind: action.kind,
+      origin: action.origin,
+      requestedByRef: action.requestedByRef,
+      status: "requested",
+      tenantId: actor.tenantId,
+      updatedAt: now,
+      ...(action.desiredMuted !== undefined ? { desiredMuted: action.desiredMuted } : {}),
+      ...(action.desiredVisible !== undefined
+        ? { desiredVisible: action.desiredVisible }
+        : {}),
+      ...(action.targetSceneItemId !== undefined
+        ? { targetSceneItemId: action.targetSceneItemId }
+        : {}),
+      ...(action.targetSceneRef !== undefined
+        ? { targetSceneRef: action.targetSceneRef }
+        : {}),
+      ...(action.targetSourceRef !== undefined
+        ? { targetSourceRef: action.targetSourceRef }
+        : {})
+    });
+
+    const snapshot: ActionEligibilitySnapshot = {
+      connection: toDomainConnectionProfile(profile),
+      recording: await recordingStateOrDefault(profile, now, actor, requestId),
+      scenes: await tenantScenesForConnection(
+        profile.connectionProfileId,
+        actor,
+        requestId
+      ),
+      sceneItems: await tenantSceneItemsForConnection(
+        profile.connectionProfileId,
+        actor,
+        requestId
+      ),
+      sources: await tenantSourcesForConnection(
+        profile.connectionProfileId,
+        actor,
+        requestId
+      ),
+      stream: await streamStateOrDefault(profile, now, actor, requestId)
+    };
+    const eligibility = checkActionEligibility(intent, snapshot);
+
+    if (!eligibility.eligible) {
+      throw ineligibilityError(eligibility.reasons);
+    }
+
+    const stored = await commandRepository.saveObsActionIntent({
+      input: toPersistenceActionIntent(intent),
+      options: toWriteOptions(actor, requestId, "create")
+    });
+    await appendActionLogEntry({
+      actionIntentRef: intent.actionIntentId,
+      actor,
+      connectionProfileId: intent.connectionProfileId,
+      occurredAt: now,
+      outcome: "requested",
+      reason: `Requested ${intent.kind} (${intent.origin}).`,
+      requestId
+    });
+
+    return toDomainActionIntent(assertTenantScopedIntent(stored, actor.tenantId));
+  };
+
   const queryService: ObsQueryService = {
     listObsConnectionProfiles: async (
       rawQuery
@@ -857,21 +977,13 @@ export const createPersistenceBackedObsServicesAdapter = (
       );
       const now = clock();
 
-      // Build the proposed intent at status=requested. Every v1 kind affects live
-      // output, so affectsLiveOutput is always true; the schema's superRefine
-      // validates the per-kind target-ref shape and rejects a confirmation on a
-      // requested action.
-      const intent = ObsActionIntentSchema.parse({
-        actionIntentId: ids.actionIntentId(),
-        affectsLiveOutput: true,
-        connectionProfileId: profile.connectionProfileId,
-        createdAt: now,
+      // Build + eligibility-check + persist + audit through the shared creation
+      // path. `origin` comes from the operator input (human or, for a reviewable
+      // nudge, ai-suggested). Nothing is dispatched — the port is never touched.
+      return createRequestedActionIntent(command.actor, command.requestId, profile, now, {
         kind: command.input.kind,
         origin: command.input.origin,
         requestedByRef: command.input.requestedByRef,
-        status: "requested",
-        tenantId: command.actor.tenantId,
-        updatedAt: now,
         ...(command.input.desiredMuted !== undefined
           ? { desiredMuted: command.input.desiredMuted }
           : {}),
@@ -888,63 +1000,6 @@ export const createPersistenceBackedObsServicesAdapter = (
           ? { targetSourceRef: command.input.targetSourceRef }
           : {})
       });
-
-      // Run the PURE eligibility precondition checker against the last-known
-      // persisted snapshot. This NEVER touches the port — no dispatch happens at
-      // request time. An ineligible request is rejected with a typed error (a
-      // disconnected-only block maps to OBS_DISCONNECTED; any other block to
-      // ACTION_INELIGIBLE) and no intent is persisted.
-      const snapshot: ActionEligibilitySnapshot = {
-        connection: toDomainConnectionProfile(profile),
-        recording: await recordingStateOrDefault(
-          profile,
-          now,
-          command.actor,
-          command.requestId
-        ),
-        scenes: await tenantScenesForConnection(
-          profile.connectionProfileId,
-          command.actor,
-          command.requestId
-        ),
-        sceneItems: await tenantSceneItemsForConnection(
-          profile.connectionProfileId,
-          command.actor,
-          command.requestId
-        ),
-        sources: await tenantSourcesForConnection(
-          profile.connectionProfileId,
-          command.actor,
-          command.requestId
-        ),
-        stream: await streamStateOrDefault(
-          profile,
-          now,
-          command.actor,
-          command.requestId
-        )
-      };
-      const eligibility = checkActionEligibility(intent, snapshot);
-
-      if (!eligibility.eligible) {
-        throw ineligibilityError(eligibility.reasons);
-      }
-
-      const stored = await commandRepository.saveObsActionIntent({
-        input: toPersistenceActionIntent(intent),
-        options: toWriteOptions(command.actor, command.requestId, "create")
-      });
-      await appendActionLogEntry({
-        actionIntentRef: intent.actionIntentId,
-        actor: command.actor,
-        connectionProfileId: intent.connectionProfileId,
-        occurredAt: now,
-        outcome: "requested",
-        reason: `Requested ${intent.kind} (${intent.origin}).`,
-        requestId: command.requestId
-      });
-
-      return toDomainActionIntent(assertTenantScopedIntent(stored, command.actor.tenantId));
     },
 
     confirmObsAction: async (rawCommand): Promise<ObsActionIntent> => {
@@ -1165,6 +1220,114 @@ export const createPersistenceBackedObsServicesAdapter = (
       });
 
       return canceled;
+    },
+
+    suggestObsActionWithAi: async (rawCommand): Promise<ObsActionIntent> => {
+      const command = SuggestObsActionWithAiCommandSchema.parse(rawCommand);
+      assertObsCommandRole(command.actor);
+
+      if (aiSuggestionPort === undefined) {
+        throw new ObsDomainError(
+          "VALIDATION_FAILED",
+          "The OBS AI suggestion provider is not configured."
+        );
+      }
+
+      const profile = await requireConnectionProfile(
+        command.input.connectionProfileId,
+        command.actor,
+        command.requestId
+      );
+      const now = clock();
+
+      // Build the smallest secret-free + PII-free projection from the last-known
+      // persisted catalog/state snapshot. The connection contributes its opaque id
+      // + coarse status ONLY — never its connectionRef vault handle. The builder
+      // structurally asserts the projection carries no secret before it leaves.
+      const prompt = buildObsAiActionSuggestionPrompt({
+        aiPolicyProfile: command.input.aiPolicyProfile ?? DEFAULT_PII_FREE_AI_POLICY,
+        connection: toDomainConnectionProfile(profile),
+        operatorIntent: command.input.operatorIntent,
+        recording: await recordingStateOrDefault(
+          profile,
+          now,
+          command.actor,
+          command.requestId
+        ),
+        requestId: command.requestId,
+        scenes: await tenantScenesForConnection(
+          profile.connectionProfileId,
+          command.actor,
+          command.requestId
+        ),
+        sceneItems: await tenantSceneItemsForConnection(
+          profile.connectionProfileId,
+          command.actor,
+          command.requestId
+        ),
+        serviceSegmentLabels: command.input.serviceSegmentLabels,
+        sources: await tenantSourcesForConnection(
+          profile.connectionProfileId,
+          command.actor,
+          command.requestId
+        ),
+        stream: await streamStateOrDefault(
+          profile,
+          now,
+          command.actor,
+          command.requestId
+        ),
+        tenantId: command.actor.tenantId
+      });
+
+      // The port returns untrusted output; re-validate before any persistence. A
+      // schema failure surfaces as a typed VALIDATION_FAILED error (never a raw
+      // ZodError), and NO intent is created.
+      const parsed = ObsAiActionSuggestionSchema.safeParse(
+        await aiSuggestionPort.suggestObsAction(prompt)
+      );
+
+      if (!parsed.success) {
+        throw new ObsDomainError(
+          "VALIDATION_FAILED",
+          "The AI action suggestion failed validation."
+        );
+      }
+
+      const suggestion = parsed.data;
+
+      if (suggestion.status !== "suggested") {
+        throw new ObsDomainError(
+          "VALIDATION_FAILED",
+          "The AI could not produce a usable OBS action suggestion."
+        );
+      }
+
+      // Create the suggestion as a `requested`, origin="ai-suggested" intent
+      // through the SAME shared creation path a human request uses — eligibility
+      // checked, no port touched. It is born unconfirmed and bound by the slice-7
+      // gate: it can NEVER self-advance to confirmed/dispatched, so the AI can
+      // never go live.
+      return createRequestedActionIntent(command.actor, command.requestId, profile, now, {
+        kind: suggestion.kind,
+        origin: "ai-suggested",
+        requestedByRef: command.input.requestedByRef,
+        ...(suggestion.desiredMuted !== undefined
+          ? { desiredMuted: suggestion.desiredMuted }
+          : {}),
+        ...(suggestion.desiredVisible !== undefined
+          ? { desiredVisible: suggestion.desiredVisible }
+          : {}),
+        ...(suggestion.targetSceneItemId !== undefined
+          ? { targetSceneItemId: suggestion.targetSceneItemId }
+          : {}),
+        ...(suggestion.targetSceneRef !== undefined
+          ? { targetSceneRef: suggestion.targetSceneRef }
+          : {}),
+        ...(suggestion.targetSourceRef !== undefined
+          ? { targetSourceRef: suggestion.targetSourceRef }
+          : {})
+      });
     }
   };
 

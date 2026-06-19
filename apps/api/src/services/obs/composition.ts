@@ -10,6 +10,7 @@ import {
   type ObsSqlExecutor,
   type SqliteMigrationDatabaseClient
 } from "@sanctuary-os/db";
+import type { ObsAiSuggestionPort } from "./ai-suggest.js";
 import type { ObsControlPort } from "./control-port.js";
 import type { ObsDispatchErrorClassifier } from "./error-classifier.js";
 import {
@@ -55,6 +56,7 @@ export interface ObsPersistenceRepositories {
 }
 
 export interface ObsSqlPersistenceDependencies {
+  readonly aiSuggestionPort?: ObsAiSuggestionPort;
   readonly clock: () => string;
   readonly controlPort?: ObsControlPort;
   readonly errorClassifier?: ObsDispatchErrorClassifier;
@@ -157,6 +159,9 @@ const createSqlObsPersistenceSelection = (
       clock: dependencies.clock,
       commandRepository,
       queryRepository,
+      ...(dependencies.aiSuggestionPort !== undefined
+        ? { aiSuggestionPort: dependencies.aiSuggestionPort }
+        : {}),
       ...(dependencies.controlPort !== undefined
         ? { controlPort: dependencies.controlPort }
         : {}),
