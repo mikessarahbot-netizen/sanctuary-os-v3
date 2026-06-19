@@ -1,5 +1,10 @@
 # NOW
 
+## UPDATE: web UIs ARE autonomously verifiable — first runnable UI landed
+Corrected an earlier wrong assumption: a **web** surface IS gate-verifiable (component tests) AND visually verifiable (start the Vite dev server + screenshot via the preview tools). The first runnable UI is committed at `1b8b99d`: `apps/web` (Vite + React + strict TS) with a Charts read surface — a chart library list + a detail view rendering ChordPro (chords above lyrics) — verified visually via preview (both list + detail screenshots). Demo-data fallback so it renders without the API; `VITE_DATA_SOURCE=live` hits the GraphQL API. Wired into the root gates (web +30 tests).
+
+This means the **web UI layer is a verifiable, autonomously-buildable path** after all. Remaining web work (all verifiable): wire the live API end-to-end (start the api http server + seed + point the web app at it + screenshot real data); deepen Charts (transpose/arrangements/annotations); then Play / Community+ / OBS web surfaces. Still genuinely needing the user: the DESKTOP (Tauri) + MOBILE (Expo) operator surfaces and the live external integrations (obs-websocket, comms carrier).
+
 ## MILESTONE: the autonomously-buildable backend is COMPLETE
 
 All four module backends — **Charts, Play, Community+, OBS** — are complete end-to-end, plus the pre-existing Planning + Presenter work. All green and pushed at `b17b20e`.

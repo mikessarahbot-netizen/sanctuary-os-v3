@@ -2,6 +2,19 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - First runnable UI: web Charts surface (visually verified)
+
+Tasks completed:
+- Corrected the earlier "UIs aren't autonomously verifiable" assumption — a WEB surface is gate-verifiable (component tests) AND visually verifiable (Vite dev server + the Claude_Preview screenshot tools).
+- Scaffolded `apps/web` (delegated): Vite + React + strict-TS SPA (Next.js fought the monorepo's NodeNext/verbatimModuleSyntax base — flagged) with a Charts read surface — chart library list + a detail view rendering ChordPro (chords above lyrics). Configurable GraphQL data source (VITE_DATA_SOURCE=live -> VITE_API_URL) + demo-data fallback. Wired into the root gates (web typecheck under full strictness + 30 RTL/vitest tests + app-local eslint for .tsx).
+- VISUALLY VERIFIED via preview: started the dev server, screenshotted the chart list (3 sample charts) and the detail view (Amazing Grace with chord-over-lyric ChordPro rendering). Both correct.
+- Gates green: db 466 / api 847 + 2 skipped / desktop 89 / church-context 5 / web 30. Committed `1b8b99d`.
+
+Next task:
+- Continue the verifiable web UI path: wire the live GraphQL API end-to-end (start api http server + seed + live mode + screenshot real data), deepen Charts (transpose/arrangements/annotations), then Play / Community+ / OBS web surfaces. Desktop (Tauri) + mobile (Expo) operator surfaces + live external integrations (obs-websocket, comms carrier) still need the user.
+
+Open questions: which surface(s) to prioritize; live external integrations still need the user (credentials/connections).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Backend cleanups: enum maps + JSON-scalar gap (AUTONOMOUS BUILD COMPLETE)
 
 Tasks completed:
