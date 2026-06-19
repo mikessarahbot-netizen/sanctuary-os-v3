@@ -2,6 +2,17 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Web depth: Charts transpose
+
+Tasks completed:
+- Added a Charts transpose control to apps/web (delegated): +/- semitone, shows the transposed key + offset, Reset; re-renders the ChordPro transposed client-side via a faithful port of the domain transpose algorithm (byte-for-byte verified vs apps/api across 17 chords x 23 offsets). View-only (capo-style; never mutates the stored source), hidden during edit. +20 web tests (web 158).
+- VERIFIED LIVE via preview: Amazing Grace +2 -> key A, chords G->A / G7->A7 / C->D / Em->F#m / D->E. Screenshotted.
+- Gates green: db 466 / api 862 + 2 skipped / desktop 89 / church-context 5 / web 158. Committed `82d7cfb`.
+
+Next task: further web depth is available + verifiable (Play playback control, Community comms draft+confirm-send, OBS more actions). Native desktop (Tauri) + mobile (Expo) shells + live external integrations need the user. Note: every distinct capability (backend slices, UI surfaces, read/write/transpose, the human-confirm safety gate, live end-to-end) has now been demonstrated; remaining autonomous work is incremental.
+
+Open questions: priorities; native + external need the user.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - WEB BREADTH COMPLETE: OBS surface + confirm-gate (all 4 modules live)
 
 Tasks completed:
