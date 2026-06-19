@@ -170,11 +170,19 @@ interface DemoSeedPlayCue {
   readonly targetSectionRef?: string;
 }
 
+interface DemoSeedPlaybackState {
+  readonly activeSectionRef: string;
+  readonly clickEnabled: boolean;
+  readonly positionBeats: number;
+  readonly transportStatus: "stopped" | "playing" | "paused";
+}
+
 interface DemoSeedPlayTrackSet {
   readonly arrangementLabel: string;
   readonly arrangementRef: string;
   readonly cues: readonly DemoSeedPlayCue[];
   readonly defaultKey: string;
+  readonly initialPlaybackState?: DemoSeedPlaybackState;
   readonly sections: readonly DemoSeedPlaySection[];
   readonly songRef: string;
   readonly tempoBpm: number;
@@ -212,6 +220,12 @@ const DEMO_PLAY_TRACK_SETS: readonly DemoSeedPlayTrackSet[] = [
       }
     ],
     defaultKey: "E",
+    initialPlaybackState: {
+      activeSectionRef: "section-bml-intro",
+      clickEnabled: true,
+      positionBeats: 0,
+      transportStatus: "stopped"
+    },
     sections: [
       {
         clickEnabledDefault: true,
@@ -637,6 +651,23 @@ export const createDemoServer = (
               : {})
           },
           requestId: `demo-seed-cue-${trackSet.trackSetId}-${cue.label}`
+        });
+      }
+
+      // Seed an initial durable playback state (when configured) so the live
+      // `playbackState(trackSetId:)` query serves a populated transport state —
+      // the web playback control opens on this instead of its stopped default.
+      if (trackSet.initialPlaybackState !== undefined) {
+        await play.commandService.setPlaybackState({
+          actor: demoActor,
+          input: {
+            activeSectionRef: trackSet.initialPlaybackState.activeSectionRef,
+            clickEnabled: trackSet.initialPlaybackState.clickEnabled,
+            positionBeats: trackSet.initialPlaybackState.positionBeats,
+            trackSetId: trackSet.trackSetId,
+            transportStatus: trackSet.initialPlaybackState.transportStatus
+          },
+          requestId: `demo-seed-playback-${trackSet.trackSetId}`
         });
       }
     }

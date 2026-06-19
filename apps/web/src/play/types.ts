@@ -56,6 +56,31 @@ export interface PlayCue {
 }
 
 /**
+ * The three durable transport states (mirror of the server `TransportStatus`
+ * SDL enum: `stopped` / `playing` / `paused`). Kept as a string-literal union so
+ * the playback control's buttons and status readout are exhaustively typed.
+ */
+export type PlaybackTransportStatus = "stopped" | "playing" | "paused";
+
+/**
+ * Durable playback transport state for a track set — the queried subset of the
+ * server `PlaybackState` GraphQL type (see `apps/api/src/graphql/play.ts`).
+ * Nullable refs use `| null` (matching GraphQL nullability) so they stay
+ * explicit under `exactOptionalPropertyTypes`. The Play detail renders this and
+ * the playback control writes it via `setPlaybackState`.
+ */
+export interface PlaybackState {
+  readonly activePadLayerRef: string | null;
+  readonly activeSectionRef: string | null;
+  readonly clickEnabled: boolean;
+  readonly positionBeats: number;
+  readonly tenantId: string;
+  readonly trackSetId: string;
+  readonly transportStatus: PlaybackTransportStatus;
+  readonly updatedAt: string;
+}
+
+/**
  * A track set together with the sections of its arrangement and its cues — the
  * full payload the detail view renders. The data source assembles this from the
  * `trackSet`, `playSections`, and `playCues` queries (live) or the sample

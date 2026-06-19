@@ -35,6 +35,13 @@ interface GraphqlPlayCue {
   readonly label: string;
 }
 
+interface GraphqlPlaybackState {
+  readonly activeSectionRef: string | null;
+  readonly clickEnabled: boolean;
+  readonly trackSetId: string;
+  readonly transportStatus: string;
+}
+
 interface GraphqlCommunityGroup {
   readonly groupId: string;
   readonly kind: string;
@@ -277,6 +284,67 @@ describe("createDemoServer", () => {
     const cueLabels = (cuesPayload.data?.playCues ?? []).map((cue) => cue.label);
     expect(cueLabels).toContain("Start intro pad");
     expect(cueLabels).toContain("Jump to chorus");
+  });
+
+  it("serves the seeded track set playback state over HTTP", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const payload = await postGraphql<{
+      readonly playbackState: GraphqlPlaybackState | null;
+    }>(endpoint, {
+      query:
+        "query Playback($trackSetId: ID!) { playbackState(trackSetId: $trackSetId) { trackSetId transportStatus activeSectionRef clickEnabled } }",
+      variables: { trackSetId: "track-set-build-my-life" }
+    });
+
+    expect(payload.errors).toBeUndefined();
+    expect(payload.data?.playbackState).toEqual({
+      activeSectionRef: "section-bml-intro",
+      clickEnabled: true,
+      trackSetId: "track-set-build-my-life",
+      transportStatus: "stopped"
+    });
+  });
+
+  it("round-trips a setPlaybackState mutation into a follow-up query over HTTP", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const mutation = await postGraphql<{
+      readonly setPlaybackState: GraphqlPlaybackState;
+    }>(endpoint, {
+      query:
+        "mutation SetPlayback($input: SetPlaybackStateInput!) { setPlaybackState(input: $input) { trackSetId transportStatus activeSectionRef clickEnabled } }",
+      variables: {
+        input: {
+          activeSectionRef: "section-bml-chorus",
+          clickEnabled: true,
+          positionBeats: 0,
+          trackSetId: "track-set-build-my-life",
+          transportStatus: "playing"
+        }
+      }
+    });
+
+    expect(mutation.errors).toBeUndefined();
+    expect(mutation.data?.setPlaybackState.transportStatus).toBe("playing");
+
+    const query = await postGraphql<{
+      readonly playbackState: GraphqlPlaybackState | null;
+    }>(endpoint, {
+      query:
+        "query Playback($trackSetId: ID!) { playbackState(trackSetId: $trackSetId) { transportStatus activeSectionRef } }",
+      variables: { trackSetId: "track-set-build-my-life" }
+    });
+
+    expect(query.errors).toBeUndefined();
+    expect(query.data?.playbackState).toEqual({
+      activeSectionRef: "section-bml-chorus",
+      transportStatus: "playing"
+    });
   });
 
   it("serves the seeded community groups over HTTP", async () => {

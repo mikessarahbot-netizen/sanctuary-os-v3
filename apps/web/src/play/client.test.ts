@@ -144,4 +144,75 @@ describe("createPlayClient", () => {
       "HTTP 500"
     );
   });
+
+  it("POSTs the playbackState query and returns the durable state", async () => {
+    const playbackState = {
+      activePadLayerRef: null,
+      activeSectionRef: "section-bml-intro",
+      clickEnabled: true,
+      positionBeats: 0,
+      tenantId: "tenant-demo",
+      trackSetId: "track-set-build-my-life",
+      transportStatus: "stopped",
+      updatedAt: "2026-04-12T17:30:00.000Z"
+    };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { playbackState } }))
+    );
+
+    const result = await createPlayClient({ fetchImpl }).getPlaybackState(
+      "track-set-build-my-life"
+    );
+
+    expect(result).toEqual(playbackState);
+    expect(queryOf(fetchImpl.mock.calls[0]?.[1])).toContain("playbackState(trackSetId:");
+  });
+
+  it("returns null when no playback state exists", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { playbackState: null } }))
+    );
+
+    const result = await createPlayClient({ fetchImpl }).getPlaybackState("missing");
+
+    expect(result).toBeNull();
+  });
+
+  it("POSTs the setPlaybackState mutation with the input and returns the new state", async () => {
+    const updated = {
+      activePadLayerRef: null,
+      activeSectionRef: "section-bml-intro",
+      clickEnabled: true,
+      positionBeats: 0,
+      tenantId: "tenant-demo",
+      trackSetId: "track-set-build-my-life",
+      transportStatus: "playing",
+      updatedAt: "2026-04-12T17:31:00.000Z"
+    };
+    const fetchImpl = vi.fn<typeof fetch>(() =>
+      Promise.resolve(jsonResponse({ data: { setPlaybackState: updated } }))
+    );
+
+    const result = await createPlayClient({ fetchImpl }).setPlaybackState({
+      activeSectionRef: "section-bml-intro",
+      clickEnabled: true,
+      positionBeats: 0,
+      trackSetId: "track-set-build-my-life",
+      transportStatus: "playing"
+    });
+
+    expect(result).toEqual(updated);
+    const init = fetchImpl.mock.calls[0]?.[1];
+    expect(queryOf(init)).toContain("setPlaybackState(input:");
+    const body = JSON.parse(
+      typeof init?.body === "string" ? init.body : "{}"
+    ) as { readonly variables: { readonly input: Record<string, unknown> } };
+    expect(body.variables.input).toEqual({
+      activeSectionRef: "section-bml-intro",
+      clickEnabled: true,
+      positionBeats: 0,
+      trackSetId: "track-set-build-my-life",
+      transportStatus: "playing"
+    });
+  });
 });

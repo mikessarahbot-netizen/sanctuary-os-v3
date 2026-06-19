@@ -1,4 +1,10 @@
-import type { PlayCue, PlaySection, TrackSet, TrackSetDetail } from "./types.js";
+import type {
+  PlaybackState,
+  PlayCue,
+  PlaySection,
+  TrackSet,
+  TrackSetDetail
+} from "./types.js";
 
 /**
  * Seeded sample Play track sets for demo mode and tests.
@@ -175,6 +181,27 @@ const GOODNESS_OF_GOD: TrackSet = {
 export const SAMPLE_TRACK_SETS: readonly TrackSet[] = [
   BUILD_MY_LIFE,
   GOODNESS_OF_GOD
+];
+
+/**
+ * Seeded initial playback transport states for demo mode and tests. Build My
+ * Life starts populated (stopped at the intro with click on) so the playback
+ * control renders a concrete state without a prior write; the same state is
+ * seeded into the demo server (`apps/api/src/demo/server.ts`) so live mode opens
+ * the same way. Goodness of God is intentionally left unseeded so the
+ * "no state yet -> default stopped" path is exercised in demo too.
+ */
+export const SAMPLE_PLAYBACK_STATES: readonly PlaybackState[] = [
+  {
+    activePadLayerRef: null,
+    activeSectionRef: "section-bml-intro",
+    clickEnabled: true,
+    positionBeats: 0,
+    tenantId: "tenant-demo",
+    trackSetId: "track-set-build-my-life",
+    transportStatus: "stopped",
+    updatedAt: "2026-04-12T17:30:00.000Z"
+  }
 ];
 
 const SAMPLE_DETAILS: readonly TrackSetDetail[] = [

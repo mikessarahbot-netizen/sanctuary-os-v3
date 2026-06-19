@@ -1,4 +1,6 @@
 import type {
+  PlaybackState,
+  PlaybackTransportStatus,
   PlayCue,
   PlaySection,
   TrackSet,
@@ -71,6 +73,17 @@ const PLAY_CUE_FIELDS = `
   updatedAt
 `;
 
+const PLAYBACK_STATE_FIELDS = `
+  activePadLayerRef
+  activeSectionRef
+  clickEnabled
+  positionBeats
+  tenantId
+  trackSetId
+  transportStatus
+  updatedAt
+`;
+
 const LIST_TRACK_SETS_QUERY = `query ListTrackSets { trackSets { ${TRACK_SET_FIELDS} } }`;
 
 const GET_TRACK_SET_QUERY = `query GetTrackSet($id: ID!) { trackSet(id: $id) { ${TRACK_SET_FIELDS} } }`;
@@ -78,6 +91,10 @@ const GET_TRACK_SET_QUERY = `query GetTrackSet($id: ID!) { trackSet(id: $id) { $
 const LIST_PLAY_SECTIONS_QUERY = `query ListPlaySections($arrangementRef: ID!) { playSections(arrangementRef: $arrangementRef) { ${PLAY_SECTION_FIELDS} } }`;
 
 const LIST_PLAY_CUES_QUERY = `query ListPlayCues($trackSetId: ID!) { playCues(trackSetId: $trackSetId) { ${PLAY_CUE_FIELDS} } }`;
+
+const GET_PLAYBACK_STATE_QUERY = `query GetPlaybackState($trackSetId: ID!) { playbackState(trackSetId: $trackSetId) { ${PLAYBACK_STATE_FIELDS} } }`;
+
+const SET_PLAYBACK_STATE_MUTATION = `mutation SetPlaybackState($input: SetPlaybackStateInput!) { setPlaybackState(input: $input) { ${PLAYBACK_STATE_FIELDS} } }`;
 
 interface GraphqlError {
   readonly message: string;
@@ -102,6 +119,31 @@ interface ListPlaySectionsData {
 
 interface ListPlayCuesData {
   readonly playCues: readonly PlayCue[];
+}
+
+interface GetPlaybackStateData {
+  readonly playbackState: PlaybackState | null;
+}
+
+interface SetPlaybackStateData {
+  readonly setPlaybackState: PlaybackState;
+}
+
+/**
+ * Local mirror of the server `SetPlaybackStateInput` (see
+ * `apps/api/src/graphql/play.ts`). `clickEnabled`, `positionBeats`,
+ * `transportStatus`, and `trackSetId` are required; the two refs are optional
+ * and omitted from the variables when not supplied (conditional spread) so the
+ * server stores them as absent rather than null under
+ * `exactOptionalPropertyTypes`.
+ */
+export interface SetPlaybackStateInput {
+  readonly activePadLayerRef?: string;
+  readonly activeSectionRef?: string;
+  readonly clickEnabled: boolean;
+  readonly positionBeats: number;
+  readonly transportStatus: PlaybackTransportStatus;
+  readonly trackSetId: string;
 }
 
 export interface PlayClientOptions {
@@ -161,6 +203,8 @@ const executeQuery = async <TData>(
 export interface PlayDataSource {
   readonly listTrackSets: () => Promise<readonly TrackSet[]>;
   readonly getTrackSetDetail: (trackSetId: string) => Promise<TrackSetDetail | null>;
+  readonly getPlaybackState: (trackSetId: string) => Promise<PlaybackState | null>;
+  readonly setPlaybackState: (input: SetPlaybackStateInput) => Promise<PlaybackState>;
 }
 
 export const createPlayClient = (
@@ -209,5 +253,27 @@ export const createPlayClient = (
     );
 
     return { cues: cuesData.playCues, sections, trackSet };
+  },
+  getPlaybackState: async (
+    trackSetId: string
+  ): Promise<PlaybackState | null> => {
+    const data = await executeQuery<GetPlaybackStateData>(
+      options,
+      GET_PLAYBACK_STATE_QUERY,
+      { trackSetId }
+    );
+
+    return data.playbackState;
+  },
+  setPlaybackState: async (
+    input: SetPlaybackStateInput
+  ): Promise<PlaybackState> => {
+    const data = await executeQuery<SetPlaybackStateData>(
+      options,
+      SET_PLAYBACK_STATE_MUTATION,
+      { input }
+    );
+
+    return data.setPlaybackState;
   }
 });
