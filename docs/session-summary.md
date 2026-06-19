@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 5: ObsControlPort + fake
+
+Tasks completed:
+- OBS slice 5 (delegated; parent verified gates): `apps/api/src/services/obs/control-port.ts` (ObsControlPort interface — secret-free Zod results + a typed ObsControlError with a redacted safeMessage from a fixed table, no caller injection) + `fake-control-port.ts` (deterministic in-memory OBS sim with injectable failures that records the call before failing, so a rejected dispatch still reaches the port for audit). No real obs-websocket. +23 api tests (recursive secret-free incl. credential-shaped connectionRef leak check). Gates green: db 466 / api 732 + 2 skipped / desktop 89 / church-context 5. Committed `bebf94c`.
+
+Next task:
+- OBS slice 6: GraphQL + in-memory service (reads + connection/catalog + requestObsAction; confirm→dispatch gate is slice 7). Then slices 7–10 per the plan.
+
+Open questions / follow-ups: standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 4: SQLite adapter
 
 Tasks completed:
