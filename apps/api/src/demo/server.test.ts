@@ -18,6 +18,23 @@ interface GraphqlChart {
   readonly title: string | null;
 }
 
+interface GraphqlTrackSet {
+  readonly arrangementRef: string | null;
+  readonly defaultKey: string;
+  readonly title: string | null;
+  readonly trackSetId: string;
+}
+
+interface GraphqlPlaySection {
+  readonly label: string | null;
+  readonly sectionId: string;
+}
+
+interface GraphqlPlayCue {
+  readonly action: string;
+  readonly label: string;
+}
+
 interface GraphqlBody<TData> {
   readonly data?: TData | null;
   readonly errors?: readonly { readonly message: string }[];
@@ -134,6 +151,72 @@ describe("createDemoServer", () => {
       chartId: "chart-demo-roundtrip",
       title: "Demo Round Trip"
     });
+  });
+
+  it("serves the seeded play track sets over HTTP", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const payload = await postGraphql<{ readonly trackSets: readonly GraphqlTrackSet[] }>(
+      endpoint,
+      {
+        query:
+          "{ trackSets { trackSetId title defaultKey arrangementRef } }"
+      }
+    );
+
+    expect(payload.errors).toBeUndefined();
+    const titles = (payload.data?.trackSets ?? []).map((trackSet) => trackSet.title);
+    expect(titles).toContain("Build My Life");
+    expect(titles).toContain("Goodness of God");
+  });
+
+  it("resolves a seeded track set's sections and cues over HTTP", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const trackSetPayload = await postGraphql<{
+      readonly trackSet: GraphqlTrackSet | null;
+    }>(endpoint, {
+      query:
+        "query GetTrackSet($id: ID!) { trackSet(id: $id) { trackSetId title arrangementRef } }",
+      variables: { id: "track-set-build-my-life" }
+    });
+
+    expect(trackSetPayload.errors).toBeUndefined();
+    expect(trackSetPayload.data?.trackSet?.title).toBe("Build My Life");
+    expect(trackSetPayload.data?.trackSet?.arrangementRef).toBe("arr-build-my-life");
+
+    const sectionsPayload = await postGraphql<{
+      readonly playSections: readonly GraphqlPlaySection[];
+    }>(endpoint, {
+      query:
+        "query Sections($arrangementRef: ID!) { playSections(arrangementRef: $arrangementRef) { sectionId label } }",
+      variables: { arrangementRef: "arr-build-my-life" }
+    });
+
+    expect(sectionsPayload.errors).toBeUndefined();
+    const sectionIds = (sectionsPayload.data?.playSections ?? []).map(
+      (section) => section.sectionId
+    );
+    expect(sectionIds).toContain("section-bml-intro");
+    expect(sectionIds).toContain("section-bml-verse");
+    expect(sectionIds).toContain("section-bml-chorus");
+
+    const cuesPayload = await postGraphql<{
+      readonly playCues: readonly GraphqlPlayCue[];
+    }>(endpoint, {
+      query:
+        "query Cues($trackSetId: ID!) { playCues(trackSetId: $trackSetId) { label action } }",
+      variables: { trackSetId: "track-set-build-my-life" }
+    });
+
+    expect(cuesPayload.errors).toBeUndefined();
+    const cueLabels = (cuesPayload.data?.playCues ?? []).map((cue) => cue.label);
+    expect(cueLabels).toContain("Start intro pad");
+    expect(cueLabels).toContain("Jump to chorus");
   });
 
   it("rejects a request with no Authorization header", async () => {

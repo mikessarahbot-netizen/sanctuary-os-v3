@@ -14,9 +14,11 @@ import type { Server } from "node:http";
  * This composes the full executable schema with every module's in-memory
  * service (deterministic clock + id generators; the OBS/Community fakes are the
  * adapters' built-in defaults), resolves every request to one fixed demo actor,
- * and seeds a handful of Charts under the demo tenant so a `charts` / `chart`
- * query returns populated data. It exists only so the `apps/web` Charts app can
- * hit a live endpoint for local screenshots; it is NOT a production server.
+ * and seeds a handful of Charts plus a couple of Play track sets (each with an
+ * arrangement, sections, and cues) under the demo tenant so the `charts` /
+ * `chart` and `trackSets` / `trackSet` / `playSections` / `playCues` queries
+ * return populated data. It exists only so the `apps/web` read surfaces can hit
+ * a live endpoint for local screenshots; it is NOT a production server.
  *
  * The demo auth is intentionally trivial (see `DemoAuthBoundary`): it ignores
  * the `Authorization` header value and always returns the same actor. Never
@@ -140,6 +142,145 @@ const DEMO_CHARTS: readonly DemoSeedChart[] = [
   }
 ];
 
+interface DemoSeedPlaySection {
+  readonly clickEnabledDefault: boolean;
+  readonly kind: "intro" | "verse" | "prechorus" | "chorus" | "bridge" | "outro";
+  readonly label: string;
+  readonly lengthBars: number;
+  readonly sectionId: string;
+}
+
+interface DemoSeedPlayCue {
+  readonly action: "play" | "stop" | "jump" | "pad-change";
+  readonly fireMode: "manual" | "auto";
+  readonly label: string;
+  readonly markerOffsetBeats: number;
+  readonly padLayerRef?: string;
+  readonly sectionId: string;
+  readonly targetSectionRef?: string;
+}
+
+interface DemoSeedPlayTrackSet {
+  readonly arrangementLabel: string;
+  readonly arrangementRef: string;
+  readonly cues: readonly DemoSeedPlayCue[];
+  readonly defaultKey: string;
+  readonly sections: readonly DemoSeedPlaySection[];
+  readonly songRef: string;
+  readonly tempoBpm: number;
+  readonly title: string;
+  readonly trackSetId: string;
+}
+
+/**
+ * Demo Play seed. Mirrors `apps/web/src/play/sample-data.ts`
+ * (Build My Life / Goodness of God) so the live Play screen matches what demo
+ * mode renders: each track set has an arrangement, ordered sections, and a
+ * couple of cues. Seeded through the real Play command service (arrangement ->
+ * sections -> track set -> cues) so the live `trackSets` / `trackSet` /
+ * `playSections` / `playCues` queries serve populated data.
+ */
+const DEMO_PLAY_TRACK_SETS: readonly DemoSeedPlayTrackSet[] = [
+  {
+    arrangementLabel: "Build My Life (Acoustic)",
+    arrangementRef: "arr-build-my-life",
+    cues: [
+      {
+        action: "play",
+        fireMode: "manual",
+        label: "Start intro pad",
+        markerOffsetBeats: 0,
+        sectionId: "section-bml-intro"
+      },
+      {
+        action: "jump",
+        fireMode: "manual",
+        label: "Jump to chorus",
+        markerOffsetBeats: 16,
+        sectionId: "section-bml-verse",
+        targetSectionRef: "section-bml-chorus"
+      }
+    ],
+    defaultKey: "E",
+    sections: [
+      {
+        clickEnabledDefault: true,
+        kind: "intro",
+        label: "Intro",
+        lengthBars: 4,
+        sectionId: "section-bml-intro"
+      },
+      {
+        clickEnabledDefault: true,
+        kind: "verse",
+        label: "Verse 1",
+        lengthBars: 8,
+        sectionId: "section-bml-verse"
+      },
+      {
+        clickEnabledDefault: true,
+        kind: "chorus",
+        label: "Chorus",
+        lengthBars: 8,
+        sectionId: "section-bml-chorus"
+      }
+    ],
+    songRef: "song-build-my-life",
+    tempoBpm: 68,
+    title: "Build My Life",
+    trackSetId: "track-set-build-my-life"
+  },
+  {
+    arrangementLabel: "Goodness of God (Live)",
+    arrangementRef: "arr-goodness-of-god",
+    cues: [
+      {
+        action: "pad-change",
+        fireMode: "auto",
+        label: "Swell into bridge",
+        markerOffsetBeats: 64,
+        padLayerRef: "pad-gog-warm",
+        sectionId: "section-gog-bridge"
+      },
+      {
+        action: "stop",
+        fireMode: "manual",
+        label: "Stop after bridge",
+        markerOffsetBeats: 128,
+        sectionId: "section-gog-bridge"
+      }
+    ],
+    defaultKey: "G",
+    sections: [
+      {
+        clickEnabledDefault: false,
+        kind: "verse",
+        label: "Verse",
+        lengthBars: 8,
+        sectionId: "section-gog-verse"
+      },
+      {
+        clickEnabledDefault: true,
+        kind: "chorus",
+        label: "Chorus",
+        lengthBars: 8,
+        sectionId: "section-gog-chorus"
+      },
+      {
+        clickEnabledDefault: false,
+        kind: "bridge",
+        label: "Bridge",
+        lengthBars: 16,
+        sectionId: "section-gog-bridge"
+      }
+    ],
+    songRef: "song-goodness-of-god",
+    tempoBpm: 64,
+    title: "Goodness of God",
+    trackSetId: "track-set-goodness-of-god"
+  }
+];
+
 export interface DemoServerComposition {
   readonly authBoundary: AuthBoundary;
   readonly seed: () => Promise<void>;
@@ -153,8 +294,9 @@ export interface CreateDemoServerOptions {
 /**
  * Compose the demo server: build the schema with all modules wired to in-memory
  * services, create the Node http server on the configured path, and return a
- * `seed()` that loads the demo Charts through the in-memory command service.
- * The caller decides when to `listen` and must `await seed()` before serving.
+ * `seed()` that loads the demo Charts and Play track sets through the in-memory
+ * command services. The caller decides when to `listen` and must `await seed()`
+ * before serving.
  */
 export const createDemoServer = (
   options: CreateDemoServerOptions = {}
@@ -217,6 +359,74 @@ export const createDemoServer = (
         },
         requestId: `demo-seed-${chart.chartId}-${timestamp}`
       });
+    }
+
+    for (const trackSet of DEMO_PLAY_TRACK_SETS) {
+      // Order matters in the in-memory Play service: the arrangement must exist
+      // before its sections (sections validate their arrangementRef), and the
+      // track set must exist before its cues (cues validate their trackSetId).
+      // Explicit ids keep `trackSet(id:)` / `playSections` / `playCues` stable
+      // and aligned with the web sample data.
+      await play.commandService.savePlayArrangement({
+        actor: demoActor,
+        input: {
+          arrangementRef: trackSet.arrangementRef,
+          defaultKey: trackSet.defaultKey,
+          label: trackSet.arrangementLabel,
+          sectionOrder: trackSet.sections.map((section) => section.sectionId),
+          songRef: trackSet.songRef,
+          tempoBpm: trackSet.tempoBpm
+        },
+        requestId: `demo-seed-arrangement-${trackSet.arrangementRef}`
+      });
+
+      for (const section of trackSet.sections) {
+        await play.commandService.savePlaySection({
+          actor: demoActor,
+          input: {
+            arrangementRef: trackSet.arrangementRef,
+            clickEnabledDefault: section.clickEnabledDefault,
+            kind: section.kind,
+            label: section.label,
+            lengthBars: section.lengthBars,
+            sectionId: section.sectionId
+          },
+          requestId: `demo-seed-section-${section.sectionId}`
+        });
+      }
+
+      await play.commandService.saveTrackSet({
+        actor: demoActor,
+        input: {
+          arrangementRef: trackSet.arrangementRef,
+          defaultKey: trackSet.defaultKey,
+          songRef: trackSet.songRef,
+          tempoBpm: trackSet.tempoBpm,
+          title: trackSet.title,
+          trackRefs: [],
+          trackSetId: trackSet.trackSetId
+        },
+        requestId: `demo-seed-track-set-${trackSet.trackSetId}`
+      });
+
+      for (const cue of trackSet.cues) {
+        await play.commandService.addPlayCue({
+          actor: demoActor,
+          input: {
+            action: cue.action,
+            fireMode: cue.fireMode,
+            label: cue.label,
+            markerOffsetBeats: cue.markerOffsetBeats,
+            sectionId: cue.sectionId,
+            trackSetId: trackSet.trackSetId,
+            ...(cue.padLayerRef !== undefined ? { padLayerRef: cue.padLayerRef } : {}),
+            ...(cue.targetSectionRef !== undefined
+              ? { targetSectionRef: cue.targetSectionRef }
+              : {})
+          },
+          requestId: `demo-seed-cue-${trackSet.trackSetId}-${cue.label}`
+        });
+      }
     }
   };
 
