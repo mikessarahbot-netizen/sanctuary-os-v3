@@ -1,25 +1,24 @@
 # NOW
 
 ## Task
-OBS module, slice 8: the persistence-backed OBS service over the slice-4 SQLite adapter + a composition that applies `ObsInitialSchemaMigration` via the runner. The confirm→dispatch gate MUST hold identically on the persistence path. Mirror the other modules' persistence slices. (OBS slices 1–7 done + green at `3fc118d`.)
+OBS module, slice 9: the OBS WebSocket events — add the durable OBS state events (e.g. stream started/stopped, scene changed, action dispatched) to the API event union with `.strict()` SECRET-FREE + PII-FREE coarse payloads + tenant/aggregate scope superRefines, emitted after durable commits. Mirror the play/community events. (OBS slices 1–8 done + green at `0ee0e4d`.)
 
 ## Module / authority
-Building OBS from `05-plans/obs-module-plan.md` (authoritative). The injected ObsControlPort is the only thing that touches OBS; dispatch remains the sole port-mutate caller, refusing unless confirmed — on BOTH the in-memory and persistence paths. Charts + Play + Community+ backends complete.
+Building OBS from `05-plans/obs-module-plan.md` (authoritative). Event payloads must carry NO secrets (no host/password/token/streamKey/connection details) and NO PII — only opaque refs (connectionProfileRef, sceneRef, actionIntentId) + coarse status. High-frequency telemetry stays off the union. Charts + Play + Community+ backends complete; OBS slices 1–8 done.
 
 ## Session protocol (in force)
 `agents.md` › "Session continuity protocol": commit + push at clean breakpoints. Handoff = the module plans + this NOW.md + `docs/session-summary.md`.
 
-## In scope (slice 8)
+## In scope (slice 9)
 - Continue on `feature/presenter-domain-contracts`
-- Mirror `apps/api/src/services/{charts,play,community}/persistence.ts` + `composition.ts` (+ their tests) exactly
-- Add `apps/api/src/services/obs/persistence.ts`: a persistence-backed `ObsQueryService`/`ObsCommandService` delegating to `createObsQuerySqlRepository`/`createObsCommandSqlRepository` over an injected executor (+ injected clock + id generator + the slice-5 ObsControlPort + the error classifier — same deps the in-memory service takes). Translate domain ops → persistence ops and persistence records → domain records (field-by-field; re-apply brands via the domain schemas on read). Preserve tenant scope, typed ObsDomainError, the pure eligibility checker on requestObsAction, and — critically — the confirm→dispatch gate: dispatch is the ONLY method that calls a port mutate method and refuses unless status=confirmed, with the audit-log write on every step (same structure as in-memory).
-- Add `apps/api/src/services/obs/composition.ts`: `createObsPersistenceSelection` (in-memory vs sql) + `migrateObsSqliteSchema` applying `ObsInitialSchemaMigration` via `createSqliteMigrationRunner`
-- Keep the in-memory service as the test double; do not change the GraphQL surface
-- Export from the obs services barrel
-- Tests: a recording/fake-executor service test (domain↔persistence mapping, tenant scope, not-found → typed error, AND the dispatch gate still enforced — dispatch-without-confirm rejected, port NEVER called) + a `node:sqlite` integration test (migrate via runner → save connection → refresh catalog via the fake port → request→confirm→dispatch an action → assert the port called once + audit rows + the confirm-before-dispatch gate over real SQLite)
+- Mirror the play/community events: read `apps/api/src/events/index.ts` (the union + the play/community payloads + scope superRefines + how community/play emit after durable commits in their `in-memory.ts`) and `apps/api/src/services/obs/in-memory.ts` (the durable commit points — a successful dispatch [stream/scene change], a catalog refresh, a confirmed action — to hook emission)
+- Add `.strict()` SECRET-FREE + PII-FREE OBS event payloads to the API event union per the plan's event set (e.g. `obs.streamStateChanged`, `obs.programSceneChanged`, `obs.actionDispatched` — match the plan's exact names; use the plan's authoritative set over looser wording here), each with the tenant/aggregate scope superRefine (tenant + connectionProfileRef / actionIntentId)
+- Wire emission via the injected event publisher (same mechanism community/play use — optional injected publisher, a publishObsEvents reducer, per-event factories, awaited AFTER the durable commit) in `apps/api/src/services/obs/in-memory.ts`. Emit only on SUCCESS (a succeeded dispatch / a real state change) — never on a `requested`/`failed`-without-state-change. Match the established in-memory-only emission scope.
+- Tests: event payload validation (valid + scope-mismatch rejected) + a SECRET-FREE + PII-FREE payload assertion (reject host/password/token/streamKey + name/contact keys) + emit-after-commit wiring (a successful dispatch emits the right event; no emission on a rejected/unconfirmed action)
+- Do not change the GraphQL surface
 
 ## Done when
-A persistence-backed OBS service satisfies the interfaces over the slice-4 adapter with tenant scope + the eligibility + confirm→dispatch gate (dispatch sole port caller, refuses unless confirmed, audited), the migration is applied via the runner, covered by a fake-executor test + a `node:sqlite` integration test, gates green, committed and pushed.
+The OBS events are in the API event union with strict secret-free + PII-free payloads + scope superRefines, emitted after successful durable commits, covered by validation + secret/PII-free + wiring tests, gates green, committed and pushed.
 
 ## Next task after this
-OBS slice 9: WebSocket events (OBS state events — stream started/stopped, scene changed — into the API event union; PII-free + SECRET-FREE coarse payloads + scope superRefines, emitted after durable commits). Then slice 10: AI assist (reviewable action SUGGESTION → a `requested`, origin="ai-suggested" intent that can NEVER auto-confirm/dispatch; PII-free projection; injected AI port). After OBS slice 10 the OBS backend is COMPLETE → write `07-reviews/architecture/obs-backend-release-check.md`, and the autonomously-buildable backend across ALL modules is done. Slices 11–13 (real obs-websocket, desktop agent runtime, operator UI) + all module UIs await the user.
+OBS slice 10 (final OBS backend slice): AI assist — a reviewable action SUGGESTION that creates a `requested`, origin="ai-suggested" ObsActionIntent which can NEVER auto-confirm/dispatch (the slice-7 gate still blocks it); smallest PII-free projection; injected AI port; Zod-validated output. After slice 10 the OBS backend is COMPLETE → write `07-reviews/architecture/obs-backend-release-check.md`, and the autonomously-buildable backend across ALL FOUR modules (Charts, Play, Community+, OBS) is done. Then the remaining build is UIs + live integrations (real obs-websocket, desktop/mobile shells, operator UIs) — all of which need the user (surface decision + external connections + visual verification).

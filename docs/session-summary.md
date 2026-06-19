@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 8: persistence-backed service
+
+Tasks completed:
+- OBS slice 8 (delegated; parent verified gates + re-checked the gate): `apps/api/src/services/obs/persistence.ts` + `composition.ts` over the slice-4 SQL repos. Extracted a shared `port-bridge.ts` (callObsPortForAction) used by BOTH in-memory and persistence — now the SOLE port-mutate caller on both paths; dispatch refuses unless confirmed before reaching it (re-verified by grep). Added the additive removeObsConnectionProfile db write. Fake-executor test + node:sqlite integration test proving the gate over real SQLite. +16 api tests. Gates green: db 466 / api 799 + 2 skipped / desktop 89 / church-context 5. Committed `0ee0e4d`.
+
+Next task:
+- OBS slice 9: WebSocket events (secret-free + PII-free). Then slice 10 (AI assist) → OBS backend complete → ALL FOUR module backends complete.
+
+Open questions / follow-ups: standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 7: action gate (SAFETY CORE)
 
 Tasks completed:
