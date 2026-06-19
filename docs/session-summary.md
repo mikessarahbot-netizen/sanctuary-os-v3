@@ -2,6 +2,16 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 4: SQLite adapter
+
+Tasks completed:
+- OBS slice 4 (delegated; parent verified gates): `packages/db/src/obs-sql-repository.ts` — query + command SQL repositories over an injected executor; tenant-filtered, row↔contract mapping, boolean↔0/1, flattened confirmation columns↔object, transactional catalog-snapshot replace, confirm-gated setObsActionIntentStatus (DDL CHECK rejects dispatch on an unconfirmed intent - proven in the smoke), insert-only action log. +23 db tests (incl. node:sqlite smoke + no-secrets assertion). Gates green: db 466 / api 709 + 2 skipped / desktop 89 / church-context 5. Committed `f92d70e`.
+
+Next task:
+- OBS slice 5: the ObsControlPort interface + a faked adapter (the obs-websocket boundary). Then slices 6–10 per the plan.
+
+Open questions / follow-ups: standing (UI surface decision; live /goal hook driving the build — no runnable UI yet).
+
 ## 2026-06-17 - feature/presenter-domain-contracts - OBS slice 3: migration artifact
 
 Tasks completed:
