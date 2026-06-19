@@ -55,6 +55,57 @@ export interface PlayReplayCommandExecutor {
   readonly setPlaybackState: (command: SetPlaybackStateCommand) => Promise<unknown>;
 }
 
+const playReplayMutationDocument = (
+  operationName: string,
+  inputTypeName: string,
+  confirmationField: string
+): string =>
+  `mutation ${operationName}($input: ${inputTypeName}!) {\n  ${operationName}(input: $input) {\n    ${confirmationField}\n  }\n}`;
+
+/**
+ * Canonical Play replay mutation documents, keyed by operation name.
+ *
+ * Each document declares the server's real typed input (e.g. `SaveTrackSetInput!`),
+ * so it validates against the executable Play schema — a `JSON!` variable would be
+ * rejected because the mutations expect their specific `input` type. This map is
+ * the single source of truth: the desktop network replay executor sends exactly
+ * these strings, and the api `validate(schema, parse(document))` test asserts
+ * against this same map, so the documents the desktop ships are the documents
+ * proven valid against the schema. The selection set is the minimal confirmation
+ * field replay relies on.
+ */
+export const PLAY_REPLAY_MUTATION_DOCUMENTS = {
+  addPlayCue: playReplayMutationDocument("addPlayCue", "AddPlayCueInput", "cueId"),
+  reorderPlaySections: playReplayMutationDocument(
+    "reorderPlaySections",
+    "ReorderPlaySectionsInput",
+    "sectionId"
+  ),
+  savePadLayer: playReplayMutationDocument("savePadLayer", "SavePadLayerInput", "padLayerRef"),
+  savePlayArrangement: playReplayMutationDocument(
+    "savePlayArrangement",
+    "SavePlayArrangementInput",
+    "arrangementRef"
+  ),
+  savePlaySection: playReplayMutationDocument(
+    "savePlaySection",
+    "SavePlaySectionInput",
+    "sectionId"
+  ),
+  saveTrackSet: playReplayMutationDocument("saveTrackSet", "SaveTrackSetInput", "trackSetId"),
+  setPlaybackState: playReplayMutationDocument(
+    "setPlaybackState",
+    "SetPlaybackStateInput",
+    "trackSetId"
+  ),
+  updatePlayCue: playReplayMutationDocument("updatePlayCue", "UpdatePlayCueInput", "cueId"),
+  updateTrackSetMembers: playReplayMutationDocument(
+    "updateTrackSetMembers",
+    "UpdateTrackSetMembersInput",
+    "trackSetId"
+  )
+} as const satisfies Readonly<Record<string, string>>;
+
 /**
  * Maps a validated Play local sync queue entry to the existing Play service
  * command shape so a desktop replay runtime can re-issue an offline edit through

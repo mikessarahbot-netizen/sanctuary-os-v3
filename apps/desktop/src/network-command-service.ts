@@ -1,4 +1,7 @@
-import type { PresenterReplayCommandExecutor } from "@sanctuary-os/api/presenter";
+import {
+  PRESENTER_REPLAY_MUTATION_DOCUMENTS,
+  type PresenterReplayCommandExecutor
+} from "@sanctuary-os/api/presenter";
 
 /**
  * Network-backed Presenter replay command executor.
@@ -59,17 +62,14 @@ export class PresenterNetworkReplayError extends Error {
   }
 }
 
-const mutationDocument = (operationName: string, confirmationField: string): string =>
-  `mutation ${operationName}($input: JSON!) {\n  ${operationName}(input: $input) {\n    ${confirmationField}\n  }\n}`;
-
-const REPLAY_MUTATIONS = {
-  addSlide: mutationDocument("addSlide", "slideId"),
-  applyPresenterTheme: mutationDocument("applyPresenterTheme", "presentationId"),
-  reorderSlides: mutationDocument("reorderSlides", "slideId"),
-  setOutputTarget: mutationDocument("setOutputTarget", "outputTargetId"),
-  updatePresentation: mutationDocument("updatePresentation", "presentationId"),
-  updateSlide: mutationDocument("updateSlide", "slideId")
-} as const;
+/**
+ * The replay mutation documents are owned by `@sanctuary-os/api` so the strings
+ * the desktop sends are the exact strings the api schema-validation test proves
+ * valid against the executable Presenter schema. Each declares its real typed
+ * `input` (e.g. `UpdatePresentationInput!`), not `JSON!`, so the documents
+ * validate against the server's typed mutations.
+ */
+const REPLAY_MUTATIONS = PRESENTER_REPLAY_MUTATION_DOCUMENTS;
 
 export const createPresenterNetworkReplayCommandExecutor = (
   dependencies: PresenterNetworkReplayCommandExecutorDependencies

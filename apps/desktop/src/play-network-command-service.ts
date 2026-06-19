@@ -1,4 +1,7 @@
-import type { PlayReplayCommandExecutor } from "@sanctuary-os/api/play";
+import {
+  PLAY_REPLAY_MUTATION_DOCUMENTS,
+  type PlayReplayCommandExecutor
+} from "@sanctuary-os/api/play";
 
 /**
  * Network-backed Play replay command executor.
@@ -60,20 +63,14 @@ export class PlayNetworkReplayError extends Error {
   }
 }
 
-const mutationDocument = (operationName: string, confirmationField: string): string =>
-  `mutation ${operationName}($input: JSON!) {\n  ${operationName}(input: $input) {\n    ${confirmationField}\n  }\n}`;
-
-const REPLAY_MUTATIONS = {
-  addPlayCue: mutationDocument("addPlayCue", "cueId"),
-  reorderPlaySections: mutationDocument("reorderPlaySections", "sectionId"),
-  savePadLayer: mutationDocument("savePadLayer", "padLayerRef"),
-  savePlayArrangement: mutationDocument("savePlayArrangement", "arrangementRef"),
-  savePlaySection: mutationDocument("savePlaySection", "sectionId"),
-  saveTrackSet: mutationDocument("saveTrackSet", "trackSetId"),
-  setPlaybackState: mutationDocument("setPlaybackState", "trackSetId"),
-  updatePlayCue: mutationDocument("updatePlayCue", "cueId"),
-  updateTrackSetMembers: mutationDocument("updateTrackSetMembers", "trackSetId")
-} as const;
+/**
+ * The replay mutation documents are owned by `@sanctuary-os/api` so the strings
+ * the desktop sends are the exact strings the api schema-validation test proves
+ * valid against the executable Play schema. Each declares its real typed `input`
+ * (e.g. `SaveTrackSetInput!`), not `JSON!`, so the documents validate against the
+ * server's typed mutations.
+ */
+const REPLAY_MUTATIONS = PLAY_REPLAY_MUTATION_DOCUMENTS;
 
 export const createPlayNetworkReplayCommandExecutor = (
   dependencies: PlayNetworkReplayCommandExecutorDependencies
