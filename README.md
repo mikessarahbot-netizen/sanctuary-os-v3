@@ -2,6 +2,12 @@
 
 Token-optimised, file-governed workspace for Claude Code and Codex — with GitHub workflow built in.
 
+## The application
+To run the actual Sanctuary OS app (the GraphQL backend + the web operator console),
+the test suites, the architecture, and the safety model, see
+**[docs/running.md](docs/running.md)**. The rest of this file covers the
+agent/workspace governance.
+
 ## Start here
 1. Open this folder as your project root in Claude Code.
 2. Claude Code auto-loads `agents.md` on every turn (Tier 1 context).
