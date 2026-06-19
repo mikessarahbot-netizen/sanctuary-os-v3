@@ -29,13 +29,15 @@
     "test": "vitest run",
     "test:integration:postgres": "vitest run src/services/planning/postgresql-integration.test.ts src/services/presenter/postgresql-integration.test.ts",
     "dev": "tsx src/demo/server.ts",
-    "dev:persistent": "tsx src/demo/persistent-server.ts"
+    "dev:persistent": "tsx src/demo/persistent-server.ts",
+    "ai:smoke": "tsx src/demo/ai-smoke-test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
     "@graphql-tools/schema": "^10.0.33",
     "@sanctuary-os/church-context": "workspace:*",
     "@sanctuary-os/db": "workspace:*",
+    "dotenv": "^17.4.2",
     "graphql": "^16.14.2",
     "zod": "^3.25.67"
   },
