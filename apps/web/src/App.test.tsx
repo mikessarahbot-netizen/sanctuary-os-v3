@@ -56,4 +56,50 @@ describe("App", () => {
     });
     expect(screen.queryByText("Build My Life")).toBeNull();
   });
+
+  it("switches to the Community surface when the Community tab is clicked", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Amazing Grace")).toBeInTheDocument();
+    });
+
+    const nav = screen.getByRole("navigation", { name: "Surfaces" });
+    await user.click(within(nav).getByRole("button", { name: "Community" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Community" })
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("Hospitality Team")).toBeInTheDocument();
+    // The Charts and Play surfaces are unmounted.
+    expect(screen.queryByText("Amazing Grace")).toBeNull();
+    expect(screen.queryByText("Build My Life")).toBeNull();
+  });
+
+  it("switches across Charts, Play, and Community without leaking surfaces", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const nav = screen.getByRole("navigation", { name: "Surfaces" });
+
+    await user.click(within(nav).getByRole("button", { name: "Community" }));
+    await waitFor(() => {
+      expect(screen.getByText("Tuesday Small Group")).toBeInTheDocument();
+    });
+
+    await user.click(within(nav).getByRole("button", { name: "Play" }));
+    await waitFor(() => {
+      expect(screen.getByText("Build My Life")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Tuesday Small Group")).toBeNull();
+
+    await user.click(within(nav).getByRole("button", { name: "Charts" }));
+    await waitFor(() => {
+      expect(screen.getByText("Amazing Grace")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Build My Life")).toBeNull();
+  });
 });

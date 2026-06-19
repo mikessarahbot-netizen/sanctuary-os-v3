@@ -12,13 +12,17 @@ import type { Server } from "node:http";
  * Runnable local DEMO GraphQL server for the API.
  *
  * This composes the full executable schema with every module's in-memory
- * service (deterministic clock + id generators; the OBS/Community fakes are the
- * adapters' built-in defaults), resolves every request to one fixed demo actor,
- * and seeds a handful of Charts plus a couple of Play track sets (each with an
- * arrangement, sections, and cues) under the demo tenant so the `charts` /
- * `chart` and `trackSets` / `trackSet` / `playSections` / `playCues` queries
- * return populated data. It exists only so the `apps/web` read surfaces can hit
- * a live endpoint for local screenshots; it is NOT a production server.
+ * service (deterministic clock + id generators; the OBS fake is the adapter's
+ * built-in default), resolves every request to one fixed demo actor, and seeds a
+ * handful of Charts, a couple of Play track sets (each with an arrangement,
+ * sections, and cues), plus a small Community+ congregation structure (two groups
+ * with members + memberships + member attendance + derived engagement summaries)
+ * under the demo tenant so the `charts` / `chart`, `trackSets` / `trackSet` /
+ * `playSections` / `playCues`, and `communityGroups` / `communityGroup` /
+ * `groupMemberships` / `members` / `engagementSummaries` queries return populated
+ * data. It exists only so the `apps/web` read surfaces can hit a live endpoint for
+ * local screenshots; it is NOT a production server. The seeded Community+ data is
+ * PII-safe (display names + opaque contact refs + consent only).
  *
  * The demo auth is intentionally trivial (see `DemoAuthBoundary`): it ignores
  * the `Authorization` header value and always returns the same actor. Never
@@ -281,6 +285,157 @@ const DEMO_PLAY_TRACK_SETS: readonly DemoSeedPlayTrackSet[] = [
   }
 ];
 
+interface DemoSeedContactChannelRef {
+  readonly channelRef: string;
+  readonly consentStatus: "granted" | "denied" | "unknown";
+  readonly kind: "sms" | "email" | "push" | "other";
+}
+
+interface DemoSeedMember {
+  readonly contactChannelRefs: readonly DemoSeedContactChannelRef[];
+  readonly displayName: string;
+  readonly memberId: string;
+  readonly status: "active" | "inactive" | "visitor" | "archived";
+}
+
+interface DemoSeedGroupMembership {
+  readonly memberRef: string;
+  readonly membershipId: string;
+  readonly roleInGroup: "leader" | "co-leader" | "member" | "guest";
+}
+
+interface DemoSeedAttendance {
+  readonly memberRef: string;
+  readonly occasionRef: string;
+  readonly status: "present" | "absent" | "excused";
+}
+
+interface DemoSeedCommunityGroup {
+  // Hyphenated DOMAIN enum value — the seed calls the in-memory command service
+  // directly (not via GraphQL), so the domain `GroupKindSchema` value is used,
+  // not the underscored GraphQL SDL name.
+  readonly kind: "small-group" | "serving-team" | "ministry" | "class" | "other";
+  readonly groupId: string;
+  readonly label: string;
+  readonly leaderMemberRef?: string;
+  readonly memberships: readonly DemoSeedGroupMembership[];
+}
+
+/**
+ * Demo Community+ seed. Mirrors `apps/web/src/community/sample-data.ts`
+ * (Hospitality Team / Tuesday Small Group, with members Anita / David / Maria /
+ * Jon) so the live Community screen renders the same congregation structure demo
+ * mode shows. Seeded through the real Community command service (members ->
+ * groups -> memberships -> member attendance -> recompute engagement) so the live
+ * `communityGroups` / `communityGroup` / `groupMemberships` / `members` /
+ * `engagementSummaries` queries serve populated data.
+ *
+ * PRIVACY: every seeded value is PII-SAFE. Members carry a `displayName` (a
+ * directory name) + `status` and opaque `contactChannelRefs` — each ref is a
+ * vault `channelRef` token (e.g. `channel-anita-sms`), a `kind`, and a
+ * `consentStatus`, NEVER a phone/email/address value. The Community+ schemas
+ * (`apps/api/src/domain/community/schemas.ts`) `.strict()`-reject any raw contact
+ * key, so a contact value cannot be seeded even by mistake.
+ */
+const DEMO_COMMUNITY_MEMBERS: readonly DemoSeedMember[] = [
+  {
+    contactChannelRefs: [
+      { channelRef: "channel-anita-sms", consentStatus: "granted", kind: "sms" },
+      { channelRef: "channel-anita-email", consentStatus: "granted", kind: "email" }
+    ],
+    displayName: "Anita Bello",
+    memberId: "member-anita",
+    status: "active"
+  },
+  {
+    contactChannelRefs: [
+      { channelRef: "channel-david-sms", consentStatus: "denied", kind: "sms" }
+    ],
+    displayName: "David Okoye",
+    memberId: "member-david",
+    status: "active"
+  },
+  {
+    contactChannelRefs: [
+      { channelRef: "channel-maria-email", consentStatus: "unknown", kind: "email" }
+    ],
+    displayName: "Maria Santos",
+    memberId: "member-maria",
+    status: "visitor"
+  },
+  {
+    contactChannelRefs: [
+      { channelRef: "channel-jon-push", consentStatus: "granted", kind: "push" }
+    ],
+    displayName: "Jon Pierce",
+    memberId: "member-jon",
+    status: "active"
+  }
+];
+
+const DEMO_COMMUNITY_GROUPS: readonly DemoSeedCommunityGroup[] = [
+  {
+    groupId: "group-hospitality",
+    kind: "serving-team",
+    label: "Hospitality Team",
+    leaderMemberRef: "member-anita",
+    memberships: [
+      {
+        memberRef: "member-anita",
+        membershipId: "membership-hospitality-anita",
+        roleInGroup: "leader"
+      },
+      {
+        memberRef: "member-david",
+        membershipId: "membership-hospitality-david",
+        roleInGroup: "member"
+      },
+      {
+        memberRef: "member-maria",
+        membershipId: "membership-hospitality-maria",
+        roleInGroup: "guest"
+      }
+    ]
+  },
+  {
+    groupId: "group-tuesday",
+    kind: "small-group",
+    label: "Tuesday Small Group",
+    leaderMemberRef: "member-jon",
+    memberships: [
+      {
+        memberRef: "member-jon",
+        membershipId: "membership-tuesday-jon",
+        roleInGroup: "leader"
+      },
+      {
+        memberRef: "member-anita",
+        membershipId: "membership-tuesday-anita",
+        roleInGroup: "co-leader"
+      }
+    ]
+  }
+];
+
+/**
+ * Member attendance rows used to populate `engagementSummaries` via
+ * `recomputeEngagementSummaries`. Each `present` row builds a member's attendance
+ * streak; combined with active memberships (serving count) the recompute produces
+ * a non-empty, PII-free summary per member. `recordedAt` is set by the demo clock
+ * at seed time (mid-2026), which sits inside the recompute window below.
+ */
+const DEMO_COMMUNITY_ATTENDANCE: readonly DemoSeedAttendance[] = [
+  { memberRef: "member-anita", occasionRef: "occasion-2026-06-07", status: "present" },
+  { memberRef: "member-anita", occasionRef: "occasion-2026-06-14", status: "present" },
+  { memberRef: "member-jon", occasionRef: "occasion-2026-06-14", status: "present" },
+  { memberRef: "member-david", occasionRef: "occasion-2026-06-14", status: "present" }
+];
+
+const DEMO_ENGAGEMENT_WINDOW = {
+  windowEnd: "2026-12-31T23:59:59.000Z",
+  windowStart: "2026-01-01T00:00:00.000Z"
+} as const;
+
 export interface DemoServerComposition {
   readonly authBoundary: AuthBoundary;
   readonly seed: () => Promise<void>;
@@ -428,6 +583,83 @@ export const createDemoServer = (
         });
       }
     }
+
+    // Community+: members first (so memberships + engagement reference existing
+    // members), then groups, then memberships, then member attendance, then a
+    // single engagement recompute over the window. Every save goes through the
+    // real command service with explicit ids so `communityGroup(id:)` /
+    // `groupMemberships(groupId:)` / `member(id:)` stay stable and aligned with
+    // the web sample data. All seeded values are PII-safe (display names + opaque
+    // contact refs + consent only — never a contact value).
+    for (const member of DEMO_COMMUNITY_MEMBERS) {
+      await community.commandService.saveMember({
+        actor: demoActor,
+        input: {
+          contactChannelRefs: [...member.contactChannelRefs],
+          customFieldValues: [],
+          displayName: member.displayName,
+          memberId: member.memberId,
+          segmentRefs: [],
+          status: member.status
+        },
+        requestId: `demo-seed-member-${member.memberId}`
+      });
+    }
+
+    for (const group of DEMO_COMMUNITY_GROUPS) {
+      await community.commandService.saveCommunityGroup({
+        actor: demoActor,
+        input: {
+          archived: false,
+          groupId: group.groupId,
+          kind: group.kind,
+          label: group.label,
+          ...(group.leaderMemberRef !== undefined
+            ? { leaderMemberRef: group.leaderMemberRef }
+            : {})
+        },
+        requestId: `demo-seed-group-${group.groupId}`
+      });
+
+      for (const membership of group.memberships) {
+        await community.commandService.setGroupMembership({
+          actor: demoActor,
+          input: {
+            active: true,
+            groupId: group.groupId,
+            memberRef: membership.memberRef,
+            membershipId: membership.membershipId,
+            roleInGroup: membership.roleInGroup
+          },
+          requestId: `demo-seed-membership-${membership.membershipId}`
+        });
+      }
+    }
+
+    for (const record of DEMO_COMMUNITY_ATTENDANCE) {
+      // Member attendance row: memberRef + status, never a headcount (the schema
+      // rejects a headcount on a member row).
+      await community.commandService.recordAttendance({
+        actor: demoActor,
+        input: {
+          memberRef: record.memberRef,
+          occasionRef: record.occasionRef,
+          status: record.status
+        },
+        requestId: `demo-seed-attendance-${record.memberRef}-${record.occasionRef}`
+      });
+    }
+
+    // Derive the PII-free engagement summaries (refs + counts) over the window so
+    // the live `engagementSummaries` query is populated.
+    await community.commandService.recomputeEngagementSummaries({
+      actor: demoActor,
+      input: {
+        windowEnd: DEMO_ENGAGEMENT_WINDOW.windowEnd,
+        windowStart: DEMO_ENGAGEMENT_WINDOW.windowStart
+      },
+      requestId: "demo-seed-engagement-recompute"
+    });
   };
 
   return { authBoundary, seed, server };

@@ -9,15 +9,20 @@ import {
   resolvePlayDataSource,
   resolvePlayDataSourceMode
 } from "./play/data-source.js";
+import { CommunityScreen } from "./community/CommunityScreen.js";
+import {
+  resolveCommunityDataSource,
+  resolveCommunityDataSourceMode
+} from "./community/data-source.js";
 
 /**
- * App root. Resolves the Charts and Play data sources (demo vs live) from the
- * URL query and `VITE_API_URL` / `VITE_DATA_SOURCE` env, then renders the
+ * App root. Resolves the Charts, Play, and Community data sources (demo vs live)
+ * from the URL query and `VITE_API_URL` / `VITE_DATA_SOURCE` env, then renders the
  * selected read surface behind a simple top-level tab nav. Demo mode is the
  * default so the app renders populated screens with no API. Charts is the
  * initial tab so the existing surface is unchanged on load.
  */
-type Surface = "charts" | "play";
+type Surface = "charts" | "play" | "community";
 
 export const App = (): ReactElement => {
   const [surface, setSurface] = useState<Surface>("charts");
@@ -47,6 +52,12 @@ export const App = (): ReactElement => {
     [baseOptions]
   );
 
+  const communityMode = resolveCommunityDataSourceMode(baseOptions);
+  const communityDataSource = useMemo(
+    () => resolveCommunityDataSource(baseOptions),
+    [baseOptions]
+  );
+
   return (
     <div className="app">
       <nav className="app-nav" aria-label="Surfaces">
@@ -70,11 +81,25 @@ export const App = (): ReactElement => {
         >
           Play
         </button>
+        <button
+          type="button"
+          className={
+            surface === "community" ? "app-nav__tab app-nav__tab--active" : "app-nav__tab"
+          }
+          aria-current={surface === "community" ? "page" : undefined}
+          onClick={(): void => {
+            setSurface("community");
+          }}
+        >
+          Community
+        </button>
       </nav>
       {surface === "charts" ? (
         <ChartsScreen dataSource={chartsDataSource} mode={chartsMode} />
-      ) : (
+      ) : surface === "play" ? (
         <PlayScreen dataSource={playDataSource} mode={playMode} />
+      ) : (
+        <CommunityScreen dataSource={communityDataSource} mode={communityMode} />
       )}
     </div>
   );

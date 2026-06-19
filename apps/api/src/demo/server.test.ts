@@ -35,6 +35,37 @@ interface GraphqlPlayCue {
   readonly label: string;
 }
 
+interface GraphqlCommunityGroup {
+  readonly groupId: string;
+  readonly kind: string;
+  readonly label: string;
+  readonly leaderMemberRef: string | null;
+}
+
+interface GraphqlContactChannelRef {
+  readonly channelRef: string;
+  readonly consentStatus: string;
+  readonly kind: string;
+}
+
+interface GraphqlMember {
+  readonly contactChannelRefs: readonly GraphqlContactChannelRef[];
+  readonly displayName: string;
+  readonly memberId: string;
+  readonly status: string;
+}
+
+interface GraphqlGroupMembership {
+  readonly memberRef: string;
+  readonly roleInGroup: string;
+}
+
+interface GraphqlEngagementSummary {
+  readonly scope: { readonly memberRef?: string };
+  readonly servingCount: number;
+  readonly summaryId: string;
+}
+
 interface GraphqlBody<TData> {
   readonly data?: TData | null;
   readonly errors?: readonly { readonly message: string }[];
@@ -217,6 +248,122 @@ describe("createDemoServer", () => {
     const cueLabels = (cuesPayload.data?.playCues ?? []).map((cue) => cue.label);
     expect(cueLabels).toContain("Start intro pad");
     expect(cueLabels).toContain("Jump to chorus");
+  });
+
+  it("serves the seeded community groups over HTTP", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const payload = await postGraphql<{
+      readonly communityGroups: readonly GraphqlCommunityGroup[];
+    }>(endpoint, {
+      query: "{ communityGroups { groupId kind label leaderMemberRef } }"
+    });
+
+    expect(payload.errors).toBeUndefined();
+    const groups = payload.data?.communityGroups ?? [];
+    const labels = groups.map((group) => group.label);
+    expect(labels).toContain("Hospitality Team");
+    expect(labels).toContain("Tuesday Small Group");
+    // GraphQL serializes the hyphenated domain kind to the underscored SDL name.
+    const hospitality = groups.find((group) => group.groupId === "group-hospitality");
+    expect(hospitality?.kind).toBe("serving_team");
+    expect(hospitality?.leaderMemberRef).toBe("member-anita");
+  });
+
+  it("resolves a seeded group's memberships and members over HTTP", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const membershipsPayload = await postGraphql<{
+      readonly groupMemberships: readonly GraphqlGroupMembership[];
+    }>(endpoint, {
+      query:
+        "query Memberships($groupId: ID!) { groupMemberships(groupId: $groupId) { memberRef roleInGroup } }",
+      variables: { groupId: "group-hospitality" }
+    });
+
+    expect(membershipsPayload.errors).toBeUndefined();
+    const memberRefs = (membershipsPayload.data?.groupMemberships ?? []).map(
+      (membership) => membership.memberRef
+    );
+    expect(memberRefs).toContain("member-anita");
+    expect(memberRefs).toContain("member-david");
+    expect(memberRefs).toContain("member-maria");
+
+    const membersPayload = await postGraphql<{
+      readonly members: readonly GraphqlMember[];
+    }>(endpoint, {
+      query:
+        "{ members { memberId displayName status contactChannelRefs { channelRef kind consentStatus } } }"
+    });
+
+    expect(membersPayload.errors).toBeUndefined();
+    const members = membersPayload.data?.members ?? [];
+    const names = members.map((member) => member.displayName);
+    expect(names).toContain("Anita Bello");
+    expect(names).toContain("Jon Pierce");
+  });
+
+  it("PRIVACY: serves only opaque contact refs (no contact-value field, no value leak)", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    // Selecting a contact-value field must be a schema error — no such field
+    // exists on Member; only the opaque ref (channelRef / kind / consentStatus).
+    const invalid = await postGraphql<{ readonly members: unknown }>(endpoint, {
+      query: "{ members { displayName phone email address } }"
+    });
+    expect(invalid.errors).toBeDefined();
+
+    // The valid projection carries only the opaque ref + consent — never a
+    // phone/email/address value.
+    const valid = await postGraphql<{ readonly members: readonly GraphqlMember[] }>(
+      endpoint,
+      {
+        query:
+          "{ members { displayName contactChannelRefs { channelRef kind consentStatus } } }"
+      }
+    );
+    expect(valid.errors).toBeUndefined();
+    const serialized = JSON.stringify(valid.data?.members ?? []);
+    expect(serialized).not.toContain("@");
+    expect(serialized).not.toMatch(/\d{7,}/);
+    const anita = (valid.data?.members ?? []).find(
+      (member) => member.displayName === "Anita Bello"
+    );
+    expect(anita?.contactChannelRefs.map((ref) => ref.kind).sort()).toEqual([
+      "email",
+      "sms"
+    ]);
+  });
+
+  it("serves the derived engagement summaries over HTTP", async () => {
+    const { seed, server } = createDemoServer();
+    await seed();
+    const endpoint = await startServer(server);
+
+    const payload = await postGraphql<{
+      readonly engagementSummaries: readonly GraphqlEngagementSummary[];
+    }>(endpoint, {
+      query:
+        "{ engagementSummaries(filter: { scopeKind: member }) { summaryId servingCount scope { ... on EngagementMemberScope { memberRef } } } }"
+    });
+
+    expect(payload.errors).toBeUndefined();
+    const summaries = payload.data?.engagementSummaries ?? [];
+    const memberRefs = summaries
+      .map((summary) => summary.scope.memberRef)
+      .filter((ref): ref is string => ref !== undefined);
+    // Anita is in two active groups, so her serving count is 2.
+    const anita = summaries.find(
+      (summary) => summary.scope.memberRef === "member-anita"
+    );
+    expect(memberRefs).toContain("member-anita");
+    expect(anita?.servingCount).toBe(2);
   });
 
   it("rejects a request with no Authorization header", async () => {
