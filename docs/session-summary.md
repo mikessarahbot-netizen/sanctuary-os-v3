@@ -2,6 +2,18 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Web depth: Community comms send gate (2nd safety gate)
+
+Tasks completed:
+- Added the Community+ comms send flow to apps/web (delegated): compose (channel + body) → Preview audience (INCLUDED vs SUPPRESSED with consent reason — consent suppression made visible, refs/names only, no contact values) → loud human-confirm SEND gate (audited reason + suppressed count) → queue. confirmAndQueue is the only queue path (resolveAudience → review → confirm → queue), invoked only from Confirm; tests + server (INVALID_LIFECYCLE_TRANSITION) prove queue never precedes confirm. +20 web tests (web 178).
+- VERIFIED LIVE via preview (DOM-read where below the fold): composed to Hospitality Team/sms → audience 1 included (Anita) / 2 suppressed (David denied, Maria no-channel) → gate ("This SENDS to 1 person... 2 suppressed... reason") → "Queued to 1 recipient. 2 suppressed — not contacted."
+- Gates green: db 466 / api 862 + 2 skipped / desktop 89 / church-context 5 / web 178. Committed `07bf152`.
+- The web product now demonstrates BOTH human-confirm safety gates (OBS scene-switch + Community comms-send) + consent suppression, live.
+
+Next task: further web depth available (Play playback control, OBS more actions, Community AI-draft, Charts arrangements/annotations). Native desktop (Tauri) + mobile (Expo) shells + live external integrations need the user.
+
+Open questions: priorities; native + external need the user.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Web depth: Charts transpose
 
 Tasks completed:
