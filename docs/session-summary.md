@@ -2,6 +2,18 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-17 - feature/presenter-domain-contracts - Web depth: Play playback control (ALL 4 MODULES INTERACTIVE)
+
+Tasks completed:
+- Added a Play playback control to apps/web (delegated): the track-set detail shows a color-coded transport status (stopped/playing/paused), active section, click state, with Play/Pause/Stop + a clickable set-active-section list, each writing via the live setPlaybackState mutation. Demo server seeds an initial PlaybackState. +20 web, +2 api tests (web 198, api 864 + 2 skipped).
+- VERIFIED LIVE via preview: Play tab → Build My Life → clicked Play → transport shows PLAYING (live write). Screenshotted.
+- Gates green: db 466 / api 864 + 2 skipped / desktop 89 / church-context 5 / web 198. Committed `67d1c20`.
+- MILESTONE: all four modules are now interactive in the web product — Charts (edit + transpose), Play (playback control), Community+ (comms-send gate), OBS (scene-switch gate) — plus read surfaces and two human-confirm safety gates, all live-verified, on the complete backend.
+
+Next task: further web depth remains available (OBS start/stop-stream gate, Community AI-draft, Charts arrangements/annotations, more Play). The native desktop (Tauri) + mobile (Expo) shells and live external integrations (real obs-websocket, comms carrier) need the user.
+
+Open questions: priorities; native + external need the user.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Web depth: Community comms send gate (2nd safety gate)
 
 Tasks completed:
