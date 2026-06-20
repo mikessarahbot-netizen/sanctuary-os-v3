@@ -68,8 +68,8 @@ pnpm --filter @sanctuary-os/web test:e2e                     # web↔api contrac
 pnpm --filter @sanctuary-os/api test:integration:postgres    # requires a running Postgres
 ```
 
-Current suite: **db 466 · api 868** (+2 Postgres-only skips) **· web 222** (incl.
-11 e2e) **· desktop 89 · church-context 5**.
+Current suite: **db 472 · api 920** (+3 Postgres-only skips) **· web 239** (incl.
+e2e) **· desktop 89 · church-context 5**.
 
 ## Safety model (enforced in code, covered by tests)
 
@@ -93,23 +93,36 @@ Current suite: **db 466 · api 868** (+2 Postgres-only skips) **· web 222** (in
 Community+, OBS; on-disk SQLite persistence with restart-durability; the web↔api
 GraphQL contract.
 
-**Needs external input** (a credential, an account, hardware, or a product decision):
+**Real integrations BUILT (ready to wire) — each needs only its credential to go live:**
 
-- **Cloud persistence** — wire the adapters to a provisioned Postgres/Supabase
-  (the local SQLite path is done).
-- **Native shells** — the Tauri desktop shell (Rust toolchain) and the Expo
-  mobile app (`apps/mobile` is a placeholder).
-- **Live integrations** — real OBS (`packages/obs-agent` + obs-websocket
-  credentials), a communications carrier (email/SMS provider key), and real AI
-  (`packages/ai-engine` + an API key).
+- **AI assist** — real Anthropic adapters (Community draft + OBS suggest) on the
+  official `@anthropic-ai/sdk`, **LIVE-VERIFIED end-to-end** in the browser against
+  `claude-opus-4-8` and surfaced in the Community/OBS web UI (env-gated on
+  `ANTHROPIC_API_KEY`; demo uses fakes without a key). See "Live AI" below.
+- **Cloud Postgres** — the 4 modules run over PostgreSQL via a `?`→`$N` translator
+  (SQLite SQL untouched); the 26-table schema is **deployed + SQL-verified on
+  Supabase**. Full adapter verify needs `SANCTUARY_OS_POSTGRES_URL` in `apps/api/.env`
+  then `dev:postgres` / the postgres integration test. See "Live OBS" / status notes.
+- **Live OBS** — real obs-websocket-v5 adapter
+  (`apps/api/src/services/obs/obs-websocket-control-port.ts`), unit-tested; wire a
+  connected `OBSWebSocket` (host/port/password from the vault) behind the existing
+  confirm gate to go live.
+
+**Still needs an account / hardware / product decision:**
+
+- **Comms carrier** — pick a provider (Twilio / Resend / SendGrid) + API key to
+  replace the fake send port.
+- **Native shells** — the Tauri desktop shell (Rust toolchain) and the Expo mobile
+  app (`apps/mobile` is a placeholder + a UX decision).
+- **Deploy / CI** — a host + a GitHub Actions workflow.
 
 ### Live AI (real Anthropic adapters)
 
 The two AI-assist ports (Community+ comms drafting, OBS action suggestions) ship
 real, Anthropic-backed adapters built on the official `@anthropic-ai/sdk`. They are
-**unit-tested with an injected fake client but not live-verified** — going live
-needs `ANTHROPIC_API_KEY` in the deploy environment (the SDK reads it; it is never
-handled in code). The demo servers keep using the fake/no-op ports and need no key.
+**live-verified end-to-end** against the real model and surfaced in the web UI;
+going live needs `ANTHROPIC_API_KEY` in the deploy environment (the SDK reads it; it
+is never handled in code). The demo servers keep using the fake/no-op ports without a key.
 
 To wire them live, inject the real adapters in place of the fakes when
 `ANTHROPIC_API_KEY` is set (the SDK resolves the key from env at the composition
