@@ -20,8 +20,8 @@ Gates: **db 472 · api 908 (+3 skipped) · web 239 · desktop 89 · church-conte
 - **Done when:** the charts postgresql-integration test passes against real Supabase, proving the 4 modules' adapter CODE (not just the schema) persists to cloud Postgres end-to-end. Then commit a `docs`/`test` note + push.
 
 ## Remaining gated paths (need a user credential / account / hardware / decision)
-- Live OBS: real obs-websocket adapter in `packages/obs-agent` + a running OBS instance + host/password.
-- Comms carrier: pick a provider (Twilio / Resend / SendGrid) + API key + verified sender → replace the fake send port.
+- Live OBS: the real obs-websocket-v5 adapter is BUILT + unit-tested (`apps/api/src/services/obs/obs-websocket-control-port.ts`, commit `3f59618`). Needs only a running OBS Studio (obs-websocket v5 enabled) + host/port/password to live-verify: connect an `OBSWebSocket` and pass `createObsWebSocketControlPort({ client })` as the OBS persistence selection's `controlPort` behind the existing confirm gate.
+- Comms carrier: pick a provider (Twilio / Resend / SendGrid) + API key + verified sender → build the send-port adapter (same ready-to-wire pattern), replacing the fake send port. (The one path with no adapter yet — needs the provider decision first.)
 - Native shells: Tauri desktop (needs Rust toolchain) + Expo mobile (`apps/mobile` is a placeholder + a UX decision).
 - Deploy/CI: a host + a GitHub Actions workflow (activates Actions on the user's account — needs explicit OK).
 
