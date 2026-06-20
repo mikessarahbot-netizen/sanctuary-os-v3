@@ -40,6 +40,7 @@
     "@sanctuary-os/db": "workspace:*",
     "dotenv": "^17.4.2",
     "graphql": "^16.14.2",
+    "obs-websocket-js": "^5.0.8",
     "zod": "^3.25.67"
   },
   "devDependencies": {

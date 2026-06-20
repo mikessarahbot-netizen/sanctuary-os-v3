@@ -128,3 +128,48 @@ const aiSuggestionPort = createAnthropicObsAiSuggestionPort({ client });
 // …pass aiDraftPort / aiSuggestionPort into the Community+ / OBS persistence
 // selection in place of the fake ports.
 ```
+
+### Live OBS (real obs-websocket control)
+
+The OBS module dispatches confirmed actions through an injected `ObsControlPort`.
+It ships a real, obs-websocket-v5-backed adapter
+(`createObsWebSocketControlPort`) built on the official `obs-websocket-js` v5 SDK
+(the typed client for OBS Studio 28+'s obs-websocket v5), alongside the fake
+(`createFakeObsControlPort`) the demo servers and every unit test use. The real
+adapter is **unit-tested with an injected fake client but not live-verified** —
+going live needs a reachable OBS Studio instance with obs-websocket enabled and its
+connection details (host/port/password). The demo servers keep using the fake
+control port and need no OBS.
+
+**Secret posture (unchanged by going live).** The adapter never reads, stores, or
+logs the OBS host/port/password or any streaming-service stream key. The connection
+is resolved at the composition root from the access-controlled vault/env and used to
+construct and `connect` the `OBSWebSocket` client; the OBS domain records keep only
+the opaque `connectionRef` (a vault handle). The adapter operates the
+already-connected client — the caller owns connect/auth + secret resolution — and
+normalizes every obs-websocket failure to a redacted `ObsControlError` (no host,
+port, password, URL, or raw payload in the message).
+
+To wire it live, resolve the connection from the vault/env, connect an
+`OBSWebSocket`, and inject the real adapter as the OBS persistence selection's
+`controlPort` in place of the fake, behind the existing request → confirm →
+dispatch gate (output-affecting actions still require a recorded human
+confirmation):
+
+```ts
+import OBSWebSocket from "obs-websocket-js";
+import { createObsWebSocketControlPort } from "@sanctuary-os/api";
+
+const obs = new OBSWebSocket();
+await obs.connect(obsUrl, obsPassword); // url + password from the vault/env, never logged
+const controlPort = createObsWebSocketControlPort({ client: obs });
+// …pass controlPort into the OBS persistence selection (sql.controlPort) in place
+// of the fake control port.
+```
+
+`packages/obs-agent` stays a scaffold: the adapter co-locates with its api-owned
+port (the `ObsControlPort` contract lives in `apps/api`) to keep the app → package
+dependency direction — making the package import the api-owned port would invert it
+— exactly as the AI adapters co-locate with their ports rather than living in
+`packages/ai-engine`. The package remains a placeholder for the runtime-specific
+agent process (the desktop/agent that owns the socket lifecycle).
