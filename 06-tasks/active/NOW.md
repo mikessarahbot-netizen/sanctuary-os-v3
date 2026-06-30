@@ -1,6 +1,6 @@
 # NOW — active task
 
-**Branch:** `feature/presenter-release-handoff` (pushed to origin; HEAD `c441534`). NOT `feature/presenter-domain-contracts` (stale, checked out in another worktree — verify the branch yourself; a prior summary got it wrong).
+**Branch:** `feature/presenter-release-handoff` (pushed to origin; HEAD `b9805db` before the cloud-persistence verification slice). NOT `feature/presenter-domain-contracts` (stale, checked out in another worktree — verify the branch yourself; a prior summary got it wrong).
 
 **Worktree:** `/Users/SarahBot/.codex/worktrees/presenter-release-handoff`. Preview launch config name: `web` (port 5173, proxies `/graphql` → demo API on :4000).
 
@@ -9,15 +9,25 @@
 - On-disk SQLite persistence, restart-durable (`pnpm --filter @sanctuary-os/api dev:persistent`, `DEMO_DB_PATH`).
 - e2e web↔api GraphQL contract tests; adversarial safety audit (gates can't be bypassed, tenant isolation, no secret/PII leak — all hold).
 - **AI fully surfaced + LIVE-verified in the browser, both modules:** Community AI-draft + OBS AI-suggest, real `claude-opus-4-8` adapters (`apps/api/src/services/{community/anthropic-ai-draft-port,obs/anthropic-ai-suggest-port}.ts`), env-gated via `apps/api/src/demo/{community-ai,obs-ai}.ts` on `ANTHROPIC_API_KEY` (in gitignored `apps/api/.env`). Adapters strip empty-string optional fields + use NO adaptive thinking (two bugs caught by live verification). `pnpm --filter @sanctuary-os/api ai:smoke` smoke-tests them.
-- **PostgreSQL backend for the 4 modules (Supabase-ready):** `packages/db/src/postgresql-operator-executor.ts` (translates `?`→`$N`; SQLite SQL untouched), `apps/api/src/demo/postgres-server.ts` (`dev:postgres`, gated on `SANCTUARY_OS_POSTGRES_URL`, isolates objects in a `sanctuary_os` schema). The 26-table schema is **DEPLOYED + SQL-round-trip-verified** on the user's Supabase project **"Claude Projects" (`kmprojychrtodbemvwcd`)** via the Supabase MCP.
+- **PostgreSQL backend for the 4 modules (Supabase verified):** `packages/db/src/postgresql-operator-executor.ts` (translates `?`→`$N`; SQLite SQL untouched), `apps/api/src/demo/postgres-server.ts` (`dev:postgres`, gated on `SANCTUARY_OS_POSTGRES_URL`, isolates objects in a `sanctuary_os` schema). The 26-table schema is **DEPLOYED + SQL-round-trip-verified** on the user's Supabase project **"Claude Projects" (`kmprojychrtodbemvwcd`)**, and `src/services/charts/postgresql-integration.test.ts` now passes against the live Supabase session-pooler URL in `apps/api/.env`.
 
-Gates: **db 472 · api 908 (+3 skipped) · web 239 · desktop 89 · church-context 5**; lint + 5 typechecks green.
+Gates: **db 472 · api 920 (+3 skipped without live Postgres env) · web 239 · desktop 89 · church-context 5**; lint + 5 typechecks green.
 
-## NEXT slice — finish cloud-persistence verification (small; needs ONE user input)
-- **In-scope steps:** the user puts the Supabase Postgres connection string for "Claude Projects" into `apps/api/.env` as `SANCTUARY_OS_POSTGRES_URL=postgresql://...` (the DB password is the user's; the MCP doesn't expose it). Then run the adapter-level verify against the already-deployed `sanctuary_os` schema:
-  - `SANCTUARY_OS_POSTGRES_URL=... pnpm --filter @sanctuary-os/api exec vitest run src/services/charts/postgresql-integration.test.ts` (un-skips → CRUD round-trip for all 4 modules), and/or
-  - `SANCTUARY_OS_POSTGRES_URL=... pnpm --filter @sanctuary-os/api dev:postgres` then drive the web app in live mode.
-- **Done when:** the charts postgresql-integration test passes against real Supabase, proving the 4 modules' adapter CODE (not just the schema) persists to cloud Postgres end-to-end. Then commit a `docs`/`test` note + push.
+## Completed slice — cloud-persistence verification
+- Added `SANCTUARY_OS_POSTGRES_URL` locally in gitignored `apps/api/.env` via a hidden password prompt; do not commit or print the value.
+- Ran the live Supabase adapter-level smoke against the session-pooler URL. It initially exposed a real PostgreSQL null-bind inference bug in optional filters such as `? IS NULL OR song_id = ?`.
+- Fixed the operator SQL repositories to cast optional null-guard bind parameters as text while preserving SQLite compatibility.
+- Verification passed:
+  - `SANCTUARY_OS_POSTGRES_URL=<set> pnpm --filter @sanctuary-os/api exec vitest run src/services/charts/postgresql-integration.test.ts`
+  - `pnpm --filter @sanctuary-os/db exec vitest run src/charts-sql-repository.test.ts src/play-sql-repository.test.ts src/community-sql-repository.test.ts src/obs-sql-repository.test.ts`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+
+## NEXT slice — choose the next gated path
+- **Recommended next:** Live OBS verification if the user has OBS Studio open with obs-websocket v5 enabled and can provide the host/port/password locally.
+- Alternative: choose/build comms carrier adapter (Twilio / Resend / SendGrid).
+- Alternative: start Phase 2 production auth decision (Supabase Auth / Auth0 / Clerk).
 
 ## Remaining gated paths (need a user credential / account / hardware / decision)
 - Live OBS: the real obs-websocket-v5 adapter is BUILT + unit-tested (`apps/api/src/services/obs/obs-websocket-control-port.ts`, commit `3f59618`). Needs only a running OBS Studio (obs-websocket v5 enabled) + host/port/password to live-verify: connect an `OBSWebSocket` and pass `createObsWebSocketControlPort({ client })` as the OBS persistence selection's `controlPort` behind the existing confirm gate.

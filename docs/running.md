@@ -101,8 +101,8 @@ GraphQL contract.
   `ANTHROPIC_API_KEY`; demo uses fakes without a key). See "Live AI" below.
 - **Cloud Postgres** — the 4 modules run over PostgreSQL via a `?`→`$N` translator
   (SQLite SQL untouched); the 26-table schema is **deployed + SQL-verified on
-  Supabase**. Full adapter verify needs `SANCTUARY_OS_POSTGRES_URL` in `apps/api/.env`
-  then `dev:postgres` / the postgres integration test. See "Live OBS" / status notes.
+  Supabase**, and the live adapter-level smoke passes against the Supabase session
+  pooler when `SANCTUARY_OS_POSTGRES_URL` is set in `apps/api/.env`.
 - **Live OBS** — real obs-websocket-v5 adapter
   (`apps/api/src/services/obs/obs-websocket-control-port.ts`), unit-tested; wire a
   connected `OBSWebSocket` (host/port/password from the vault) behind the existing

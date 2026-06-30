@@ -390,7 +390,7 @@ export const createPlayQuerySqlRepository = (
       sql: `
 SELECT ${PAD_LAYER_COLUMNS}
 FROM pad_layers
-WHERE tenant_id = ? AND (? IS NULL OR song_id = ?)
+WHERE tenant_id = ? AND (CAST(? AS TEXT) IS NULL OR song_id = ?)
 ORDER BY pad_layer_ref
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -459,7 +459,7 @@ ORDER BY section_id
       sql: `
 SELECT ${TRACK_SET_COLUMNS}
 FROM track_sets
-WHERE tenant_id = ? AND (? IS NULL OR song_id = ?)
+WHERE tenant_id = ? AND (CAST(? AS TEXT) IS NULL OR song_id = ?)
 ORDER BY song_id, track_set_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)

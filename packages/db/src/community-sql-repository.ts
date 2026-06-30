@@ -647,8 +647,8 @@ ORDER BY attendance_id
 SELECT ${ATTENDANCE_COLUMNS}
 FROM attendance_records
 WHERE tenant_id = ?
-  AND (? IS NULL OR occasion_ref = ?)
-  AND (? IS NULL OR member_ref = ?)
+  AND (CAST(? AS TEXT) IS NULL OR occasion_ref = ?)
+  AND (CAST(? AS TEXT) IS NULL OR member_ref = ?)
 ORDER BY occasion_ref, attendance_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -669,7 +669,7 @@ ORDER BY occasion_ref, attendance_id
       sql: `
 SELECT ${COMMUNICATION_MESSAGE_COLUMNS}
 FROM communication_messages
-WHERE tenant_id = ? AND (? IS NULL OR status = ?)
+WHERE tenant_id = ? AND (CAST(? AS TEXT) IS NULL OR status = ?)
 ORDER BY created_at, message_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -707,7 +707,7 @@ ORDER BY recipient_id
       sql: `
 SELECT ${COMMUNITY_GROUP_COLUMNS}
 FROM community_groups
-WHERE tenant_id = ? AND (? IS NULL OR kind = ?)
+WHERE tenant_id = ? AND (CAST(? AS TEXT) IS NULL OR kind = ?)
 ORDER BY label, group_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -728,7 +728,7 @@ ORDER BY label, group_id
       sql: `
 SELECT ${ENGAGEMENT_SUMMARY_COLUMNS}
 FROM engagement_summaries
-WHERE tenant_id = ? AND (? IS NULL OR scope_kind = ?)
+WHERE tenant_id = ? AND (CAST(? AS TEXT) IS NULL OR scope_kind = ?)
 ORDER BY summary_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -788,8 +788,8 @@ ORDER BY label, household_ref
 SELECT ${MEMBER_COLUMNS}
 FROM members
 WHERE tenant_id = ?
-  AND (? IS NULL OR household_ref = ?)
-  AND (? IS NULL OR status = ?)
+  AND (CAST(? AS TEXT) IS NULL OR household_ref = ?)
+  AND (CAST(? AS TEXT) IS NULL OR status = ?)
 ORDER BY display_name, member_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)

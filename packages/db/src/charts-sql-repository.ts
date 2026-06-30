@@ -238,7 +238,7 @@ export const createChartsQuerySqlRepository = (
       sql: `
 SELECT tenant_id, annotation_id, chart_id, musician_id, section_index, line_index, kind, note, color, created_at, updated_at
 FROM chart_annotations
-WHERE tenant_id = ? AND chart_id = ? AND (? IS NULL OR musician_id = ?)
+WHERE tenant_id = ? AND chart_id = ? AND (CAST(? AS TEXT) IS NULL OR musician_id = ?)
 ORDER BY section_index, line_index, annotation_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -273,7 +273,7 @@ ORDER BY label, arrangement_ref
       sql: `
 SELECT ${CHART_COLUMNS}
 FROM charts
-WHERE tenant_id = ? AND (? IS NULL OR song_id = ?)
+WHERE tenant_id = ? AND (CAST(? AS TEXT) IS NULL OR song_id = ?)
 ORDER BY song_id, chart_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)

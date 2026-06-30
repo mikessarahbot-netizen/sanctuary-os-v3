@@ -409,7 +409,7 @@ describe("OBS SQL repository (recording executor)", () => {
     const [statement] = statements;
     expect(statement?.sql).toContain("WHERE tenant_id = ?");
     expect(statement?.sql).toContain("connection_profile_id = ?");
-    expect(statement?.sql).toContain("(? IS NULL OR scene_ref = ?)");
+    expect(statement?.sql).toContain("(CAST(? AS TEXT) IS NULL OR scene_ref = ?)");
     expect(statement?.parameters).toEqual([
       TENANT,
       CONNECTION,

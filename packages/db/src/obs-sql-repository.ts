@@ -710,8 +710,8 @@ export const createObsQuerySqlRepository = (
 SELECT ${OBS_ACTION_INTENT_COLUMNS}
 FROM obs_action_intents
 WHERE tenant_id = ?
-  AND (? IS NULL OR connection_profile_id = ?)
-  AND (? IS NULL OR status = ?)
+  AND (CAST(? AS TEXT) IS NULL OR connection_profile_id = ?)
+  AND (CAST(? AS TEXT) IS NULL OR status = ?)
 ORDER BY created_at, action_intent_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -736,7 +736,7 @@ SELECT ${OBS_ACTION_LOG_COLUMNS}
 FROM obs_action_log_entries
 WHERE tenant_id = ?
   AND connection_profile_id = ?
-  AND (? IS NULL OR action_intent_ref = ?)
+  AND (CAST(? AS TEXT) IS NULL OR action_intent_ref = ?)
 ORDER BY occurred_at, log_entry_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -761,7 +761,7 @@ ORDER BY occurred_at, log_entry_id
       sql: `
 SELECT ${OBS_CONNECTION_PROFILE_COLUMNS}
 FROM obs_connection_profiles
-WHERE tenant_id = ? AND (? IS NULL OR connection_status = ?)
+WHERE tenant_id = ? AND (CAST(? AS TEXT) IS NULL OR connection_status = ?)
 ORDER BY label, connection_profile_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)
@@ -786,7 +786,7 @@ SELECT ${OBS_SCENE_ITEM_COLUMNS}
 FROM obs_scene_items
 WHERE tenant_id = ?
   AND connection_profile_id = ?
-  AND (? IS NULL OR scene_ref = ?)
+  AND (CAST(? AS TEXT) IS NULL OR scene_ref = ?)
 ORDER BY order_hint, scene_item_id
 `.trim(),
       ...optionalTransaction(operation.options.transaction)

@@ -322,8 +322,8 @@ describe("Community SQL repository (recording executor)", () => {
     const [statement] = statements;
     expect(statement?.name).toBe("community.attendance.list_for_tenant");
     expect(statement?.sql).toContain("WHERE tenant_id = ?");
-    expect(statement?.sql).toContain("(? IS NULL OR occasion_ref = ?)");
-    expect(statement?.sql).toContain("(? IS NULL OR member_ref = ?)");
+    expect(statement?.sql).toContain("(CAST(? AS TEXT) IS NULL OR occasion_ref = ?)");
+    expect(statement?.sql).toContain("(CAST(? AS TEXT) IS NULL OR member_ref = ?)");
     // tenant, then the occasion + member filters each repeated for the null guard.
     expect(statement?.parameters).toEqual([TENANT, null, null, null, null]);
   });
