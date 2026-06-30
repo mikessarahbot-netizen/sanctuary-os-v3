@@ -2,6 +2,26 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-30 - feature/presenter-release-handoff - Live OBS verification complete
+
+Tasks completed:
+- Continued the presenter-release-handoff branch in a fresh Claude worktree (`pnpm install` first — node_modules absent in a new worktree).
+- Confirmed via screen control that OBS Studio v32.1.2 was running with the obs-websocket v5 server already enabled (port 4455, auth on) and read its connection info; added `SANCTUARY_OS_OBS_URL=ws://127.0.0.1:4455` + `SANCTUARY_OS_OBS_PASSWORD` to gitignored `apps/api/.env` via the clipboard (password never printed). Added a second OBS scene ("Sermon") so a program-scene switch is observable.
+- Added a runnable live smoke `apps/api/src/demo/obs-live-smoke.ts` + `obs:smoke` script. It connects a real `OBSWebSocket`, wires `createObsWebSocketControlPort({ client })` into the in-memory OBS service's `controlPort`, then drives a program-scene switch through `requestObsAction(switch-scene) → confirmObsAction → dispatchObsAction` and asserts the move via a live `getCurrentProgramScene` read, then restores. The only direct port call is the read-only verification read; the gate is never bypassed; no stream/recording action is ever issued.
+
+Validation:
+- `pnpm --filter @sanctuary-os/api obs:smoke` PASSED live: read live scenes (Sermon, Scene), switched Scene → Sermon through the gate, live read confirmed "program scene is now: Sermon", restored to Scene.
+- `pnpm lint` passed. `pnpm typecheck` passed (5 projects).
+- `pnpm test` passed: church-context 5, db 472, api 920 (+3 skipped without live Postgres env), desktop 89, web 239.
+
+Next task:
+- Choose the next gated path. Recommended: build the comms carrier send-port adapter once the user picks a provider (Twilio / Resend / SendGrid) + API key + verified sender — the one outbound path with no real adapter yet. Alternatives: Phase 2 production auth decision (Supabase Auth / Auth0 / Clerk); deploy/CI (needs explicit OK).
+
+Open questions:
+- Comms provider choice + credentials.
+- Production auth provider.
+- Deploy host / CI permission.
+
 ## 2026-06-30 - feature/presenter-release-handoff - Cloud Postgres adapter verification complete
 
 Tasks completed:

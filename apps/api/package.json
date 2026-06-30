@@ -31,7 +31,8 @@
     "dev": "tsx src/demo/server.ts",
     "dev:persistent": "tsx src/demo/persistent-server.ts",
     "dev:postgres": "tsx src/demo/postgres-server.ts",
-    "ai:smoke": "tsx src/demo/ai-smoke-test.ts"
+    "ai:smoke": "tsx src/demo/ai-smoke-test.ts",
+    "obs:smoke": "tsx src/demo/obs-live-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

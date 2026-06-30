@@ -104,9 +104,11 @@ GraphQL contract.
   Supabase**, and the live adapter-level smoke passes against the Supabase session
   pooler when `SANCTUARY_OS_POSTGRES_URL` is set in `apps/api/.env`.
 - **Live OBS** — real obs-websocket-v5 adapter
-  (`apps/api/src/services/obs/obs-websocket-control-port.ts`), unit-tested; wire a
-  connected `OBSWebSocket` (host/port/password from the vault) behind the existing
-  confirm gate to go live.
+  (`apps/api/src/services/obs/obs-websocket-control-port.ts`), unit-tested **and
+  LIVE-verified** against a running OBS Studio: `pnpm --filter @sanctuary-os/api
+  obs:smoke` connects an `OBSWebSocket` (url/password from `apps/api/.env`), wires
+  the real port into the in-memory OBS service, and switches the program scene
+  through the confirm gate.
 
 **Still needs an account / hardware / product decision:**
 
@@ -149,9 +151,13 @@ It ships a real, obs-websocket-v5-backed adapter
 (`createObsWebSocketControlPort`) built on the official `obs-websocket-js` v5 SDK
 (the typed client for OBS Studio 28+'s obs-websocket v5), alongside the fake
 (`createFakeObsControlPort`) the demo servers and every unit test use. The real
-adapter is **unit-tested with an injected fake client but not live-verified** —
-going live needs a reachable OBS Studio instance with obs-websocket enabled and its
-connection details (host/port/password). The demo servers keep using the fake
+adapter is **unit-tested with an injected fake client AND live-verified** against a
+running OBS Studio (v32.1.2, obs-websocket v5) via `pnpm --filter
+@sanctuary-os/api obs:smoke` (`apps/api/src/demo/obs-live-smoke.ts`) — it reads
+`SANCTUARY_OS_OBS_URL`/`SANCTUARY_OS_OBS_PASSWORD` from `apps/api/.env`, connects an
+`OBSWebSocket`, wires the real port into the in-memory OBS service, and switches the
+program scene through the request → confirm → dispatch gate (scene-switch only; it
+never starts/stops a stream or recording). The demo servers keep using the fake
 control port and need no OBS.
 
 **Secret posture (unchanged by going live).** The adapter never reads, stores, or
