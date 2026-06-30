@@ -2,6 +2,32 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-30 - feature/presenter-release-handoff - Cloud Postgres adapter verification complete
+
+Tasks completed:
+- Continued from the advanced worktree `/Users/SarahBot/.codex/worktrees/presenter-release-handoff`, not the stale scaffold branch and not `feature/presenter-domain-contracts`.
+- Used Supabase "Claude Projects" (`kmprojychrtodbemvwcd`) session-pooler URI and a hidden local password prompt to add `SANCTUARY_OS_POSTGRES_URL` to gitignored `apps/api/.env`; do not print or commit the value.
+- Ran the live Supabase operator-module Postgres smoke. It initially failed on `charts.list`, exposing PostgreSQL null-bind inference in optional filters of the form `? IS NULL OR column = ?`.
+- Fixed optional filter null guards across the operator SQL repositories by changing them to `CAST(? AS TEXT) IS NULL OR column = ?`, preserving SQLite compatibility while giving PostgreSQL a concrete bind type.
+- Updated focused SQL assertion tests and the handoff docs.
+- Verified and pushed commit `7b0406c` (`fix(db): verify operator postgres filters`) to `origin/feature/presenter-release-handoff`.
+
+Validation:
+- `SANCTUARY_OS_POSTGRES_URL=<set> pnpm --filter @sanctuary-os/api exec vitest run src/services/charts/postgresql-integration.test.ts` passed against live Supabase.
+- `pnpm --filter @sanctuary-os/db exec vitest run src/charts-sql-repository.test.ts src/play-sql-repository.test.ts src/community-sql-repository.test.ts src/obs-sql-repository.test.ts` passed.
+- `pnpm lint` passed.
+- `pnpm typecheck` passed.
+- `pnpm test` passed: db 472, api 920 (+3 skipped without live Postgres env during ordinary suite), web 239, desktop 89, church-context 5.
+
+Next task:
+- Choose the next gated path. Recommended: live OBS verification if the user has OBS Studio running with obs-websocket v5 enabled and can provide host/port/password locally. Alternatives: choose/build comms carrier adapter (Twilio / Resend / SendGrid), or start Phase 2 production auth decision (Supabase Auth / Auth0 / Clerk).
+
+Open questions:
+- OBS live verification credentials/hardware.
+- Comms provider choice.
+- Production auth provider.
+- Deploy host / CI permission.
+
 ## 2026-06-17 - feature/presenter-domain-contracts - Web depth: Play playback control (ALL 4 MODULES INTERACTIVE)
 
 Tasks completed:
