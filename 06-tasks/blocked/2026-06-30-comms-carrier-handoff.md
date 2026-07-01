@@ -1,4 +1,10 @@
-# Handoff — next slice: comms carrier send-port adapter
+# Handoff — comms carrier send-port adapter
+
+> **STATUS: DONE (2026-06-30).** Twilio SMS send-port adapter built + live-verified via `comms:smoke` (Twilio accepted a gated send). See `docs/session-summary.md` top entry and `NOW.md`. This note is kept for history; the next slice is **production auth** — see `2026-06-30-production-auth-handoff.md`. (Follow-up: re-run `comms:smoke` once the user's A2P clears to confirm real handset delivery.)
+
+---
+
+## Original note (now completed): comms carrier send-port adapter
 
 **Resume command:** start a fresh session from `agents.md` + `06-tasks/active/NOW.md`.
 

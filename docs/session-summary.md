@@ -2,6 +2,27 @@
 
 Format: date · branch · tasks completed · next task · open questions
 
+## 2026-06-30 - feature/presenter-release-handoff - Live comms (Twilio SMS) verification complete
+
+Tasks completed:
+- Built the real Twilio SMS send-port adapter `apps/api/src/services/community/twilio-send-port.ts` (`createTwilioSendPort`), replacing the fake `CommunicationSendPort`. Mirrors the OBS/AI real-port pattern: injected SDK-typed client + injected contact/body resolvers owned by the composition root (the send-port contract carries only an opaque vault channelRef + messageId — no phone number, no body — so the adapter takes resolvers, exactly like the OBS adapter's caller owns secret resolution). Never reads SID/token, never logs recipient PII; Twilio errors map to a fixed redacted table.
+- Fixed a CJS→ESM break: `import { RestException } from "twilio"` compiles + passes vitest but throws under Node ESM (twilio is CommonJS and doesn't re-export it as a named binding). Switched to structural error classification by numeric `code`/`status`. Caught only by running the live smoke — tsc + vitest were both green with the bad import.
+- Added runnable live smoke `apps/api/src/demo/comms-live-smoke.ts` + `comms:smoke` script; exported the adapter from `community/index.ts`; added `twilio@^5.13.1`.
+- User set up their own Twilio account (I declined to create it / handle the password — prohibited). User's A2P (sole-proprietor 10DLC) is a mock brand under carrier review; SMS shows "registration required". Proceeded to verify the adapter+gate against live Twilio regardless.
+
+Validation:
+- `pnpm --filter @sanctuary-os/api comms:smoke` PASSED live: one SMS driven `draft→review→confirm→queue` through the consent + human-confirm gate (never calling `sendPort.send` directly), and Twilio ACCEPTED it (status `sent`). NOTE: acceptance proves the adapter+gate; final US handset delivery may still be gated on A2P approval (check the Twilio Console message log).
+- `pnpm lint` + `pnpm typecheck` (5 projects) green.
+- `pnpm test` green: church-context 5, db 472, api 927 (+3 skipped without live Postgres env; +7 new Twilio adapter tests incl. a gate test over real node:sqlite proving an unconfirmed/AI-drafted message never reaches `messages.create`), desktop 89, web 239.
+
+Next task:
+- Phase 2 production auth decision (Supabase Auth / Auth0 / Clerk) — replace the demo AuthBoundary. Alternative: deploy/CI (needs explicit OK). Follow-up: re-run `comms:smoke` once A2P clears to confirm real handset delivery.
+
+Open questions:
+- Production auth provider.
+- Twilio A2P approval (out of our hands; under carrier review).
+- Deploy host / CI permission.
+
 ## 2026-06-30 - feature/presenter-release-handoff - Live OBS verification complete
 
 Tasks completed:

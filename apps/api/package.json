@@ -32,7 +32,8 @@
     "dev:persistent": "tsx src/demo/persistent-server.ts",
     "dev:postgres": "tsx src/demo/postgres-server.ts",
     "ai:smoke": "tsx src/demo/ai-smoke-test.ts",
-    "obs:smoke": "tsx src/demo/obs-live-smoke.ts"
+    "obs:smoke": "tsx src/demo/obs-live-smoke.ts",
+    "comms:smoke": "tsx src/demo/comms-live-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
@@ -42,6 +43,7 @@
     "dotenv": "^17.4.2",
     "graphql": "^16.14.2",
     "obs-websocket-js": "^5.0.8",
+    "twilio": "^5.13.1",
     "zod": "^3.25.67"
   },
   "devDependencies": {

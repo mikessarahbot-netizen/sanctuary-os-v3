@@ -110,10 +110,17 @@ GraphQL contract.
   the real port into the in-memory OBS service, and switches the program scene
   through the confirm gate.
 
+- **Comms carrier (Twilio SMS)** — real send-port adapter
+  (`apps/api/src/services/community/twilio-send-port.ts`, `createTwilioSendPort`),
+  unit-tested **and LIVE-verified**: `pnpm --filter @sanctuary-os/api comms:smoke`
+  drives one SMS through the consent + human-confirm gate and Twilio accepted it.
+  Needs `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_FROM_NUMBER`/`TWILIO_TEST_TO`
+  in `apps/api/.env`. Real US handset delivery may still require A2P/10DLC approval.
+
 **Still needs an account / hardware / product decision:**
 
-- **Comms carrier** — pick a provider (Twilio / Resend / SendGrid) + API key to
-  replace the fake send port.
+- **Production auth** — pick a provider (Supabase Auth / Auth0 / Clerk) to replace
+  the demo `AuthBoundary`.
 - **Native shells** — the Tauri desktop shell (Rust toolchain) and the Expo mobile
   app (`apps/mobile` is a placeholder + a UX decision).
 - **Deploy / CI** — a host + a GitHub Actions workflow.
