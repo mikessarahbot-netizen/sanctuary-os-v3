@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/SarahBot/.codex/worktrees/presenter-release-handoff && exec pnpm --filter @sanctuary-os/web dev"
+      ],
+      "port": 5173
+    }
+  ]
+}
