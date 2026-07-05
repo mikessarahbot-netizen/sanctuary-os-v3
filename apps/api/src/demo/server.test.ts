@@ -1,5 +1,8 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createDemoServer, DemoAuthBoundary } from "./server.js";
 
@@ -690,6 +693,74 @@ describe("createDemoServer", () => {
       (scene) => scene.isCurrentProgramScene
     );
     expect(program?.obsSceneRef).toBe("scene-worship");
+  });
+
+  it("VOICE: answers an allowed read query on POST /voice/ask from the seeded data", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "voice-audit-"));
+    const auditPath = join(dir, "voice-audit.jsonl");
+    const { seed, server } = createDemoServer({
+      voiceAuditLogPath: auditPath,
+      voiceKey: "demo-voice-key"
+    });
+    await seed();
+    const endpoint = (await startServer(server)).replace("/graphql", "/voice/ask");
+
+    const response = await fetch(endpoint, {
+      body: JSON.stringify({ request: "What songs are we singing on Sunday?" }),
+      headers: {
+        authorization: "Bearer demo-voice-key",
+        "content-type": "application/json"
+      },
+      method: "POST"
+    });
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as { speech?: string; status?: string };
+    expect(payload.status).toBe("answered");
+    expect(payload.speech).toContain("Amazing Grace");
+
+    // One redacted JSONL audit line was written for the request.
+    const lines = (await readFile(auditPath, "utf8")).trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('"status":"answered"');
+    expect(lines[0]).not.toContain("demo-voice-key");
+  });
+
+  it("VOICE: rejects a wrong bearer key with 401 and answers 503 when no key is configured", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "voice-audit-"));
+    const keyed = createDemoServer({
+      voiceAuditLogPath: join(dir, "keyed.jsonl"),
+      voiceKey: "demo-voice-key"
+    });
+    await keyed.seed();
+    const keyedEndpoint = (await startServer(keyed.server)).replace(
+      "/graphql",
+      "/voice/ask"
+    );
+
+    const wrongKey = await fetch(keyedEndpoint, {
+      body: JSON.stringify({ request: "is the stream live?" }),
+      headers: { authorization: "Bearer wrong", "content-type": "application/json" },
+      method: "POST"
+    });
+    expect(wrongKey.status).toBe(401);
+
+    const keyless = createDemoServer({ voiceAuditLogPath: join(dir, "keyless.jsonl") });
+    await keyless.seed();
+    const keylessEndpoint = (await startServer(keyless.server)).replace(
+      "/graphql",
+      "/voice/ask"
+    );
+
+    const disabled = await fetch(keylessEndpoint, {
+      body: JSON.stringify({ request: "is the stream live?" }),
+      headers: {
+        authorization: "Bearer demo-voice-key",
+        "content-type": "application/json"
+      },
+      method: "POST"
+    });
+    expect(disabled.status).toBe(503);
   });
 
   it("rejects a request with no Authorization header", async () => {

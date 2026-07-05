@@ -13,6 +13,12 @@ import type { CommunityAiDraftPort } from "../services/community/ai-draft.js";
 import type { ObsAiSuggestionPort } from "../services/obs/ai-suggest.js";
 import { resolveCommunityAiDraftPort } from "./community-ai.js";
 import { resolveObsAiSuggestionPort } from "./obs-ai.js";
+import { createDemoVoiceAnswerers } from "./voice-answerers.js";
+import {
+  createJsonlVoiceAuditLog,
+  createVoiceAskHandler,
+  DEFAULT_VOICE_AUDIT_LOG_PATH
+} from "../voice/bridge.js";
 import {
   buildDemoSchema,
   createDemoClock,
@@ -96,6 +102,19 @@ export interface CreateDemoServerOptions {
    */
   readonly obsAiSuggestionPort?: ObsAiSuggestionPort;
   readonly path?: string;
+  /**
+   * JSONL audit-log path for the voice bridge. Defaults to
+   * `./logs/voice-audit.jsonl` (gitignored). `main()` resolves it from
+   * `SANCTUARY_OS_VOICE_AUDIT_LOG`.
+   */
+  readonly voiceAuditLogPath?: string;
+  /**
+   * Shared bearer key for `POST /voice/ask`. Unset (the default) ⇒ the voice
+   * bridge is DISABLED and the endpoint answers 503. `main()` resolves it from
+   * `SANCTUARY_OS_VOICE_KEY` (after dotenv) and passes it here — the key is
+   * never logged.
+   */
+  readonly voiceKey?: string;
 }
 
 /**
@@ -143,11 +162,22 @@ export const createDemoServer = (
       : {})
   });
 
-  const schema = buildDemoSchema({ charts, community, obs, play, presenter });
+  const adapters = { charts, community, obs, play, presenter };
+  const schema = buildDemoSchema(adapters);
+
+  // Voice bridge: POST /voice/ask, bearer-keyed + policy-gated. With no
+  // voiceKey the handler still mounts but answers 503 (disabled) — the demo
+  // server never exposes an unauthenticated voice surface.
+  const voiceAskHandler = createVoiceAskHandler({
+    answerers: createDemoVoiceAnswerers(adapters),
+    audit: createJsonlVoiceAuditLog(options.voiceAuditLogPath ?? DEFAULT_VOICE_AUDIT_LOG_PATH),
+    ...(options.voiceKey !== undefined ? { voiceKey: options.voiceKey } : {})
+  });
 
   const authBoundary = new DemoAuthBoundary();
   const server = createPresenterGraphqlHttpServer({
     authBoundary,
+    extraInvocationHandler: voiceAskHandler,
     schema,
     ...(options.path !== undefined ? { path: options.path } : {})
   });
@@ -190,9 +220,13 @@ const main = async (): Promise<void> => {
 
   const communityAiDraftPort = resolveCommunityAiDraftPort();
   const obsAiSuggestionPort = resolveObsAiSuggestionPort();
+  const voiceKey = process.env["SANCTUARY_OS_VOICE_KEY"];
+  const voiceAuditLogPath = process.env["SANCTUARY_OS_VOICE_AUDIT_LOG"];
   const { seed, server } = createDemoServer({
     ...(communityAiDraftPort !== undefined ? { communityAiDraftPort } : {}),
-    ...(obsAiSuggestionPort !== undefined ? { obsAiSuggestionPort } : {})
+    ...(obsAiSuggestionPort !== undefined ? { obsAiSuggestionPort } : {}),
+    ...(voiceAuditLogPath !== undefined ? { voiceAuditLogPath } : {}),
+    ...(voiceKey !== undefined ? { voiceKey } : {})
   });
   await seed();
 
@@ -215,6 +249,14 @@ const main = async (): Promise<void> => {
         obsAiSuggestionPort !== undefined
           ? "live Anthropic (ANTHROPIC_API_KEY detected)"
           : "disabled (no ANTHROPIC_API_KEY) — demo uses the fake suggestion"
+      }`
+    );
+    // Whether the voice bridge is on — NEVER the key itself.
+    console.log(
+      `Voice bridge (POST /voice/ask): ${
+        voiceKey !== undefined && voiceKey.length > 0
+          ? "enabled (SANCTUARY_OS_VOICE_KEY detected)"
+          : "disabled (no SANCTUARY_OS_VOICE_KEY) — endpoint answers 503"
       }`
     );
   });

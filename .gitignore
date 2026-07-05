@@ -11,3 +11,7 @@ coverage/
 # sidecars so a local durability run is never committed.
 .sanctuary-demo.db
 .sanctuary-demo.db-*
+
+# Voice-bridge JSONL audit log (apps/api POST /voice/ask, default
+# ./logs/voice-audit.jsonl). Local operational record only — never committed.
+logs/
