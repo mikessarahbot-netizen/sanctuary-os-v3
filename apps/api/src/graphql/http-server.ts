@@ -108,6 +108,15 @@ export const handlePresenterGraphqlHttpInvocation = async (
 
 export interface PresenterGraphqlHttpServerDependencies {
   readonly authBoundary: AuthBoundary;
+  /**
+   * Optional non-GraphQL route handler, consulted BEFORE the GraphQL path.
+   * Returns a result to serve the invocation itself, or `undefined` to fall
+   * through to the GraphQL transport (which 404s unknown paths as before).
+   * Used by the demo server to mount the voice bridge's `POST /voice/ask`.
+   */
+  readonly extraInvocationHandler?: (
+    invocation: PresenterGraphqlHttpInvocation
+  ) => Promise<PresenterGraphqlHttpResult | undefined>;
   readonly generateRequestId?: () => string;
   readonly path?: string;
   readonly schema: GraphQLSchema;
@@ -132,16 +141,22 @@ export const createPresenterGraphqlHttpServer = (
       chunks.push(chunk);
     });
     request.on("end", () => {
-      void handlePresenterGraphqlHttpInvocation(
-        handler,
-        {
-          headers: request.headers,
-          method: request.method,
-          path: request.url,
-          rawBody: Buffer.concat(chunks).toString("utf8")
-        },
-        { path }
-      )
+      const invocation: PresenterGraphqlHttpInvocation = {
+        headers: request.headers,
+        method: request.method,
+        path: request.url,
+        rawBody: Buffer.concat(chunks).toString("utf8")
+      };
+      const respond = async (): Promise<PresenterGraphqlHttpResult> => {
+        const extra =
+          dependencies.extraInvocationHandler !== undefined
+            ? await dependencies.extraInvocationHandler(invocation)
+            : undefined;
+
+        return extra ?? handlePresenterGraphqlHttpInvocation(handler, invocation, { path });
+      };
+
+      void respond()
         .then((result) => {
           response.writeHead(result.status, result.headers);
           response.end(result.body);
